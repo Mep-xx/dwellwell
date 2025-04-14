@@ -70,6 +70,7 @@ export default function Trackables() {
       toast({
         title: "Trackable deleted",
         description: "The trackable was successfully removed.",
+        variant: "destructive",
       });
     } catch (err) {
       console.error('Failed to delete trackable:', err);

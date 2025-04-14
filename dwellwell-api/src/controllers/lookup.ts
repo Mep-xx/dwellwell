@@ -2,10 +2,10 @@ import { Request, Response } from 'express';
 import { prisma } from '../db/prisma';
 
 export const searchApplianceCatalog = async (req: Request, res: Response) => {
-  const query = (req.query.q as string || '').toLowerCase();
+  const query = req.query.q as string;
 
   if (!query || query.length < 3) {
-    return res.json([]);
+    return res.status(400).json({ error: 'Query too short' });
   }
 
   try {
@@ -22,7 +22,7 @@ export const searchApplianceCatalog = async (req: Request, res: Response) => {
 
     res.json(results);
   } catch (err) {
-    console.error('Error searching appliance catalog:', err);
-    res.status(500).json({ message: 'Internal server error' });
+    console.error('Search error:', err);
+    res.status(500).json({ error: 'Server error' });
   }
 };

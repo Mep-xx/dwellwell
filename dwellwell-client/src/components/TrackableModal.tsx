@@ -1,16 +1,25 @@
 import { useState, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
+import api from 'axios';
 import { sanitize } from '../utils/sanitize';
-import axios from 'axios';
 import type { Trackable, TrackableCategory } from '../../../dwellwell-api/src/shared/types/trackable';
+
+// Props and types
+
+type Props = {
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (trackable: Trackable) => void;
+  initialData?: Trackable | null;
+};
 
 type ApplianceLookup = {
   brand: string;
   model: string;
   type: string;
-  category: TrackableCategory;
+  category: string;
   notes?: string;
-  image?: string;
+  imageUrl?: string;
 };
 
 const categories: { label: string; value: TrackableCategory }[] = [
@@ -25,13 +34,6 @@ const categories: { label: string; value: TrackableCategory }[] = [
   { label: 'Plumbing', value: 'plumbing' },
   { label: 'General', value: 'general' },
 ];
-
-type Props = {
-  isOpen: boolean;
-  onClose: () => void;
-  onSave: (trackable: Trackable) => void;
-  initialData?: Trackable | null;
-};
 
 export default function TrackableModal({ isOpen, onClose, onSave, initialData }: Props) {
   const [form, setForm] = useState<Trackable>({
@@ -48,7 +50,7 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
 
   const [suggestions, setSuggestions] = useState<ApplianceLookup[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [lookupTimer, setLookupTimer] = useState<NodeJS.Timeout | null>(null);
+  const [lookupTimer, setLookupTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (initialData) {
@@ -59,7 +61,9 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
   }, [initialData]);
 
   useEffect(() => {
-    if (isOpen && !initialData) resetForm();
+    if (isOpen && !initialData) {
+      resetForm();
+    }
   }, [isOpen, initialData]);
 
   const resetForm = () => {
@@ -82,26 +86,32 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
     const { name, value } = e.target;
     setForm(prev => ({ ...prev, [name]: value }));
 
-    if (name === 'name') {
-      if (value.length >= 3) {
-        if (lookupTimer) clearTimeout(lookupTimer);
-        const timer = setTimeout(async () => {
-          try {
-            const res = await axios.get(`/lookup/appliances?query=${encodeURIComponent(value)}`);
-            const results = Array.isArray(res.data) ? res.data : [];
-            setSuggestions(results);
-            setShowSuggestions(results.length > 0);
-          } catch (err) {
-            console.error('Lookup failed:', err);
+    if (name === 'name' && value.length >= 3) {
+      if (lookupTimer) clearTimeout(lookupTimer);
+      const timer = setTimeout(async () => {
+        try {
+          const res = await api.get(`/lookup/appliances`, {
+            params: { q: value }
+          });
+          
+          console.log('Lookup response:', res.data);
+          if (Array.isArray(res.data)) {
+            setSuggestions(res.data);
+            setShowSuggestions(res.data.length > 0);
+          } else {
             setSuggestions([]);
             setShowSuggestions(false);
           }
-        }, 400);
-        setLookupTimer(timer);
-      } else {
-        setSuggestions([]);
-        setShowSuggestions(false);
-      }
+        } catch (err) {
+          console.error('Lookup failed:', err);
+          setSuggestions([]);
+          setShowSuggestions(false);
+        }
+      }, 400);
+      setLookupTimer(timer);
+    } else {
+      setSuggestions([]);
+      setShowSuggestions(false);
     }
   };
 
@@ -112,9 +122,9 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
       brand: sugg.brand,
       model: sugg.model,
       type: sugg.type,
-      category: sugg.category,
+      category: sugg.category as TrackableCategory,
       notes: sugg.notes || '',
-      image: sugg.image || '',
+      image: sugg.imageUrl || '',
     }));
     setSuggestions([]);
     setShowSuggestions(false);
@@ -167,7 +177,11 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
             {showSuggestions && Array.isArray(suggestions) && suggestions.length > 0 && (
               <ul className="absolute z-10 bg-white border rounded shadow w-full mt-1 max-h-40 overflow-y-auto">
                 {suggestions.map((s, idx) => (
-                  <li key={idx} onClick={() => applySuggestion(s)} className="p-2 hover:bg-blue-50 cursor-pointer text-sm">
+                  <li
+                    key={idx}
+                    onClick={() => applySuggestion(s)}
+                    className="p-2 hover:bg-blue-50 cursor-pointer text-sm"
+                  >
                     <strong>{s.brand}</strong> {s.model}
                   </li>
                 ))}
@@ -190,8 +204,8 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
 
           <input
             name="type"
-            value={form.type}
             autoComplete="off"
+            value={form.type}
             onChange={handleChange}
             placeholder="Type (e.g., Dishwasher)"
             className="w-full border rounded px-3 py-2"
@@ -199,8 +213,8 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
 
           <input
             name="brand"
-            value={form.brand}
             autoComplete="off"
+            value={form.brand}
             onChange={handleChange}
             placeholder="Brand"
             className="w-full border rounded px-3 py-2"
@@ -208,8 +222,8 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
 
           <input
             name="model"
-            value={form.model}
             autoComplete="off"
+            value={form.model}
             onChange={handleChange}
             placeholder="Model"
             className="w-full border rounded px-3 py-2"
@@ -217,8 +231,8 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
 
           <input
             name="serialNumber"
-            value={form.serialNumber}
             autoComplete="off"
+            value={form.serialNumber}
             onChange={handleChange}
             placeholder="Serial Number"
             className="w-full border rounded px-3 py-2"
@@ -227,7 +241,6 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
           <textarea
             name="notes"
             value={form.notes}
-            autoComplete="off"
             onChange={handleChange}
             placeholder="Notes"
             rows={3}
