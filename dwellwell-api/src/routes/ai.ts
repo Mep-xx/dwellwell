@@ -10,7 +10,7 @@ aiRouter.get('/lookup-appliance', async (req, res) => {
 
   try {
     const response = await openai.chat.completions.create({
-      model: 'gpt-4',
+      model: 'gpt-3.5-turbo',
       messages: [{
         role: 'user',
         content: `Suggest 3 appliances that match this description: "${query}". For each, return a JSON array with brand, model, type, category, and a short note.`,

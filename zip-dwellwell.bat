@@ -1,28 +1,25 @@
 @echo off
 setlocal
 
-:: Change this to your actual folder path if needed
-set PROJECT_DIR=%~dp0DwellWell
-set OUTPUT_ZIP=%~dp0DwellWell-clean.zip
+set "PROJECT_DIR=%~dp0"
+set "ZIP_FILE=%PROJECT_DIR%DwellWell-clean.zip"
 
-:: Delete old zip if it exists
-if exist "%OUTPUT_ZIP%" del "%OUTPUT_ZIP%"
+echo Zipping contents of: %PROJECT_DIR%
+echo Excluding node_modules, .git, build, dist, log/tmp...
 
-echo Creating zip archive without node_modules and other excluded folders...
+:: Remove previous zip if it exists
+if exist "%ZIP_FILE%" (
+  del "%ZIP_FILE%"
+)
 
-powershell -Command ^
-  "Compress-Archive -Path (Get-ChildItem '%PROJECT_DIR%' -Recurse -Force | Where-Object {
-    $_.FullName -notmatch '\\node_modules\\' -and
-    $_.FullName -notmatch '\\\.git\\' -and
-    $_.FullName -notmatch '\\dist\\' -and
-    $_.FullName -notmatch '\\build\\' -and
-    $_.FullName -notmatch '\\\.next\\' -and
-    $_.FullName -notmatch '\\\.turbo\\' -and
-    $_.FullName -notmatch '\\coverage\\' -and
-    $_.Name -notmatch '\.log$' -and
-    $_.Name -notmatch '\.tmp$'
-  } | Select-Object -ExpandProperty FullName) ^
-  -DestinationPath '%OUTPUT_ZIP%' -Force"
+powershell -NoProfile -Command ^
+  "$files = Get-ChildItem -Path '%PROJECT_DIR%' -Recurse -File | Where-Object { $_.FullName -notmatch 'node_modules|\\build|\\dist|\\.git|\\.next|\\.turbo|\\.vercel|\\.idea|\\.log$|\\.tmp$' }; Compress-Archive -Path $files.FullName -DestinationPath '%ZIP_FILE%' -Force"
 
-echo Done! Created: %OUTPUT_ZIP%
+if exist "%ZIP_FILE%" (
+  echo.
+  echo ✅ Zip created at: %ZIP_FILE%
+) else (
+  echo ❌ Failed to create zip file.
+)
+
 pause

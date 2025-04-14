@@ -4,7 +4,7 @@ export const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export const fetchApplianceSuggestions = async (query: string) => {
   const response = await openai.chat.completions.create({
-    model: 'gpt-4',
+    model: 'gpt-3.5-turbo',
     messages: [
       {
         role: 'system',
