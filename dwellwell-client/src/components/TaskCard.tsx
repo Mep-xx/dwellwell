@@ -48,7 +48,7 @@ export default function TaskCard({ task, onStatusChange }: Props) {
       <div className="mb-2">
         <div className="flex items-center gap-2 text-2xl">
           {icon}
-          <h3 className={`text-lg font-semibold ${task.status === 'completed' ? 'line-through' : ''}`}>
+          <h3 className={`text-lg font-semibold ${task.status === 'COMPLETED' ? 'line-through' : ''}`}>
             {task.title}
           </h3>
         </div>
@@ -57,8 +57,8 @@ export default function TaskCard({ task, onStatusChange }: Props) {
         )}
         <div className="mt-2 text-sm text-gray-600 space-y-1">
           <div>📅 Finish by <span className="font-medium">{task.dueDate}</span></div>
-          {task.estimatedMinutes && (
-            <div>⏱ {task.estimatedMinutes} min task</div>
+          {task.estimatedTimeMinutes && (
+            <div>⏱ {task.estimatedTimeMinutes} min task</div>
           )}
         </div>
       </div>
@@ -70,12 +70,12 @@ export default function TaskCard({ task, onStatusChange }: Props) {
         <div className="bg-gray-50 border border-gray-200 p-3 rounded text-sm space-y-2 text-gray-700">
           {task.description && <p>{task.description}</p>}
 
-          {task.recurrence && (
+          {task.recurrenceInterval && (
             <p>
               🔁 <strong>Recommended Frequency:</strong>{' '}
-              {task.recurrence.interval === 'every_n_days'
-                ? `Every ${task.recurrence.everyN} days`
-                : `Once per ${task.recurrence.interval.replace('ly', '')}`}
+              {task.recurrenceInterval === 'every_n_days'
+                ? `Every ${task.recurrenceInterval} days`
+                : `Once per ${task.recurrenceInterval.replace('ly', '')}`}
             </p>
           )}
 
@@ -152,9 +152,9 @@ export default function TaskCard({ task, onStatusChange }: Props) {
             </div>
           )}
 
-          {task.image && (
+          {task.imageUrl && (
             <img
-              src={task.image}
+              src={task.imageUrl}
               alt="Task item"
               className="mt-2 w-full max-h-48 object-cover rounded"
             />
@@ -166,7 +166,7 @@ export default function TaskCard({ task, onStatusChange }: Props) {
         className="flex flex-wrap gap-2 mt-4"
         onClick={e => e.stopPropagation()}
       >
-        {task.status === 'upcoming' && (
+        {task.status === 'PENDING' && (
           <>
             <button
               onClick={(e) => {
@@ -175,14 +175,14 @@ export default function TaskCard({ task, onStatusChange }: Props) {
                 setTimeout(() => {
                   e.currentTarget.classList.remove('scale-105');
                 }, 150);
-                handleAndCollapse('completed');
+                handleAndCollapse('COMPLETED');
               }}
               className="px-3 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200 text-sm transition-transform duration-150 ease-in-out"
             >
               ✅ Mark Complete
             </button>
             <button
-              onClick={() => handleAndCollapse('skipped')}
+              onClick={() => handleAndCollapse('SKIPPED')}
               className="px-3 py-1 bg-yellow-100 text-yellow-700 rounded hover:bg-yellow-200 text-sm"
             >
               ⏭ Skip
@@ -196,9 +196,9 @@ export default function TaskCard({ task, onStatusChange }: Props) {
           </>
         )}
 
-        {(task.status === 'completed' || task.status === 'skipped') && (
+        {(task.status === 'COMPLETED' || task.status === 'SKIPPED') && (
           <button
-            onClick={() => onStatusChange(task.id, 'upcoming')}
+            onClick={() => onStatusChange(task.id, 'PENDING')}
             className="px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 text-sm"
           >
             🔄 Reopen Task

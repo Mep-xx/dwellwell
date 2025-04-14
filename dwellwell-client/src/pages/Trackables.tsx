@@ -4,6 +4,9 @@ import TrackableModal from '../components/TrackableModal';
 import TrackableTaskModal from '../components/TrackableTaskModal';
 import type { Trackable } from '../../../dwellwell-api/src/shared/types/trackable';
 import type { Task } from '../../../dwellwell-api/src/shared/types/task';
+import { toast } from "@/components/ui/use-toast";
+import { motion, AnimatePresence } from "framer-motion";
+
 
 export default function Trackables() {
   const [trackables, setTrackables] = useState<Trackable[]>([]);
@@ -28,7 +31,7 @@ export default function Trackables() {
         setTrackables([]);
       });
   }, []);
-  
+
 
   const handleSave = async (newTrackable: Trackable) => {
     try {
@@ -52,11 +55,32 @@ export default function Trackables() {
       console.log('Viewing tasks for trackable:', selectedTrackable);
 
       setViewTasksFor(trackableId);
-      
+
     } catch (err) {
       console.error('Failed to fetch tasks:', err);
     }
   };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this trackable?')) return;
+
+    try {
+      await api.delete(`/trackables/${id}`);
+      setTrackables(prev => prev.filter(t => t.id !== id));
+      toast({
+        title: "Trackable deleted",
+        description: "The trackable was successfully removed.",
+      });
+    } catch (err) {
+      console.error('Failed to delete trackable:', err);
+      toast({
+        title: "Error deleting trackable",
+        description: "Something went wrong. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
 
   const selectedTrackable = viewTasksFor ? trackables.find(t => t.id === viewTasksFor) : null;
 
@@ -76,41 +100,53 @@ export default function Trackables() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {trackables.map((t) => (
-          <div
-            key={t.id}
-            className="bg-white rounded-xl shadow border border-gray-200 p-4 flex flex-col items-center text-center hover:shadow-md transition"
-          >
-            {t.image && (
-              <img
-                src={t.image}
-                alt={t.name}
-                className="w-24 h-24 object-contain mb-2"
-              />
-            )}
-            <h2 className="text-lg font-semibold">{t.name}</h2>
-            <p className="text-sm text-gray-600">{t.type}</p>
-            <p className="text-xs text-gray-500">{t.brand} {t.model}</p>
+        <AnimatePresence>
+          {trackables.map((t) => (
+            <motion.div
+              key={t.id}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.2 } }}
+              layout
+              className="rounded-xl border bg-card text-card-foreground shadow p-4"
+            >
+              {t.image && (
+                <img
+                  src={t.image}
+                  alt={t.name}
+                  className="w-24 h-24 object-contain mb-2"
+                />
+              )}
+              <h2 className="text-lg font-semibold">{t.name}</h2>
+              <p className="text-sm text-gray-600">{t.type}</p>
+              <p className="text-xs text-gray-500">{t.brand} {t.model}</p>
 
-            <div className="flex gap-4 mt-3">
-              <button
-                className="text-sm text-blue-600"
-                onClick={() => {
-                  setEditingTrackable(t);
-                  setShowModal(true);
-                }}
-              >
-                Edit
-              </button>
-              <button
-                className="text-sm text-indigo-600"
-                onClick={() => handleViewTasks(t.id)}
-              >
-                View Tasks
-              </button>
-            </div>
-          </div>
-        ))}
+              <div className="flex gap-4 mt-3">
+                <button
+                  className="text-sm text-blue-600"
+                  onClick={() => {
+                    setEditingTrackable(t);
+                    setShowModal(true);
+                  }}
+                >
+                  Edit
+                </button>
+                <button
+                  className="text-sm text-indigo-600"
+                  onClick={() => handleViewTasks(t.id)}
+                >
+                  View Tasks
+                </button>
+                <button
+                  className="text-sm text-red-600"
+                  onClick={() => handleDelete(t.id)}
+                >
+                  Delete
+                </button>
+              </div>
+            </motion.div>
+          ))}
+        </AnimatePresence>
       </div>
 
       <TrackableModal

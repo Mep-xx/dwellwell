@@ -111,3 +111,32 @@ export const createTrackable = async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Failed to create trackable' });
   }
 };
+
+export const deleteTrackable = async (req: Request, res: Response) => {
+  const userId = req.headers['x-user-id'] as string;
+  const { id } = req.params;
+
+  if (!userId) return res.status(400).json({ message: 'Missing user ID' });
+
+  try {
+    // Optional: verify ownership
+    const trackable = await prisma.trackable.findUnique({
+      where: { id },
+    });
+
+    if (!trackable || trackable.userId !== userId) {
+      return res.status(404).json({ message: 'Trackable not found' });
+    }
+
+    // Delete related tasks first (foreign key constraint)
+    await prisma.task.deleteMany({ where: { trackableId: id } });
+
+    // Now delete the trackable
+    await prisma.trackable.delete({ where: { id } });
+
+    res.status(204).send(); // no content
+  } catch (err) {
+    console.error('Failed to delete trackable:', err);
+    res.status(500).json({ error: 'Something went wrong' });
+  }
+};

@@ -190,7 +190,7 @@ export default function Dashboard() {
       </div>
 
       {/* All Tasks Complete Message */}
-      {visibleTasks.length > 0 && visibleTasks.every(t => t.status !== 'upcoming') && (
+      {visibleTasks.length > 0 && visibleTasks.every(t => t.status !== 'PENDING') && (
         <section className="bg-green-50 border border-green-200 rounded-xl p-6 shadow text-center">
           <h2 className="text-2xl font-bold text-green-700 mb-2">🎉 All Tasks Complete!</h2>
           <p className="text-gray-700 text-sm">You’ve crushed every task for this {timeframe}. Kick back and relax!</p>
@@ -208,8 +208,8 @@ export default function Dashboard() {
               const icon = categoryIcons[category as TaskCategory];
 
               const total = tasks.length;
-              const completed = tasks.filter(t => t.status === 'completed').length;
-              const skipped = tasks.filter(t => t.status === 'skipped').length;
+              const completed = tasks.filter(t => t.status === 'COMPLETED').length;
+              const skipped = tasks.filter(t => t.status === 'SKIPPED').length;
               const done = completed + skipped;
               const percent = Math.round((done / total) * 100);
 
