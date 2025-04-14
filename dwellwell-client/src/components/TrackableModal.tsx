@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import type { Trackable, TrackableCategory } from '../types/trackable';
+import type { Trackable, TrackableCategory } from '../../../dwellwell-api/src/shared/types/trackable';
 import { applianceLookup } from '../data/mockApplianceLookup';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -32,7 +32,7 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
     brand: '',
     model: '',
     serialNumber: '',
-    imageUrl: '',
+    image: '',
     notes: '',
   });
 
@@ -51,7 +51,7 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
         brand: '',
         model: '',
         serialNumber: '',
-        imageUrl: '',
+        image: '',
         notes: '',
       });
     }
@@ -67,7 +67,7 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
         brand: '',
         model: '',
         serialNumber: '',
-        imageUrl: '',
+        image: '',
         notes: '',
       });
       setSuggestions([]);
@@ -166,7 +166,7 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
           <input name="brand" autoComplete='off' value={form.brand} onChange={handleChange} placeholder="Brand" className="w-full border rounded px-3 py-2" />
           <input name="model" autoComplete='off' value={form.model} onChange={handleChange} placeholder="Model" className="w-full border rounded px-3 py-2" />
           <input name="serialNumber" autoComplete='off' value={form.serialNumber} onChange={handleChange} placeholder="Serial Number" className="w-full border rounded px-3 py-2" />
-          <input name="imageUrl" value={form.imageUrl} onChange={handleChange} placeholder="Image URL" className="w-full border rounded px-3 py-2" />
+          <input name="image" value={form.image} onChange={handleChange} placeholder="Image URL" className="w-full border rounded px-3 py-2" />
           <textarea name="notes" value={form.notes} onChange={handleChange} placeholder="Notes" rows={3} className="w-full border rounded px-3 py-2" />
 
           <div className="flex justify-end gap-2 pt-2">

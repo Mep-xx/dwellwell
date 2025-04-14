@@ -1,4 +1,4 @@
-export type TaskStatus = 'upcoming' | 'completed' | 'skipped';
+export type TaskStatus = 'PENDING' | 'COMPLETED' | 'SKIPPED';
 export type TaskCategory =
   | 'appliance'
   | 'bathroom'
@@ -17,26 +17,32 @@ export type TaskCategory =
 export type Task = {
   id: string;
   title: string;
-  dueDate: string;
-  status: TaskStatus;
+  description: string;
+  dueDate: string; // ISO string
+  status: 'PENDING' | 'COMPLETED' | 'SKIPPED';
   completedDate?: string;
-  itemName?: string;
-  category?: TaskCategory;
-  estimatedMinutes?: number;
-  description?: string;
+
+  itemName: string;
+  category: string;
+  location?: string;
+
+  estimatedTimeMinutes: number;
+  estimatedCost: number;
+  criticality: 'low' | 'medium' | 'high';
+
+  deferLimitDays: number;
+  canBeOutsourced: boolean;
+  canDefer: boolean;
+
+  recurrenceInterval: string;
+  taskType: 'GENERAL' | 'AI_GENERATED' | 'USER_DEFINED';
+
+  imageUrl?: string;
+  icon?: string;
+
   steps?: string[];
   equipmentNeeded?: string[];
   resources?: { label: string; url: string }[];
-  recurrence?: {
-    interval: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly' | 'every_n_days';
-    everyN?: number; // only if interval is 'every_n_days'
-  };  
-  criticality?: 'low' | 'medium' | 'high';
-  deferLimitDays?: number;
-  estimatedCost?: number;
-  canBeOutsourced?: boolean;
-  location?: string;
-  imageUrl?: string;
 };
 
 export type TaskTemplate = {
@@ -51,6 +57,6 @@ export type TaskTemplate = {
   canBeOutsourced?: boolean;
   category?: string;
   icon?: string;
-  imageUrl?: string | null;
+  image?: string | null;
   taskType?: 'GENERAL' | 'AI_GENERATED' | 'USER_DEFINED';
 };

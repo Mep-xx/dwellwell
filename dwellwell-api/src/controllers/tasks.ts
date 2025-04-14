@@ -4,26 +4,20 @@ import { prisma } from '../db/prisma';
 export const getTasks = async (req: Request, res: Response) => {
   try {
     const userId = req.headers['x-user-id'] as string;
-    const trackableName = req.query.trackable as string;
+    const trackableId = req.query.trackableId as string;
 
-    if (!userId || !trackableName) {
-      return res.status(400).json({ error: 'Missing user or trackable' });
-    }
-
-    const trackable = await prisma.trackable.findFirst({
-      where: {
-        name: trackableName,
-        userId,
-      },
-    });
-
-    if (!trackable) {
-      return res.status(404).json({ error: 'Trackable not found' });
+    if (!userId || !trackableId) {
+      return res.status(400).json({ error: 'Missing user ID or trackable ID' });
     }
 
     const tasks = await prisma.task.findMany({
-      where: { trackableId: trackable.id },
-      orderBy: { dueDate: 'asc' }, // optional
+      where: {
+        userId,
+        trackableId,
+      },
+      orderBy: {
+        dueDate: 'asc',
+      },
     });
 
     res.json(tasks);

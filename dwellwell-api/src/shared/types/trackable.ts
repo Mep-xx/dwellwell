@@ -18,6 +18,6 @@ export type Trackable = {
   brand?: string;
   model?: string;
   serialNumber?: string;
-  imageUrl?: string;
+  image?: string;
   notes?: string;
 };

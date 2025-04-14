@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Task } from '../../../shared/task';
+import { Task } from '../../../dwellwell-api/src/shared/types/task';
 import { categoryGradients } from '../data/mockTasks';
 
 type Props = {
@@ -152,9 +152,9 @@ export default function TaskCard({ task, onStatusChange }: Props) {
             </div>
           )}
 
-          {task.imageUrl && (
+          {task.image && (
             <img
-              src={task.imageUrl}
+              src={task.image}
               alt="Task item"
               className="mt-2 w-full max-h-48 object-cover rounded"
             />

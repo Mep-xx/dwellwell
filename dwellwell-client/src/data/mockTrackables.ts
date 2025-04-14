@@ -1,4 +1,4 @@
-import { Trackable } from '../types/trackable';
+import { Trackable } from '../../../dwellwell-api/src/shared/types/trackable';
 
 export const mockTrackables: Trackable[] = [
   {
@@ -9,7 +9,7 @@ export const mockTrackables: Trackable[] = [
     brand: 'Bosch',
     model: '300 Series',
     serialNumber: 'BOSCH123456',
-    imageUrl: '/images/dishwasher.png',
+    image: '/images/dishwasher.png',
     notes: 'Runs nightly with eco mode.',
   },
   {
@@ -20,7 +20,7 @@ export const mockTrackables: Trackable[] = [
     brand: 'ThermoSpas',
     model: 'Park Avenue',
     serialNumber: 'SPA7890',
-    imageUrl: '/images/hottub.png',
+    image: '/images/hottub.png',
     notes: 'Drained every 4 months. Use SpaGuard chemicals.',
   },
   {
@@ -31,7 +31,7 @@ export const mockTrackables: Trackable[] = [
     brand: 'Samsung',
     model: 'WF45T6000AW',
     serialNumber: 'SAMSWASH2022',
-    imageUrl: '/images/washer.png',
+    image: '/images/washer.png',
     notes: 'HE detergent only. Clean lint trap monthly.',
   },
   {
@@ -42,7 +42,7 @@ export const mockTrackables: Trackable[] = [
     brand: 'Vornado',
     model: 'VH202',
     serialNumber: 'VORN-2001',
-    imageUrl: '/images/heater.png',
+    image: '/images/heater.png',
     notes: 'Inspect intake for dust before winter.',
   }
 ];

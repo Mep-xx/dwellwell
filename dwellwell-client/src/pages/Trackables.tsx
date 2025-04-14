@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { api } from '../utils/api';
 import TrackableModal from '../components/TrackableModal';
 import TrackableTaskModal from '../components/TrackableTaskModal';
-import type { Trackable } from '../types/trackable';
-import type { Task } from '../../../shared/task';
+import type { Trackable } from '../../../dwellwell-api/src/shared/types/trackable';
+import type { Task } from '../../../dwellwell-api/src/shared/types/task';
 
 export default function Trackables() {
   const [trackables, setTrackables] = useState<Trackable[]>([]);
@@ -13,9 +13,10 @@ export default function Trackables() {
   const [trackableTasks, setTrackableTasks] = useState<Task[]>([]);
 
   useEffect(() => {
-    api.get('/trackables') // ✅ will now use the header set globally in `api.ts`
+    api.get('/trackables')
       .then(res => {
         if (Array.isArray(res.data)) {
+          console.log('Received trackables:', res.data); // 🔍 Add this
           setTrackables(res.data);
         } else {
           console.warn('Unexpected response shape:', res.data);
@@ -27,30 +28,37 @@ export default function Trackables() {
         setTrackables([]);
       });
   }, []);
+  
 
   const handleSave = async (newTrackable: Trackable) => {
     try {
       const res = await api.post('/trackables', newTrackable);
-      setTrackables(prev => [...prev, res.data]);
+      console.log('Trackable POST response:', res.data); // 🔍 See what you’re getting
+      setTrackables(prev => [...prev, res.data.trackable]);
       setShowModal(false);
     } catch (err) {
       console.error('Failed to save trackable:', err);
     }
   };
 
-
-  const handleViewTasks = async (trackableName: string) => {
+  const handleViewTasks = async (trackableId: string) => {
     try {
       const res = await api.get('/tasks', {
-        params: { trackable: trackableName }
+        params: { trackableId }
       });
+      console.log('Fetched tasks for', trackableId, res.data);
+
       setTrackableTasks(res.data);
-      setViewTasksFor(trackableName);
+      console.log('Viewing tasks for trackable:', selectedTrackable);
+
+      setViewTasksFor(trackableId);
+      
     } catch (err) {
       console.error('Failed to fetch tasks:', err);
     }
   };
 
+  const selectedTrackable = viewTasksFor ? trackables.find(t => t.id === viewTasksFor) : null;
 
   return (
     <div className="space-y-6">
@@ -73,9 +81,9 @@ export default function Trackables() {
             key={t.id}
             className="bg-white rounded-xl shadow border border-gray-200 p-4 flex flex-col items-center text-center hover:shadow-md transition"
           >
-            {t.imageUrl && (
+            {t.image && (
               <img
-                src={t.imageUrl}
+                src={t.image}
                 alt={t.name}
                 className="w-24 h-24 object-contain mb-2"
               />
@@ -96,7 +104,7 @@ export default function Trackables() {
               </button>
               <button
                 className="text-sm text-indigo-600"
-                onClick={() => handleViewTasks(t.name)}
+                onClick={() => handleViewTasks(t.id)}
               >
                 View Tasks
               </button>
@@ -105,7 +113,6 @@ export default function Trackables() {
         ))}
       </div>
 
-      {/* Trackable Modal */}
       <TrackableModal
         isOpen={showModal}
         onClose={() => setShowModal(false)}
@@ -113,7 +120,6 @@ export default function Trackables() {
         initialData={editingTrackable}
       />
 
-      {/* Task Viewer Modal */}
       <TrackableTaskModal
         isOpen={!!viewTasksFor}
         onClose={() => {
@@ -121,9 +127,8 @@ export default function Trackables() {
           setTrackableTasks([]);
         }}
         tasks={trackableTasks}
-        trackableName={viewTasksFor || ''}
+        trackableName={selectedTrackable?.name || ''}
       />
-
     </div>
   );
 }

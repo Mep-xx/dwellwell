@@ -13,7 +13,7 @@ export const getTrackables = async (req: Request, res: Response) => {
 
     res.json(trackables);
   } catch (err) {
-    console.error(err);
+    console.error('❌ Failed to fetch trackables:', err);
     res.status(500).json({ error: 'Failed to fetch trackables' });
   }
 };
@@ -38,6 +38,7 @@ export const createTrackable = async (req: Request, res: Response) => {
       return res.status(400).json({ message: 'Missing required fields' });
     }
 
+    // Create the new trackable
     const newTrackable = await prisma.trackable.create({
       data: {
         name,
@@ -52,7 +53,11 @@ export const createTrackable = async (req: Request, res: Response) => {
       },
     });
 
-    const tasks = generateTasksFromTrackable({
+    // Generate associated tasks
+    console.log(`🧪 Creating trackable: ${name}`);
+    console.log(`🧪 Looking up templates for model: "${model}" or type: "${type}"`);
+
+    const generatedTasks = generateTasksFromTrackable({
       name,
       type,
       category,
@@ -60,32 +65,49 @@ export const createTrackable = async (req: Request, res: Response) => {
       model,
     });
 
-    if (tasks.length > 0) {
-      await prisma.task.createMany({
-        data: tasks.map((t) => ({
-          title: t.title,
-          description: t.description,
-          dueDate: t.dueDate.toISOString(), // ✅ convert Date to string
-          status: t.status,
-          itemName: t.itemName,
-          estimatedTimeMinutes: t.estimatedTimeMinutes,
-          estimatedCost: t.estimatedCost,
-          canBeOutsourced: t.canBeOutsourced,
-          canDefer: t.canDefer,
-          deferLimitDays: t.deferLimitDays,
-          category: t.category,
-          icon: t.icon,
-          imageUrl: t.imageUrl,
-          taskType: t.taskType,
-          trackableId: newTrackable.id,
-          userId: userId,
-        })),
-      });
+    console.log(`➡️  Generated ${generatedTasks.length} tasks`);
+
+    if (generatedTasks.length > 0) {
+      const tasksToInsert = generatedTasks.map((t) => ({
+        title: t.title,
+        description: t.description,
+        status: t.status,
+        itemName: t.itemName,
+        estimatedTimeMinutes: t.estimatedTimeMinutes,
+        estimatedCost: t.estimatedCost,
+        canBeOutsourced: t.canBeOutsourced,
+        canDefer: t.canDefer,
+        deferLimitDays: t.deferLimitDays,
+        category: t.category,
+        icon: t.icon,
+        imageUrl: t.image,
+        taskType: t.taskType,
+        recurrenceInterval: t.recurrenceInterval,
+        criticality: t.criticality,
+        dueDate: t.dueDate.toISOString(),
+        userId,
+        trackableId: newTrackable.id,
+      }));
+
+      console.log('📝 Prepared task objects for DB insert:', tasksToInsert);
+
+      try {
+        await prisma.task.createMany({ data: tasksToInsert });
+        console.log(`✅ Inserted ${tasksToInsert.length} tasks into DB`);
+      } catch (insertError) {
+        console.error('❌ Task insert failed:', insertError);
+      }
+    } else {
+      console.log('⚠️ No tasks generated — check if templates exist for the model or type.');
     }
 
-    res.status(201).json(newTrackable);
+    res.status(201).json({
+      trackable: newTrackable,
+      tasks: generatedTasks,
+    });
+
   } catch (err) {
-    console.error(err);
+    console.error('❌ Failed to create trackable:', err);
     res.status(500).json({ error: 'Failed to create trackable' });
   }
 };
