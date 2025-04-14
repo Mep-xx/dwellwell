@@ -1,0 +1,8 @@
+Feature	Tool / Platform
+Database	PostgreSQL (self-hosted or managed via Render)
+Hosting	Render (backend and possibly frontend too)
+Frontend	Vite + React (host via Render or Vercel)
+Auth	🧠 Recommended: Clerk or Supabase Auth for username/password + Google login
+Email	Start with SendGrid (familiar to you); easy to swap if needed
+Billing	Stripe (perfect for subscription logic + webhooks)
+Git strategy	Main + optional UAT branches, already up and running ✅
