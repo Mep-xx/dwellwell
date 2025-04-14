@@ -1,25 +1,49 @@
 import { PrismaClient } from '@prisma/client';
+const { ApplianceCatalog } = require('./mockApplianceCatalog');
+
 
 const prisma = new PrismaClient();
 
-async function main() {
+async function seedUsers() {
   const user = await prisma.user.upsert({
     where: { email: 'test@dwellwell.io' },
     update: {},
     create: {
       id: '7534594a-dc3c-4e02-a017-06e9443a6035',
       email: 'test@dwellwell.io',
-      password: 'test123', // ⚠️ In production, always hash passwords
+      password: 'test123', // ⚠️ hash this in production
     },
   });
+  console.log('✅ Seeded test user');
+}
 
-  console.log('Seeded user:', user);
+async function seedApplianceCatalog() {
+  for (const appliance of ApplianceCatalog) {
+    await prisma.applianceCatalog.upsert({
+      where: { model: appliance.model },
+      update: {},
+      create: {
+        brand: appliance.brand,
+        model: appliance.model,
+        type: appliance.type,
+        category: appliance.category,
+        notes: appliance.notes || '',
+        imageUrl: appliance.image || null,
+      },
+    });
+  }
+  console.log('✅ Seeded ApplianceCatalog');
+}
+
+async function main() {
+  await seedUsers();
+  await seedApplianceCatalog();
+  // Add more seed functions here as needed
 }
 
 main()
-  .then(() => prisma.$disconnect())
-  .catch((e) => {
+  .catch(e => {
     console.error(e);
-    prisma.$disconnect();
     process.exit(1);
-  });
+  })
+  .finally(() => prisma.$disconnect());

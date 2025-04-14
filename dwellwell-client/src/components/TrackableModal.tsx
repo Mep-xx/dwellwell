@@ -1,13 +1,16 @@
 import { useState, useEffect } from 'react';
-import type { Trackable, TrackableCategory } from '../../../dwellwell-api/src/shared/types/trackable';
-import { applianceLookup } from '../data/mockApplianceLookup';
 import { v4 as uuidv4 } from 'uuid';
+import { sanitize } from '../utils/sanitize';
+import axios from 'axios';
+import type { Trackable, TrackableCategory } from '../../../dwellwell-api/src/shared/types/trackable';
 
-type Props = {
-  isOpen: boolean;
-  onClose: () => void;
-  onSave: (trackable: Trackable) => void;
-  initialData?: Trackable | null;
+type ApplianceLookup = {
+  brand: string;
+  model: string;
+  type: string;
+  category: TrackableCategory;
+  notes?: string;
+  image?: string;
 };
 
 const categories: { label: string; value: TrackableCategory }[] = [
@@ -23,6 +26,13 @@ const categories: { label: string; value: TrackableCategory }[] = [
   { label: 'General', value: 'general' },
 ];
 
+type Props = {
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (trackable: Trackable) => void;
+  initialData?: Trackable | null;
+};
+
 export default function TrackableModal({ isOpen, onClose, onSave, initialData }: Props) {
   const [form, setForm] = useState<Trackable>({
     id: uuidv4(),
@@ -36,47 +46,37 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
     notes: '',
   });
 
-  const [suggestions, setSuggestions] = useState<typeof applianceLookup>([]);
+  const [suggestions, setSuggestions] = useState<ApplianceLookup[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [lookupTimer, setLookupTimer] = useState<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (initialData) {
       setForm(initialData);
     } else {
-      setForm({
-        id: uuidv4(),
-        name: '',
-        type: '',
-        category: 'general',
-        brand: '',
-        model: '',
-        serialNumber: '',
-        image: '',
-        notes: '',
-      });
+      resetForm();
     }
   }, [initialData]);
 
   useEffect(() => {
-    if (isOpen && !initialData) {
-      setForm({
-        id: uuidv4(),
-        name: '',
-        type: '',
-        category: 'general',
-        brand: '',
-        model: '',
-        serialNumber: '',
-        image: '',
-        notes: '',
-      });
-      setSuggestions([]);
-      setShowSuggestions(false);
-    }
+    if (isOpen && !initialData) resetForm();
   }, [isOpen, initialData]);
 
-
-  if (!isOpen) return null;
+  const resetForm = () => {
+    setForm({
+      id: uuidv4(),
+      name: '',
+      type: '',
+      category: 'general',
+      brand: '',
+      model: '',
+      serialNumber: '',
+      image: '',
+      notes: '',
+    });
+    setSuggestions([]);
+    setShowSuggestions(false);
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -84,27 +84,37 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
 
     if (name === 'name') {
       if (value.length >= 3) {
-        const filtered = applianceLookup.filter(entry =>
-          `${entry.brand} ${entry.model}`.toLowerCase().includes(value.toLowerCase())
-        );
-        setSuggestions(filtered);
-        setShowSuggestions(true);
+        if (lookupTimer) clearTimeout(lookupTimer);
+        const timer = setTimeout(async () => {
+          try {
+            const res = await axios.get(`/lookup/appliances?query=${encodeURIComponent(value)}`);
+            const results = Array.isArray(res.data) ? res.data : [];
+            setSuggestions(results);
+            setShowSuggestions(results.length > 0);
+          } catch (err) {
+            console.error('Lookup failed:', err);
+            setSuggestions([]);
+            setShowSuggestions(false);
+          }
+        }, 400);
+        setLookupTimer(timer);
       } else {
-        setShowSuggestions(false);
         setSuggestions([]);
+        setShowSuggestions(false);
       }
     }
   };
 
-  const applySuggestion = (suggestion: (typeof applianceLookup)[0]) => {
+  const applySuggestion = (sugg: ApplianceLookup) => {
     setForm(prev => ({
       ...prev,
-      name: `${suggestion.brand} ${suggestion.model}`,
-      brand: suggestion.brand,
-      model: suggestion.model,
-      type: suggestion.type,
-      category: suggestion.category as TrackableCategory,
-      notes: suggestion.notes || '',
+      name: `${sugg.brand} ${sugg.model}`,
+      brand: sugg.brand,
+      model: sugg.model,
+      type: sugg.type,
+      category: sugg.category,
+      notes: sugg.notes || '',
+      image: sugg.image || '',
     }));
     setSuggestions([]);
     setShowSuggestions(false);
@@ -113,9 +123,21 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim()) return;
-    onSave(form);
+
+    const cleanedForm = {
+      ...form,
+      name: sanitize(form.name),
+      brand: sanitize(form.brand),
+      model: sanitize(form.model),
+      serialNumber: sanitize(form.serialNumber ?? ''),
+      notes: sanitize(form.notes ?? ''),
+    };
+
+    onSave(cleanedForm);
     onClose();
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
@@ -142,32 +164,75 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
               required
               className="w-full border rounded px-3 py-2"
             />
-            {showSuggestions && suggestions.length > 0 && (
+            {showSuggestions && Array.isArray(suggestions) && suggestions.length > 0 && (
               <ul className="absolute z-10 bg-white border rounded shadow w-full mt-1 max-h-40 overflow-y-auto">
-                {suggestions.map((sugg, idx) => (
-                  <li
-                    key={idx}
-                    onClick={() => applySuggestion(sugg)}
-                    className="p-2 hover:bg-blue-50 cursor-pointer text-sm"
-                  >
-                    <strong>{sugg.brand}</strong> {sugg.model}
+                {suggestions.map((s, idx) => (
+                  <li key={idx} onClick={() => applySuggestion(s)} className="p-2 hover:bg-blue-50 cursor-pointer text-sm">
+                    <strong>{s.brand}</strong> {s.model}
                   </li>
                 ))}
               </ul>
             )}
           </div>
 
-          <input name="type" autoComplete='off' value={form.type} onChange={handleChange} placeholder="Type" className="w-full border rounded px-3 py-2" />
-          <select name="category" value={form.category} onChange={handleChange} className="w-full border rounded px-3 py-2">
-            {categories.map((cat) => (
-              <option key={cat.value} value={cat.value}>{cat.label}</option>
+          <select
+            name="category"
+            value={form.category}
+            onChange={handleChange}
+            className="w-full border rounded px-3 py-2"
+          >
+            {categories.map(cat => (
+              <option key={cat.value} value={cat.value}>
+                {cat.label}
+              </option>
             ))}
           </select>
-          <input name="brand" autoComplete='off' value={form.brand} onChange={handleChange} placeholder="Brand" className="w-full border rounded px-3 py-2" />
-          <input name="model" autoComplete='off' value={form.model} onChange={handleChange} placeholder="Model" className="w-full border rounded px-3 py-2" />
-          <input name="serialNumber" autoComplete='off' value={form.serialNumber} onChange={handleChange} placeholder="Serial Number" className="w-full border rounded px-3 py-2" />
-          <input name="image" value={form.image} onChange={handleChange} placeholder="Image URL" className="w-full border rounded px-3 py-2" />
-          <textarea name="notes" value={form.notes} onChange={handleChange} placeholder="Notes" rows={3} className="w-full border rounded px-3 py-2" />
+
+          <input
+            name="type"
+            value={form.type}
+            autoComplete="off"
+            onChange={handleChange}
+            placeholder="Type (e.g., Dishwasher)"
+            className="w-full border rounded px-3 py-2"
+          />
+
+          <input
+            name="brand"
+            value={form.brand}
+            autoComplete="off"
+            onChange={handleChange}
+            placeholder="Brand"
+            className="w-full border rounded px-3 py-2"
+          />
+
+          <input
+            name="model"
+            value={form.model}
+            autoComplete="off"
+            onChange={handleChange}
+            placeholder="Model"
+            className="w-full border rounded px-3 py-2"
+          />
+
+          <input
+            name="serialNumber"
+            value={form.serialNumber}
+            autoComplete="off"
+            onChange={handleChange}
+            placeholder="Serial Number"
+            className="w-full border rounded px-3 py-2"
+          />
+
+          <textarea
+            name="notes"
+            value={form.notes}
+            autoComplete="off"
+            onChange={handleChange}
+            placeholder="Notes"
+            rows={3}
+            className="w-full border rounded px-3 py-2"
+          />
 
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose} className="px-4 py-2 border rounded text-gray-600 hover:bg-gray-100">Cancel</button>

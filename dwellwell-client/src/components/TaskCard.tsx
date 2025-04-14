@@ -28,9 +28,9 @@ export default function TaskCard({ task, onStatusChange }: Props) {
   const [showDetails, setShowDetails] = useState(false);
 
   const statusStyles = {
-    upcoming: 'border-blue-400',
-    completed: 'border-green-500 text-green-700',
-    skipped: 'border-yellow-500 text-yellow-700 italic',
+    PENDING: 'border-blue-400',
+    COMPLETED: 'border-green-500 text-green-700',
+    SKIPPED: 'border-yellow-500 text-yellow-700 italic',
   };
 
   const handleAndCollapse = (newStatus: Task['status'] | 'remind', days?: number) => {

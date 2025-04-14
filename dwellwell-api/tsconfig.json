@@ -6,16 +6,17 @@
     "strict": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "moduleResolution": "node",
     "resolveJsonModule": true,
-    "rootDir": "./src",
     "baseUrl": "./",
     "paths": {
-      "@shared/*": ["../shared/*"]
-    }
+      "@shared/*": ["src/shared/*"]
+    },
+    "types": ["node"]
   },
   "include": [
     "src",
-    "src/prisma"
+    "prisma"
   ]
 }

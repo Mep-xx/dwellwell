@@ -8,6 +8,9 @@
     "seed": "ts-node prisma/seed.ts",
     "start": "node build/index.js"
   },
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
+  },
   "dependencies": {
     "@prisma/client": "^5.7.0",
     "cors": "^2.8.5",

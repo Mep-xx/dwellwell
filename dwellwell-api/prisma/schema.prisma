@@ -74,3 +74,14 @@ model Task {
   createdAt            DateTime   @default(now())
   updatedAt            DateTime   @updatedAt
 }
+
+model ApplianceCatalog {
+  id        String   @id @default(uuid())
+  brand     String
+  model     String   @unique
+  type      String
+  category  String
+  notes     String?
+  imageUrl  String?
+  createdAt DateTime @default(now())
+}

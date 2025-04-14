@@ -22,5 +22,5 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-"include": ["src", "../shared"]
+"include": ["src", "../shared", "../dwellwell-api/src/shared/data/mockApplianceCatalog.ts"]
 }

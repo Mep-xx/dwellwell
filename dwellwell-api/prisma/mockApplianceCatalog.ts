@@ -4,9 +4,10 @@ export type TrackableLookup = {
   type: string;
   category: string;
   notes?: string;
+  image?: string;
 };
 
-export const applianceLookup: TrackableLookup[] = [
+const ApplianceCatalog: TrackableLookup[] = [
   {
     model: 'SilencePlus 44 dBA',
     brand: 'Bosch',
@@ -57,3 +58,5 @@ export const applianceLookup: TrackableLookup[] = [
     notes: 'Flush quarterly, maintain pH balance weekly.',
   }
 ];
+
+module.exports = { ApplianceCatalog }
