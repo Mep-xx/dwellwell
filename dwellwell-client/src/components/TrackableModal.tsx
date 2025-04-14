@@ -85,22 +85,26 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setForm(prev => ({ ...prev, [name]: value }));
-
+  
     if (name === 'name' && value.length >= 3) {
       if (lookupTimer) clearTimeout(lookupTimer);
       const timer = setTimeout(async () => {
         try {
-          const res = await api.get(`/lookup/appliances`, {
-            params: { q: value }
-          });
-          
-          console.log('Lookup response:', res.data);
-          if (Array.isArray(res.data)) {
+          const res = await api.get('/lookup/appliances', { params: { q: value } });
+  
+          if (Array.isArray(res.data) && res.data.length > 0) {
             setSuggestions(res.data);
-            setShowSuggestions(res.data.length > 0);
+            setShowSuggestions(true);
           } else {
-            setSuggestions([]);
-            setShowSuggestions(false);
+            // Fallback to AI suggestion if DB returned nothing
+            const aiRes = await api.get('/ai/lookup-appliance', { params: { q: value } });
+            if (Array.isArray(aiRes.data)) {
+              setSuggestions(aiRes.data);
+              setShowSuggestions(aiRes.data.length > 0);
+            } else {
+              setSuggestions([]);
+              setShowSuggestions(false);
+            }
           }
         } catch (err) {
           console.error('Lookup failed:', err);
@@ -114,6 +118,7 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
       setShowSuggestions(false);
     }
   };
+  
 
   const applySuggestion = (sugg: ApplianceLookup) => {
     setForm(prev => ({

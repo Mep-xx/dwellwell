@@ -4,7 +4,7 @@ import TrackableModal from '../components/TrackableModal';
 import TrackableTaskModal from '../components/TrackableTaskModal';
 import type { Trackable } from '../../../dwellwell-api/src/shared/types/trackable';
 import type { Task } from '../../../dwellwell-api/src/shared/types/task';
-import { toast } from "@/components/ui/use-toast";
+import { toast } from "../components/ui/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 
 

@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { prisma } from '../db/prisma';
-import { generateTasksFromTrackable } from '../shared/utils/generateTasksFromTrackable';
+import { generateTasksFromTrackable } from '../utils/generateTasksFromTrackable';
 
 export const getTrackables = async (req: Request, res: Response) => {
   try {
@@ -38,7 +38,7 @@ export const createTrackable = async (req: Request, res: Response) => {
       return res.status(400).json({ message: 'Missing required fields' });
     }
 
-    // Create the new trackable
+    // Create the new 
     const newTrackable = await prisma.trackable.create({
       data: {
         name,
@@ -57,7 +57,7 @@ export const createTrackable = async (req: Request, res: Response) => {
     console.log(`🧪 Creating trackable: ${name}`);
     console.log(`🧪 Looking up templates for model: "${model}" or type: "${type}"`);
 
-    const generatedTasks = generateTasksFromTrackable({
+    const generatedTasks = await generateTasksFromTrackable({
       name,
       type,
       category,
@@ -67,11 +67,12 @@ export const createTrackable = async (req: Request, res: Response) => {
 
     console.log(`➡️  Generated ${generatedTasks.length} tasks`);
 
+
     if (generatedTasks.length > 0) {
       const tasksToInsert = generatedTasks.map((t) => ({
         title: t.title,
         description: t.description,
-        status: t.status,
+        status: t.status ?? 'PENDING',
         itemName: t.itemName,
         estimatedTimeMinutes: t.estimatedTimeMinutes,
         estimatedCost: t.estimatedCost,
@@ -80,8 +81,10 @@ export const createTrackable = async (req: Request, res: Response) => {
         deferLimitDays: t.deferLimitDays,
         category: t.category,
         icon: t.icon,
-        imageUrl: t.image,
-        taskType: t.taskType,
+        imageUrl: t.image ?? null,
+        taskType: ['GENERAL', 'AI_GENERATED', 'USER_DEFINED'].includes(t.taskType)
+          ? (t.taskType as 'GENERAL' | 'AI_GENERATED' | 'USER_DEFINED')
+          : 'GENERAL',
         recurrenceInterval: t.recurrenceInterval,
         criticality: t.criticality,
         dueDate: t.dueDate.toISOString(),
