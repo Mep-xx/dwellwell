@@ -1,0 +1,23 @@
+# Node
+node_modules/
+dist
+.env
+*.log
+*.zip
+*.rar
+*.7z
+dwellwell.zip
+src.zip
+dwellwell-client.zip
+dwellwell-api.zip
+
+# VS Code
+.vscode
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+build/
+coverage/
