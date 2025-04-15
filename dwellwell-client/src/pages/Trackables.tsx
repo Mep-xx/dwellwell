@@ -16,6 +16,8 @@ export default function Trackables() {
   const [trackableTasks, setTrackableTasks] = useState<Task[]>([]);
 
   useEffect(() => {
+    console.log("Fetching trackables... with token?", localStorage.getItem("dwellwell-token"));
+
     api.get('/trackables')
       .then(res => {
         if (Array.isArray(res.data)) {

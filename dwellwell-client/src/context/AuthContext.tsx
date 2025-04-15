@@ -1,5 +1,6 @@
 // src/context/AuthContext.tsx
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { api } from '../utils/api'
 
 type User = {
   id: string;
@@ -22,38 +23,44 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const loadStoredAuth = () => {
-      const storedUser = localStorage.getItem('dwellwell-user');
-      const storedToken = localStorage.getItem('dwellwell-token');
-
-      if (storedUser && storedToken) {
-        try {
-          setUser(JSON.parse(storedUser));
-          setToken(storedToken);
-        } catch (err) {
-          console.warn('Failed to parse stored auth:', err);
-          localStorage.removeItem('dwellwell-user');
-          localStorage.removeItem('dwellwell-token');
-        }
+    const storedUser = localStorage.getItem('dwellwell-user');
+    const storedToken = localStorage.getItem('dwellwell-token');
+  
+    if (storedUser && storedToken) {
+      try {
+        const parsedUser = JSON.parse(storedUser);
+        setUser(parsedUser);
+        setToken(storedToken);
+  
+        api.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
+      } catch (err) {
+        console.warn('Failed to parse stored user:', err);
+        localStorage.removeItem('dwellwell-user');
+        localStorage.removeItem('dwellwell-token');
       }
-      setLoading(false);
-    };
-
-    loadStoredAuth();
+    }
+  
+    setLoading(false);
   }, []);
+  
 
   const login = (user: User, token: string) => {
     localStorage.setItem('dwellwell-user', JSON.stringify(user));
     localStorage.setItem('dwellwell-token', token);
     setUser(user);
     setToken(token);
+  
+    api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
   };
+  
 
   const logout = () => {
     localStorage.removeItem('dwellwell-user');
     localStorage.removeItem('dwellwell-token');
     setUser(null);
     setToken(null);
+
+    delete api.defaults.headers.common['Authorization'];
   };
 
   return (
