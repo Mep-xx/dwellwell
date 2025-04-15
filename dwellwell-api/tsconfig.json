@@ -6,19 +6,12 @@
     "strict": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
     "moduleResolution": "node",
     "resolveJsonModule": true,
     "baseUrl": "./",
-    "paths": {
-      "@shared/*": ["src/shared/*"],
-      "@/*": ["src/*"]
-    },
-    "typeRoots": ["./node_modules/@types", "./src/types"],
-    "types": ["node"]
+    "rootDir": "./src",
+    "types": ["node"],
+    "typeRoots": ["./node_modules/@types"]
   },
-  "include": [
-    "src",
-    "prisma"
-  ]
+  "include": ["src", "src/global.d.ts"]
 }

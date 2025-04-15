@@ -1,3 +1,4 @@
+// src/context/AuthContext.tsx
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
 type User = {
@@ -21,21 +22,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const storedUser = localStorage.getItem('dwellwell-user');
-    const storedToken = localStorage.getItem('dwellwell-token');
+    const loadStoredAuth = () => {
+      const storedUser = localStorage.getItem('dwellwell-user');
+      const storedToken = localStorage.getItem('dwellwell-token');
 
-    if (storedUser && storedToken) {
-      try {
-        setUser(JSON.parse(storedUser));
-        setToken(storedToken);
-      } catch (err) {
-        console.warn('Failed to parse stored user:', err);
-        localStorage.removeItem('dwellwell-user');
-        localStorage.removeItem('dwellwell-token');
+      if (storedUser && storedToken) {
+        try {
+          setUser(JSON.parse(storedUser));
+          setToken(storedToken);
+        } catch (err) {
+          console.warn('Failed to parse stored auth:', err);
+          localStorage.removeItem('dwellwell-user');
+          localStorage.removeItem('dwellwell-token');
+        }
       }
-    }
+      setLoading(false);
+    };
 
-    setLoading(false);
+    loadStoredAuth();
   }, []);
 
   const login = (user: User, token: string) => {
@@ -59,8 +63,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   );
 };
 
-export const useAuth = () => {
+export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
-  if (!context) throw new Error('useAuth must be used within AuthProvider');
+  if (!context) {
+    throw new Error('useAuth must be used within AuthProvider');
+  }
   return context;
 };

@@ -1,8 +1,11 @@
 import { Router } from 'express';
 import { openai } from '../utils/openai';
 import { extractJSONFromResponse } from '../utils/parse'
+import { requireAuth } from '../middleware/requireAuth';
 
 export const aiRouter = Router();
+
+aiRouter.use(requireAuth);
 
 aiRouter.get('/lookup-appliance', async (req, res) => {
   const query = req.query.query as string;

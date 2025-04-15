@@ -1,0 +1,10 @@
+\node_modules\
+\.git\
+\build\
+\dist\
+\.next\
+\.turbo\
+\.vercel\
+\.idea\
+\*.log
+\*.tmp

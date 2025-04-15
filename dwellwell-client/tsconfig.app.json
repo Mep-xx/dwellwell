@@ -1,6 +1,6 @@
 {
-  "extends": "./tsconfig.json",
   "compilerOptions": {
+    "composite": true,
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
     "target": "ES2020",
     "useDefineForClassFields": true,
@@ -19,5 +19,9 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["src", "../shared", "../dwellwell-api/src/shared/data/mockApplianceCatalog.ts"]
+  "include": [
+    "src",
+    "../shared",
+    "../dwellwell-api/src/shared/data/mockApplianceCatalog.ts"
+  ]
 }

@@ -4,7 +4,6 @@
     { "path": "./tsconfig.app.json" },
     { "path": "./tsconfig.node.json" }
   ],
-  
   "compilerOptions": {
     "baseUrl": ".",
     "types": ["vite/client", "node"],
@@ -12,6 +11,8 @@
       "@shared/*": ["../shared/*"],
       "@/*": ["src/*"]
     },
-    "jsx": "react-jsx"
-  }
+    "jsx": "react-jsx",
+    "typeRoots": ["./node_modules/@types", "./src/types"]
+  },
+  "include": ["src", "src/types"]
 }

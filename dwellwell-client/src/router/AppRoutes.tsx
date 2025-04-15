@@ -14,7 +14,11 @@ import Billing from '../pages/Billing';
 import ProtectedLayout from '@/components/layout/ProtectedLayout';
 
 export default function AppRoutes() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return <div className="flex justify-center items-center min-h-screen">Loading...</div>;
+  }
 
   return (
     <Routes>
