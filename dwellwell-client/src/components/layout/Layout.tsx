@@ -4,7 +4,7 @@ export default function Layout() {
   const navigate = useNavigate();
 
   const handleLogout = () => {
-    localStorage.removeItem('dwellwell-user');
+    localStorage.removeItem('authToken');
     navigate('/login');
   };
 

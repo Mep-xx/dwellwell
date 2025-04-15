@@ -3,7 +3,7 @@ import { prisma } from '../db/prisma';
 
 export const getTasks = async (req: Request, res: Response) => {
   try {
-    const userId = req.headers['x-user-id'] as string;
+    const userId = (req as any).user.userId;
     const trackableId = req.query.trackableId as string;
 
     if (!userId || !trackableId) {

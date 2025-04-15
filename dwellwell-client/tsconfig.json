@@ -9,7 +9,9 @@
     "baseUrl": ".",
     "types": ["vite/client", "node"],
     "paths": {
-      "@shared/*": ["../shared/*"]
-    }
+      "@shared/*": ["../shared/*"],
+      "@/*": ["src/*"]
+    },
+    "jsx": "react-jsx"
   }
 }

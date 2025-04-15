@@ -11,8 +11,10 @@
     "resolveJsonModule": true,
     "baseUrl": "./",
     "paths": {
-      "@shared/*": ["src/shared/*"]
+      "@shared/*": ["src/shared/*"],
+      "@/*": ["src/*"]
     },
+    "typeRoots": ["./node_modules/@types", "./src/types"],
     "types": ["node"]
   },
   "include": [

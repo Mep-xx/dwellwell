@@ -4,7 +4,8 @@ import { generateTasksFromTrackable } from '../utils/generateTasksFromTrackable'
 
 export const getTrackables = async (req: Request, res: Response) => {
   try {
-    const userId = req.headers['x-user-id'] as string;
+    const userId = (req as any).user.userId;
+
     if (!userId) return res.status(400).json({ message: 'Missing user ID' });
 
     const trackables = await prisma.trackable.findMany({
@@ -20,7 +21,8 @@ export const getTrackables = async (req: Request, res: Response) => {
 
 export const createTrackable = async (req: Request, res: Response) => {
   try {
-    const userId = req.headers['x-user-id'] as string;
+    const userId = (req as any).user.userId;
+
     if (!userId) return res.status(400).json({ message: 'Missing user ID' });
 
     const {
@@ -116,7 +118,7 @@ export const createTrackable = async (req: Request, res: Response) => {
 };
 
 export const deleteTrackable = async (req: Request, res: Response) => {
-  const userId = req.headers['x-user-id'] as string;
+  const userId = (req as any).user.userId;
   const { id } = req.params;
 
   if (!userId) return res.status(400).json({ message: 'Missing user ID' });

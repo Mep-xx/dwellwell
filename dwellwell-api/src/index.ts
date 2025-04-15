@@ -5,7 +5,7 @@ import trackablesRoutes from './routes/trackables';
 import tasksRoutes from './routes/tasks';
 import lookupRoutes from './routes/lookup';
 import { aiRouter } from './routes/ai';
-import authRoutes from './routes/auth';
+import authRouter from './routes/auth'; // ✅ Corrected
 
 dotenv.config();
 
@@ -23,7 +23,7 @@ app.use('/trackables', trackablesRoutes);
 app.use('/tasks', tasksRoutes);
 app.use('/lookup', lookupRoutes);
 app.use('/ai', aiRouter);
-app.use('/auth', authRoutes);
+app.use('/auth', authRouter); // ✅ Matches the corrected import
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

@@ -1,18 +1,26 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
+import { signup as signupApi } from '../utils/api';
+import { useAuth } from '../context/AuthContext';
 
 export default function Signup() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const { login } = useAuth();
   const navigate = useNavigate();
 
-  const handleSignup = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: Hook up to real signup
-    if (email && password) {
-      localStorage.setItem('dwellwell-user', JSON.stringify({ email }));
+    try {
+      const response = await signupApi(email, password);
+      const { token, user } = response.data;
+      login(user, token); // use context to store token + user
       navigate('/dashboard');
+    } catch (err) {
+      console.error('Signup failed:', err);
+      setError('Signup failed, please try again.');
     }
   };
 
@@ -22,10 +30,11 @@ export default function Signup() {
         <title>Sign Up – DwellWell</title>
       </Helmet>
       <form
-        onSubmit={handleSignup}
+        onSubmit={handleSubmit}
         className="bg-white p-8 rounded-xl shadow-md w-full max-w-md space-y-6"
       >
         <h2 className="text-2xl font-bold text-center text-brand-primary">Create your DwellWell account</h2>
+        {error && <p className="text-red-500 text-sm text-center">{error}</p>}
         <input
           type="email"
           placeholder="Email"

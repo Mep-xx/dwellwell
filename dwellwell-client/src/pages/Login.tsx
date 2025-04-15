@@ -1,18 +1,28 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
+import { api } from '../utils/api';
+import { useAuth } from '../context/AuthContext';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
   const navigate = useNavigate();
+  const { login } = useAuth();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: Replace with real auth logic
-    if (email && password) {
-      localStorage.setItem('dwellwell-user', JSON.stringify({ email }));
+
+    try {
+      const res = await api.post('/auth/login', { email, password });
+      const { token, user } = res.data;
+
+      login(user, token); // Save in context and localStorage
       navigate('/dashboard');
+    } catch (err: any) {
+      console.error('Login error:', err);
+      setError(err.response?.data?.message || 'Login failed');
     }
   };
 
@@ -26,6 +36,9 @@ export default function Login() {
         className="bg-white p-8 rounded-xl shadow-md w-full max-w-md space-y-6"
       >
         <h2 className="text-2xl font-bold text-center text-brand-primary">Log In to DwellWell</h2>
+
+        {error && <p className="text-red-500 text-sm text-center">{error}</p>}
+
         <input
           type="email"
           placeholder="Email"
