@@ -1,5 +1,5 @@
-import { TaskStatus, TaskTemplate } from '../shared/types/task';
-import { taskTemplates } from '../shared/data/mockTaskTemplates';
+import { TaskStatus, TaskTemplate } from '@shared/types/task';
+import { taskTemplates } from '@shared/data/mockTaskTemplates';
 import { generateTasksFromOpenAI } from './generateTasksFromOpenAI';
 
 function calculateInitialDueDate(interval: string | undefined): Date {

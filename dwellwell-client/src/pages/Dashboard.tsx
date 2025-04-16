@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import TaskCard from '../components/TaskCard';
 import { initialTasks } from '../data/mockTasks';
-import { TaskCategory, TaskStatus } from '../../../shared/task';
+import { TaskCategory, TaskStatus } from '../../../dwellwell-api/src/shared/types/task';
 
 const categoryIcons: Record<TaskCategory, string> = {
   appliance: '🔧',
@@ -29,6 +29,8 @@ export default function Dashboard() {
   );
   const [timeframe, setTimeframe] = useState<Timeframe>('week');
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+
+  console.log("Fetching dashboard... with token?", localStorage.getItem("dwellwell-token"));
 
   const now = new Date();
 
@@ -78,7 +80,7 @@ export default function Dashboard() {
                   .split('T')[0]
                 : task.dueDate,
             completedDate:
-              newStatus === 'completed'
+              newStatus === 'COMPLETED'
                 ? new Date().toISOString().split('T')[0]
                 : task.completedDate,
           }
@@ -92,7 +94,7 @@ export default function Dashboard() {
           t.itemName === updatedTask.itemName && isInCurrentTimeframe(t.dueDate)
         );
 
-        const allDone = relatedTasks.every(t => t.status !== 'upcoming');
+        const allDone = relatedTasks.every(t => t.status !== 'PENDING');
         if (allDone) {
           setTimeout(() => {
             setCollapsedGroups(prev => ({

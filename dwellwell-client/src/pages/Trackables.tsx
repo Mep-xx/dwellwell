@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import { api } from '../utils/api';
+import { api } from '@/utils/api';
 import TrackableModal from '../components/TrackableModal';
 import TrackableTaskModal from '../components/TrackableTaskModal';
-import type { Trackable } from '../../../dwellwell-api/src/shared/types/trackable';
-import type { Task } from '../../../dwellwell-api/src/shared/types/task';
+import type { Trackable } from '@shared/types/trackable';
 import { toast } from "../components/ui/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
+import { Task } from '@shared/types/task';
 
 
 export default function Trackables() {
@@ -16,28 +16,30 @@ export default function Trackables() {
   const [trackableTasks, setTrackableTasks] = useState<Task[]>([]);
 
   useEffect(() => {
-    console.log("Fetching trackables... with token?", localStorage.getItem("dwellwell-token"));
-
-    api.get('/trackables')
+    const token = localStorage.getItem("dwellwell-token");
+    console.log("👤 Auth Token at time of fetch:", token); // ✅ Log token availability
+  
+    api.get('/api/trackables')
       .then(res => {
         if (Array.isArray(res.data)) {
-          console.log('Received trackables:', res.data); // 🔍 Add this
+          console.log('✅ Received trackables:', res.data); // ✅ Log successful data
           setTrackables(res.data);
         } else {
-          console.warn('Unexpected response shape:', res.data);
+          console.warn('⚠️ Unexpected response shape:', res.data);
           setTrackables([]);
         }
       })
       .catch(err => {
-        console.error('Failed to load trackables:', err);
+        console.error('❌ Failed to load trackables:', err); // ✅ Log error if token is rejected
         setTrackables([]);
       });
   }, []);
+  
 
 
   const handleSave = async (newTrackable: Trackable) => {
     try {
-      const res = await api.post('/trackables', newTrackable);
+      const res = await api.post('/api/trackables', newTrackable);
       console.log('Trackable POST response:', res.data); // 🔍 See what you’re getting
       setTrackables(prev => [...prev, res.data.trackable]);
       setShowModal(false);
@@ -48,7 +50,7 @@ export default function Trackables() {
 
   const handleViewTasks = async (trackableId: string) => {
     try {
-      const res = await api.get('/tasks', {
+      const res = await api.get('/api/tasks', {
         params: { trackableId }
       });
       console.log('Fetched tasks for', trackableId, res.data);
@@ -67,7 +69,7 @@ export default function Trackables() {
     if (!confirm('Are you sure you want to delete this trackable?')) return;
 
     try {
-      await api.delete(`/trackables/${id}`);
+      await api.delete(`/api/trackables/${id}`);
       setTrackables(prev => prev.filter(t => t.id !== id));
       toast({
         title: "Trackable deleted",

@@ -19,11 +19,11 @@ app.get('/health', (req, res) => {
   res.send('API is running');
 });
 
-app.use('/trackables', trackablesRoutes);
-app.use('/tasks', tasksRoutes);
-app.use('/lookup', lookupRoutes);
-app.use('/ai', aiRouter);
-app.use('/auth', authRouter); 
+app.use('/api/trackables', trackablesRoutes);
+app.use('/api/tasks', tasksRoutes);
+app.use('/api/lookup', lookupRoutes);
+app.use('/api/ai', aiRouter);
+app.use('/api/auth', authRouter); 
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

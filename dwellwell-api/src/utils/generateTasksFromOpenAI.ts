@@ -1,5 +1,5 @@
 import { openai } from './openai';
-import type { TaskTemplate } from '../shared/types/task';
+import type { TaskTemplate } from '@shared/types/task';
 
 export async function generateTasksFromOpenAI(trackableName: string): Promise<TaskTemplate[]> {
   const prompt = `

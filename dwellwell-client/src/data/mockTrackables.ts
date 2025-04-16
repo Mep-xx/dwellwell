@@ -1,4 +1,4 @@
-import { Trackable } from '../../../dwellwell-api/src/shared/types/trackable';
+import { Trackable } from '@shared/types/trackable';
 
 export const mockTrackables: Trackable[] = [
   {

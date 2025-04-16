@@ -1,10 +1,12 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { useAuth } from '@/context/AuthContext';
 
 export default function Layout() {
   const navigate = useNavigate();
+  const { logout } = useAuth();
 
   const handleLogout = () => {
-    localStorage.removeItem('authToken');
+    logout(); // this clears localStorage + state
     navigate('/login');
   };
 

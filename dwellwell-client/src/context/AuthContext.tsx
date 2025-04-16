@@ -1,6 +1,5 @@
 // src/context/AuthContext.tsx
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { api } from '../utils/api'
+import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 
 type User = {
   id: string;
@@ -25,42 +24,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const storedUser = localStorage.getItem('dwellwell-user');
     const storedToken = localStorage.getItem('dwellwell-token');
-  
+
     if (storedUser && storedToken) {
-      try {
-        const parsedUser = JSON.parse(storedUser);
-        setUser(parsedUser);
-        setToken(storedToken);
-  
-        api.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
-      } catch (err) {
-        console.warn('Failed to parse stored user:', err);
-        localStorage.removeItem('dwellwell-user');
-        localStorage.removeItem('dwellwell-token');
-      }
+      setUser(JSON.parse(storedUser));
+      setToken(storedToken);
     }
-  
+
     setLoading(false);
   }, []);
-  
 
   const login = (user: User, token: string) => {
     localStorage.setItem('dwellwell-user', JSON.stringify(user));
     localStorage.setItem('dwellwell-token', token);
     setUser(user);
     setToken(token);
-  
-    api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
   };
-  
 
   const logout = () => {
     localStorage.removeItem('dwellwell-user');
     localStorage.removeItem('dwellwell-token');
     setUser(null);
     setToken(null);
-
-    delete api.defaults.headers.common['Authorization'];
   };
 
   return (
@@ -70,10 +54,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   );
 };
 
-export const useAuth = (): AuthContextType => {
+export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within AuthProvider');
-  }
+  if (!context) throw new Error('useAuth must be used within AuthProvider');
   return context;
 };

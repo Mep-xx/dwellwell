@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
-import { api } from '../utils/api';
+import { api } from '@/utils/api';
 import { useAuth } from '../context/AuthContext';
 
 export default function Login() {
@@ -15,7 +15,7 @@ export default function Login() {
     e.preventDefault();
 
     try {
-      const res = await api.post('/auth/login', { email, password });
+      const res = await api.post('/api/auth/login', { email, password });
       const { token, user } = res.data;
 
       login(user, token); // Save in context and localStorage

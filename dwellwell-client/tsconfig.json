@@ -9,6 +9,7 @@
     "types": ["vite/client", "node"],
     "paths": {
       "@shared/*": ["../shared/*"],
+      "@types/*": ["../shared/types"],
       "@/*": ["src/*"]
     },
     "jsx": "react-jsx",

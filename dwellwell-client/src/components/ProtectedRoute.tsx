@@ -1,13 +1,12 @@
-import { JSX } from 'react'
+// src/components/ProtectedRoute.tsx
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { ReactNode } from 'react';
 
-export default function ProtectedRoute({ children }: { children: JSX.Element }) {
-  const { user } = useAuth();
+export default function ProtectedRoute({ children }: { children: ReactNode }) {
+  const { user, loading } = useAuth();
 
-  if (!user) {
-    return <Navigate to="/login" replace />;
-  }
+  if (loading) return null; // or a spinner
 
-  return children;
+  return user ? <>{children}</> : <Navigate to="/login" replace />;
 }
