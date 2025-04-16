@@ -2,7 +2,7 @@
 import { create } from "zustand";
 
 type Toast = {
-  id: string;
+  id?: string;
   title?: string;
   description?: string;
   variant?: "default" | "destructive" | "success" | "info" | "warning";
