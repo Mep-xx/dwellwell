@@ -6,7 +6,7 @@ import type { Trackable } from '@shared/types/trackable';
 import { toast } from "../components/ui/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { Task } from '@shared/types/task';
-
+import { useHome } from '@/context/HomeContext';
 
 export default function Trackables() {
   const [trackables, setTrackables] = useState<Trackable[]>([]);
@@ -14,15 +14,20 @@ export default function Trackables() {
   const [editingTrackable, setEditingTrackable] = useState<Trackable | null>(null);
   const [viewTasksFor, setViewTasksFor] = useState<string | null>(null);
   const [trackableTasks, setTrackableTasks] = useState<Task[]>([]);
+  const { selectedHomeId } = useHome();
 
   useEffect(() => {
+    if (!selectedHomeId) return;
+
     const token = localStorage.getItem("dwellwell-token");
-    console.log("👤 Auth Token at time of fetch:", token); // ✅ Log token availability
-  
-    api.get('/api/trackables')
+    console.log("👤 Auth Token at time of fetch:", token);
+
+    api.get('/api/trackables', {
+      params: { homeId: selectedHomeId },
+    })
       .then(res => {
         if (Array.isArray(res.data)) {
-          console.log('✅ Received trackables:', res.data); // ✅ Log successful data
+          console.log('✅ Received trackables:', res.data);
           setTrackables(res.data);
         } else {
           console.warn('⚠️ Unexpected response shape:', res.data);
@@ -30,21 +35,30 @@ export default function Trackables() {
         }
       })
       .catch(err => {
-        console.error('❌ Failed to load trackables:', err); // ✅ Log error if token is rejected
+        console.error('❌ Failed to load trackables:', err);
         setTrackables([]);
       });
-  }, []);
-  
-
+  }, [selectedHomeId]);
 
   const handleSave = async (newTrackable: Trackable) => {
+    if (!selectedHomeId) return;
+
     try {
-      const res = await api.post('/api/trackables', newTrackable);
-      console.log('Trackable POST response:', res.data); // 🔍 See what you’re getting
+      const res = await api.post('/api/trackables', {
+        ...newTrackable,
+        homeId: selectedHomeId,
+      });
+
+      console.log('Trackable POST response:', res.data);
       setTrackables(prev => [...prev, res.data.trackable]);
       setShowModal(false);
     } catch (err) {
       console.error('Failed to save trackable:', err);
+      toast({
+        title: "Error saving trackable",
+        description: "Something went wrong while saving.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -53,13 +67,10 @@ export default function Trackables() {
       const res = await api.get('/api/tasks', {
         params: { trackableId }
       });
+
       console.log('Fetched tasks for', trackableId, res.data);
-
       setTrackableTasks(res.data);
-      console.log('Viewing tasks for trackable:', selectedTrackable);
-
       setViewTasksFor(trackableId);
-
     } catch (err) {
       console.error('Failed to fetch tasks:', err);
     }
@@ -85,7 +96,6 @@ export default function Trackables() {
       });
     }
   };
-
 
   const selectedTrackable = viewTasksFor ? trackables.find(t => t.id === viewTasksFor) : null;
 
@@ -115,14 +125,14 @@ export default function Trackables() {
               layout
               className="rounded-xl border bg-card text-card-foreground shadow p-4"
             >
-              {t.image && (
+              {t.imageUrl && (
                 <img
-                  src={t.image}
-                  alt={t.name}
+                  src={t.imageUrl}
+                  alt={t.userDefinedName}
                   className="w-24 h-24 object-contain mb-2"
                 />
               )}
-              <h2 className="text-lg font-semibold">{t.name}</h2>
+              <h2 className="text-lg font-semibold">{t.userDefinedName}</h2>
               <p className="text-sm text-gray-600">{t.type}</p>
               <p className="text-xs text-gray-500">{t.brand} {t.model}</p>
 
@@ -168,7 +178,7 @@ export default function Trackables() {
           setTrackableTasks([]);
         }}
         tasks={trackableTasks}
-        trackableName={selectedTrackable?.name || ''}
+        trackableName={selectedTrackable?.userDefinedName || ''}
       />
     </div>
   );

@@ -11,7 +11,7 @@ type Toast = {
 type ToastState = {
   toasts: Toast[];
   addToast: (toast: Toast) => void;
-  removeToast: (id: string) => void;
+  removeToast: (id?: string) => void;
 };
 
 export const useToastStore = create<ToastState>((set) => ({

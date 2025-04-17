@@ -8,82 +8,206 @@ datasource db {
 }
 
 model User {
-  id       String   @id @default(uuid())
-  email    String   @unique
-  password String
-  createdAt DateTime @default(now())
-
-  trackables Trackable[]
-  tasks      Task[]
+  id              String           @id @default(uuid())
+  email           String           @unique
+  password        String
+  createdAt       DateTime         @default(now())
+  homes           Home[]
+  loginActivities LoginActivity[]
+  billingAccount  BillingAccount?
+  userTasks       UserTask[]
+  aiQueries       AIQueryHistory[]
 }
 
+model LoginActivity {
+  id        String   @id @default(uuid())
+  userId    String
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model Home {
+  id          String       @id @default(uuid())
+  userId      String
+  address     String
+  nickname    String?
+  zillowId    String?
+  squareFeet  Int?
+  lotSize     Float?
+  yearBuilt   Int?
+  createdAt   DateTime     @default(now())
+  user        User         @relation(fields: [userId], references: [id])
+  rooms       Room[]
+  trackables  Trackable[]
+  lawnProfile LawnProfile?
+}
+
+model Room {
+  id         String      @id @default(uuid())
+  homeId     String
+  name       String
+  type       String
+  floor      Int?
+  home       Home        @relation(fields: [homeId], references: [id])
+  trackables Trackable[]
+}
+
+model LawnProfile {
+  id                  String   @id @default(uuid())
+  homeId              String   @unique
+  squareFeet          Int?
+  usesLawnService     Boolean? @default(false)
+  soilType            String?
+  sunExposure         String?
+  irrigationInstalled Boolean? @default(false)
+  home                Home     @relation(fields: [homeId], references: [id])
+}
+
+model ApplianceCatalog {
+  id                     String                  @id @default(uuid())
+  brand                  String
+  model                  String
+  type                   String
+  category               String
+  notes                  String?
+  imageUrl               String?
+  createdAt              DateTime                @default(now())
+  applianceTaskTemplates ApplianceTaskTemplate[]
+  trackables             Trackable[]
+
+  @@unique([brand, model])
+}
 
 model Trackable {
-  id           String   @id @default(uuid())
-  name         String
-  type         String
-  category     String
-  brand        String?
-  model        String?
-  serialNumber String?
-  imageUrl     String?
-  notes        String?
-  user         User     @relation(fields: [userId], references: [id])
-  userId       String
-  tasks        Task[]
+  id                 String            @id @default(uuid())
+  homeId             String
+  roomId             String?
+  applianceCatalogId String?
+  userDefinedName    String?
+  purchaseDate       DateTime?
+  serialNumber       String?
+  imageUrl           String?
+  notes              String?
+  createdAt          DateTime          @default(now())
+  home               Home              @relation(fields: [homeId], references: [id])
+  room               Room?             @relation(fields: [roomId], references: [id])
+  applianceCatalog   ApplianceCatalog? @relation(fields: [applianceCatalogId], references: [id])
+  tasks              UserTask[]
 }
 
-enum TaskType {
-  GENERAL
-  AI_GENERATED
-  USER_DEFINED
+model TaskTemplate {
+  id                    String                  @id @default(uuid())
+  title                 String
+  description           String?
+  icon                  String?
+  image                 String?
+  category              String?
+  recurrenceInterval    String
+  taskType              TaskType
+  criticality           TaskCriticality         @default(medium)
+
+  canDefer              Boolean                 @default(true)
+  deferLimitDays        Int                     @default(0)
+  estimatedTimeMinutes  Int                     @default(30)
+  estimatedCost         Int                     @default(0)
+  canBeOutsourced       Boolean                 @default(false)
+  
+  steps                 String[]                @default([])
+  equipmentNeeded       String[]                @default([])
+  resources             Json?
+  userTasks             UserTask[]
+  ApplianceTaskTemplate ApplianceTaskTemplate[]
+}
+
+
+model ApplianceTaskTemplate {
+  id                 String           @id @default(uuid())
+  applianceCatalogId String
+  taskTemplateId     String
+  notes              String?
+  applianceCatalog   ApplianceCatalog @relation(fields: [applianceCatalogId], references: [id])
+  taskTemplate       TaskTemplate     @relation(fields: [taskTemplateId], references: [id])
+
+  @@unique([applianceCatalogId, taskTemplateId])
+}
+
+model UserTask {
+  id            String     @id @default(uuid())
+  title         String
+  description   String
+  dueDate       DateTime
+  completedDate DateTime?
+  status        TaskStatus
+  itemName      String
+  category      String
+  location      String?
+
+  estimatedTimeMinutes Int
+  estimatedCost        Int
+  criticality          TaskCriticality
+  deferLimitDays       Int
+  canBeOutsourced      Boolean
+  canDefer             Boolean
+
+  recurrenceInterval String
+  taskType           TaskType
+
+  imageUrl String?
+  icon     String?
+
+  steps           Json? // ["Shut off power", "Unscrew panel"]
+  equipmentNeeded Json? // ["Ladder", "Phillips screwdriver"]
+  resources       Json? // [{ label: "Video tutorial", url: "https://..." }]
+
+  userId      String
+  trackableId String
+
+  taskTemplate   TaskTemplate? @relation(fields: [taskTemplateId], references: [id])
+  taskTemplateId String?
+
+  user      User      @relation(fields: [userId], references: [id])
+  trackable Trackable @relation(fields: [trackableId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+model BillingAccount {
+  id               String    @id @default(uuid())
+  userId           String    @unique
+  stripeCustomerId String?
+  plan             String
+  status           String
+  trialEndsAt      DateTime?
+  createdAt        DateTime  @default(now())
+  user             User      @relation(fields: [userId], references: [id])
+}
+
+model AIQueryHistory {
+  id              String   @id @default(uuid())
+  userId          String?
+  query           String
+  source          String?
+  responseSummary String?
+  createdAt       DateTime @default(now())
+  user            User?    @relation(fields: [userId], references: [id])
 }
 
 enum TaskStatus {
   PENDING
   COMPLETED
   SKIPPED
-  SNOOZED
 }
 
-model Task {
-  id                   String     @id @default(uuid())
-  title                String
-  description          String
-  dueDate              DateTime
-  status               TaskStatus @default(PENDING)
-  recurrenceInterval   String
-  criticality          String
-  canDefer             Boolean
-  deferLimitDays       Int
-  estimatedTimeMinutes Int
-  estimatedCost        Float
-  canBeOutsourced      Boolean
-  category             String
-  location             String?
-  imageUrl             String?
-  icon                 String?
-
-  taskType             TaskType   @default(GENERAL)
-
-  // Relations
-  itemName             String
-  trackable            Trackable  @relation(fields: [trackableId], references: [id])
-  trackableId          String
-  user                 User       @relation(fields: [userId], references: [id])
-  userId               String
-
-  createdAt            DateTime   @default(now())
-  updatedAt            DateTime   @updatedAt
+enum TaskCriticality {
+  low
+  medium
+  high
 }
 
-model ApplianceCatalog {
-  id        String   @id @default(uuid())
-  brand     String
-  model     String   @unique
-  type      String
-  category  String
-  notes     String?
-  imageUrl  String?
-  createdAt DateTime @default(now())
+enum TaskType {
+  GENERAL
+  AI_GENERATED
+  USER_DEFINED
 }

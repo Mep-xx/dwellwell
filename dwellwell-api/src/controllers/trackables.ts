@@ -9,8 +9,13 @@ export const getTrackables = async (req: Request, res: Response) => {
       return res.status(401).json({ message: 'Missing user ID' });
     }
 
+    const { homeId } = req.query;
+    if (!homeId || typeof homeId !== 'string') {
+      return res.status(400).json({ message: 'Missing home ID' });
+    }
+
     const trackables = await prisma.trackable.findMany({
-      where: { userId },
+      where: { homeId },
     });
 
     res.json(trackables);
@@ -26,49 +31,50 @@ export const createTrackable = async (req: Request, res: Response) => {
     if (!userId) return res.status(401).json({ message: 'Missing user ID' });
 
     const {
-      name,
-      type,
-      category,
-      brand,
-      model,
+      homeId,
+      applianceCatalogId,
+      userDefinedName,
       serialNumber,
       imageUrl,
       notes,
     } = req.body;
 
-    if (!name || !type || !category) {
+    if (!homeId || !applianceCatalogId || !userDefinedName) {
       return res.status(400).json({ message: 'Missing required fields' });
     }
 
-    // Create the new 
     const newTrackable = await prisma.trackable.create({
       data: {
-        name,
-        type,
-        category,
-        brand,
-        model,
+        home: { connect: { id: homeId } },
+        applianceCatalog: { connect: { id: applianceCatalogId } },
+        userDefinedName,
         serialNumber,
         imageUrl,
         notes,
-        user: { connect: { id: userId } },
       },
     });
 
-    // Generate associated tasks
-    console.log(`🧪 Creating trackable: ${name}`);
-    console.log(`🧪 Looking up templates for model: "${model}" or type: "${type}"`);
+    // Look up appliance info for task generation
+    const appliance = await prisma.applianceCatalog.findUnique({
+      where: { id: applianceCatalogId },
+    });
+
+    if (!appliance) {
+      return res.status(400).json({ message: 'Appliance catalog item not found' });
+    }
+
+    console.log(`🧪 Creating trackable: ${userDefinedName}`);
+    console.log(`🧪 Looking up templates for model: "${appliance.model}" or type: "${appliance.type}"`);
 
     const generatedTasks = await generateTasksFromTrackable({
-      name,
-      type,
-      category,
-      brand,
-      model,
+      name: userDefinedName,
+      type: appliance.type,
+      category: appliance.category,
+      brand: appliance.brand,
+      model: appliance.model,
     });
 
     console.log(`➡️  Generated ${generatedTasks.length} tasks`);
-
 
     if (generatedTasks.length > 0) {
       const tasksToInsert = generatedTasks.map((t) => ({
@@ -94,10 +100,8 @@ export const createTrackable = async (req: Request, res: Response) => {
         trackableId: newTrackable.id,
       }));
 
-      console.log('📝 Prepared task objects for DB insert:', tasksToInsert);
-
       try {
-        await prisma.task.createMany({ data: tasksToInsert });
+        await prisma.userTask.createMany({ data: tasksToInsert });
         console.log(`✅ Inserted ${tasksToInsert.length} tasks into DB`);
       } catch (insertError) {
         console.error('❌ Task insert failed:', insertError);
@@ -124,22 +128,19 @@ export const deleteTrackable = async (req: Request, res: Response) => {
   if (!userId) return res.status(400).json({ message: 'Missing user ID' });
 
   try {
-    // Optional: verify ownership
     const trackable = await prisma.trackable.findUnique({
       where: { id },
+      include: { home: true },
     });
 
-    if (!trackable || trackable.userId !== userId) {
+    if (!trackable || trackable.home.userId !== userId) {
       return res.status(404).json({ message: 'Trackable not found' });
     }
 
-    // Delete related tasks first (foreign key constraint)
-    await prisma.task.deleteMany({ where: { trackableId: id } });
-
-    // Now delete the trackable
+    await prisma.userTask.deleteMany({ where: { trackableId: id } });
     await prisma.trackable.delete({ where: { id } });
 
-    res.status(204).send(); // no content
+    res.status(204).send();
   } catch (err) {
     console.error('Failed to delete trackable:', err);
     res.status(500).json({ error: 'Something went wrong' });

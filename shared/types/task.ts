@@ -59,4 +59,7 @@ export type TaskTemplate = {
   icon?: string;
   image?: string | null;
   taskType?: 'GENERAL' | 'AI_GENERATED' | 'USER_DEFINED';
+  steps?: string[];
+  equipmentNeeded?: string[];
+  resources?: { label: string; url: string }[];
 };

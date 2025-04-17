@@ -12,12 +12,16 @@ export type TrackableCategory =
 
 export type Trackable = {
   id: string;
-  name: string;
-  category: TrackableCategory;
-  type: string; // e.g. 'Dishwasher', 'Microwave'
-  brand?: string;
-  model?: string;
+  userDefinedName: string;
+  brand: string;
+  model: string;
+  type: string;
+  category: string;
   serialNumber?: string;
-  image?: string;
+  imageUrl?: string;
   notes?: string;
+  applianceCatalogId?: string;
+  homeId: string;
+  roomId?: string | null;
+  createdAt: string;
 };

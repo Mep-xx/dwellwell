@@ -1,0 +1,6 @@
+-- AlterTable
+ALTER TABLE "TaskTemplate" ADD COLUMN     "canBeOutsourced" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "canDefer" BOOLEAN NOT NULL DEFAULT true,
+ADD COLUMN     "deferLimitDays" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "estimatedCost" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "estimatedTimeMinutes" INTEGER NOT NULL DEFAULT 30;

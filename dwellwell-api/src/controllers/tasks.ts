@@ -10,7 +10,7 @@ export const getTasks = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Missing user ID or trackable ID' });
     }
 
-    const tasks = await prisma.task.findMany({
+    const tasks = await prisma.userTask.findMany({
       where: {
         userId,
         trackableId,
@@ -29,7 +29,7 @@ export const getTasks = async (req: Request, res: Response) => {
 
 export const createTask = async (req: Request, res: Response) => {
   try {
-    const task = await prisma.task.create({
+    const task = await prisma.userTask.create({
       data: req.body,
     });
 
