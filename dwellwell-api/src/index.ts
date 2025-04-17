@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import trackablesRoutes from './routes/trackables';
 import tasksRoutes from './routes/tasks';
 import lookupRoutes from './routes/lookup';
+import homeRoutes from './routes/homes';
 import { aiRouter } from './routes/ai';
 import authRouter from './routes/auth';
 
@@ -24,6 +25,7 @@ app.use('/api/tasks', tasksRoutes);
 app.use('/api/lookup', lookupRoutes);
 app.use('/api/ai', aiRouter);
 app.use('/api/auth', authRouter); 
+app.use('/api/homes', homeRoutes);
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

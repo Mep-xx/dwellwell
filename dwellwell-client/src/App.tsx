@@ -8,7 +8,7 @@ function App() {
   return (
     <Router>
       <HelmetProvider>
-        <HomeProvider> {/* ✅ Wraps routing + toasts in Home context */}
+        <HomeProvider>
           <AppRoutes />
           <Toaster />
         </HomeProvider>

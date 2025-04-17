@@ -10,6 +10,7 @@ import Dashboard from '../pages/Dashboard';
 import Trackables from '../pages/Trackables';
 import Homes from '../pages/Homes';
 import Lawn from '../pages/Lawn';
+import Vehicles from '@/pages/Vehicles';
 import Settings from '../pages/Settings';
 import Billing from '../pages/Billing';
 import NotFound from '../pages/NotFound';
@@ -30,6 +31,7 @@ export default function AppRoutes() {
         <Route path="/trackables" element={<ProtectedRoute><Trackables /></ProtectedRoute>} />
         <Route path="/homes" element={<ProtectedRoute><Homes /></ProtectedRoute>} />
         <Route path="/lawn" element={<ProtectedRoute><Lawn /></ProtectedRoute>} />
+        <Route path="/vehicles" element={<ProtectedRoute><Vehicles /></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
         <Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
       </Route>

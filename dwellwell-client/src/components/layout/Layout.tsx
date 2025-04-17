@@ -35,18 +35,6 @@ export default function Layout() {
               Dashboard
             </NavLink>
             <NavLink
-              to="/trackables"
-              className={({ isActive }) =>
-                `block py-2 transition-colors rounded-r-md ${
-                  isActive
-                    ? 'bg-blue-100 text-blue-700 font-semibold border-l-4 border-blue-600 pl-4'
-                    : 'text-gray-700 hover:text-blue-600 pl-4'
-                }`
-              }
-            >
-              🔧 Trackables
-            </NavLink>
-            <NavLink
               to="/homes"
               className={({ isActive }) =>
                 `block py-2 transition-colors rounded-r-md ${
@@ -59,6 +47,18 @@ export default function Layout() {
               🏠 Homes
             </NavLink>
             <NavLink
+              to="/trackables"
+              className={({ isActive }) =>
+                `block py-2 transition-colors rounded-r-md ${
+                  isActive
+                    ? 'bg-blue-100 text-blue-700 font-semibold border-l-4 border-blue-600 pl-4'
+                    : 'text-gray-700 hover:text-blue-600 pl-4'
+                }`
+              }
+            >
+              🔧 Trackables
+            </NavLink>
+            <NavLink
               to="/lawn"
               className={({ isActive }) =>
                 `block py-2 transition-colors rounded-r-md ${
@@ -69,6 +69,18 @@ export default function Layout() {
               }
             >
               🌿 Lawn
+            </NavLink>
+            <NavLink
+              to="/vehicles"
+              className={({ isActive }) =>
+                `block py-2 transition-colors rounded-r-md ${
+                  isActive
+                    ? 'bg-blue-100 text-blue-700 font-semibold border-l-4 border-blue-600 pl-4'
+                    : 'text-gray-700 hover:text-blue-600 pl-4'
+                }`
+              }
+            >
+              🚗 Vehicles
             </NavLink>
           </nav>
         </div>
