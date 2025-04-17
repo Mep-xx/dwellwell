@@ -5,7 +5,7 @@ import trackablesRoutes from './routes/trackables';
 import tasksRoutes from './routes/tasks';
 import lookupRoutes from './routes/lookup';
 import homeRoutes from './routes/homes';
-import { aiRouter } from './routes/ai';
+import aiRoutes from './routes/ai';
 import authRouter from './routes/auth';
 
 dotenv.config();
@@ -23,7 +23,7 @@ app.get('/health', (req, res) => {
 app.use('/api/trackables', trackablesRoutes);
 app.use('/api/tasks', tasksRoutes);
 app.use('/api/lookup', lookupRoutes);
-app.use('/api/ai', aiRouter);
+app.use('/api/ai', aiRoutes);
 app.use('/api/auth', authRouter); 
 app.use('/api/homes', homeRoutes);
 

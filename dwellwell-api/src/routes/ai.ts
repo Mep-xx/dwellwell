@@ -1,30 +1,88 @@
-import { Router } from 'express';
-import { openai } from '../utils/openai';
-import { extractJSONFromResponse } from '../utils/parse'
-import { requireAuth } from '../middleware/requireAuth';
+import express from 'express';
+import { OpenAI } from 'openai';
 
-export const aiRouter = Router();
+const router = express.Router();
 
-aiRouter.use(requireAuth);
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
-aiRouter.get('/lookup-appliance', async (req, res) => {
+// Utility to extract first JSON object/array from an OpenAI response string
+function extractJSONFromResponse(text: string): any {
+  try {
+    const match = text.match(/\{[\s\S]*?\}|\[[\s\S]*?\]/);
+    if (!match) throw new Error("No JSON object found in response.");
+    return JSON.parse(match[0]);
+  } catch (err) {
+    console.error("Failed to parse JSON from OpenAI response:", err);
+    return null;
+  }
+}
+
+// Route: POST /api/ai/enrich-home
+router.post('/enrich-home', async (req, res) => {
+  const { address } = req.body;
+
+  if (!address) {
+    return res.status(400).json({ message: 'Missing address' });
+  }
+
+  const prompt = `
+I have a home at address "${address}". Based on similar properties and typical U.S. suburban layouts, provide a JSON object with the following estimated details:
+- squareFeet: number
+- numberOfRooms: number
+- yearBuilt: number
+- features: string[] (e.g. ["garage", "fireplace", "pool", "finished basement"])
+Return only the JSON object, with no explanation.
+  `.trim();
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4',
+      temperature: 0.7,
+      messages: [{ role: 'user', content: prompt }],
+    });
+
+    const content = response.choices[0]?.message?.content || '';
+    const parsed = extractJSONFromResponse(content);
+
+    if (!parsed) {
+      return res.status(500).json({ message: 'Failed to parse home data' });
+    }
+
+    return res.json(parsed);
+  } catch (err) {
+    console.error('Error generating home data:', err);
+    return res.status(500).json({ error: 'Failed to generate home data' });
+  }
+});
+
+// Route: GET /api/ai/lookup-appliance
+router.get('/lookup-appliance', async (req, res) => {
   const query = req.query.query as string;
   if (!query) return res.status(400).json({ message: 'Missing query' });
 
   try {
     const response = await openai.chat.completions.create({
       model: 'gpt-3.5-turbo',
+      temperature: 0.6,
       messages: [{
         role: 'user',
         content: `Suggest 3 appliances that match this description: "${query}". For each, return a JSON array with brand, model, type, category, and a short note.`,
       }],
-      temperature: 0.6,
     });
 
     const suggestions = extractJSONFromResponse(response.choices[0].message.content || '');
-    res.json(suggestions);
+
+    if (!suggestions) {
+      return res.status(500).json({ message: 'Failed to parse appliance suggestions' });
+    }
+
+    return res.json(suggestions);
   } catch (err) {
     console.error('AI lookup error:', err);
-    res.status(500).json({ message: 'Failed to retrieve AI suggestions' });
+    return res.status(500).json({ message: 'Failed to retrieve AI suggestions' });
   }
 });
+
+export default router;
