@@ -4,7 +4,7 @@ export type TrackableLookup = {
   type: string;
   category: string;
   notes?: string;
-  image?: string;
+  imageUrl?: string;
 };
 
 const ApplianceCatalog: TrackableLookup[] = [

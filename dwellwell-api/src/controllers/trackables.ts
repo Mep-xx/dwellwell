@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { prisma } from '../db/prisma';
 import { generateTasksFromTrackable } from '../utils/generateTasksFromTrackable';
+import { TaskType } from '@prisma/client';
 
 export const getTrackables = async (req: Request, res: Response) => {
   try {
@@ -43,6 +44,14 @@ export const createTrackable = async (req: Request, res: Response) => {
       return res.status(400).json({ message: 'Missing required fields' });
     }
 
+    const catalog = await prisma.applianceCatalog.findUnique({
+      where: { id: applianceCatalogId },
+    });
+
+    if (!catalog) {
+      return res.status(404).json({ message: 'Catalog not found' });
+    }
+
     const newTrackable = await prisma.trackable.create({
       data: {
         home: { connect: { id: homeId } },
@@ -54,27 +63,21 @@ export const createTrackable = async (req: Request, res: Response) => {
       },
     });
 
-    // Look up appliance info for task generation
-    const appliance = await prisma.applianceCatalog.findUnique({
-      where: { id: applianceCatalogId },
-    });
-
-    if (!appliance) {
-      return res.status(400).json({ message: 'Appliance catalog item not found' });
-    }
-
     console.log(`🧪 Creating trackable: ${userDefinedName}`);
-    console.log(`🧪 Looking up templates for model: "${appliance.model}" or type: "${appliance.type}"`);
+    console.log(`🧪 Looking up templates for model: "${catalog.model}" or type: "${catalog.type}"`);
 
     const generatedTasks = await generateTasksFromTrackable({
       name: userDefinedName,
-      type: appliance.type,
-      category: appliance.category,
-      brand: appliance.brand,
-      model: appliance.model,
+      type: catalog.type,
+      category: catalog.category,
+      brand: catalog.brand,
+      model: catalog.model,
+      userId,
+      trackableId: newTrackable.id,
     });
 
     console.log(`➡️  Generated ${generatedTasks.length} tasks`);
+    const validTaskTypes: TaskType[] = ['GENERAL', 'AI_GENERATED', 'USER_DEFINED'];
 
     if (generatedTasks.length > 0) {
       const tasksToInsert = generatedTasks.map((t) => ({
@@ -85,19 +88,23 @@ export const createTrackable = async (req: Request, res: Response) => {
         estimatedTimeMinutes: t.estimatedTimeMinutes,
         estimatedCost: t.estimatedCost,
         canBeOutsourced: t.canBeOutsourced,
-        canDefer: t.canDefer,
+        canDefer: t.canBeOutsourced,
         deferLimitDays: t.deferLimitDays,
         category: t.category,
         icon: t.icon,
-        imageUrl: t.image ?? null,
-        taskType: ['GENERAL', 'AI_GENERATED', 'USER_DEFINED'].includes(t.taskType)
-          ? (t.taskType as 'GENERAL' | 'AI_GENERATED' | 'USER_DEFINED')
+        imageUrl: t.imageUrl ?? null,
+        taskType: typeof t.taskType === 'string' && validTaskTypes.includes(t.taskType as TaskType)
+          ? (t.taskType as TaskType)
           : 'GENERAL',
+
         recurrenceInterval: t.recurrenceInterval,
         criticality: t.criticality,
         dueDate: t.dueDate.toISOString(),
         userId,
         trackableId: newTrackable.id,
+        steps: t.steps ?? [],
+        equipmentNeeded: t.equipmentNeeded ?? [],
+        resources: t.resources ?? [],
       }));
 
       try {
@@ -114,7 +121,6 @@ export const createTrackable = async (req: Request, res: Response) => {
       trackable: newTrackable,
       tasks: generatedTasks,
     });
-
   } catch (err) {
     console.error('❌ Failed to create trackable:', err);
     res.status(500).json({ error: 'Failed to create trackable' });

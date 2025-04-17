@@ -14,7 +14,7 @@ export const taskTemplates: Record<string, TaskTemplate[]> = {
       canDefer: true,
       category: 'Appliances',
       icon: '🧼',
-      image: null,
+      imageUrl: null,
       taskType: 'GENERAL',
     },
     {
@@ -29,7 +29,7 @@ export const taskTemplates: Record<string, TaskTemplate[]> = {
       canDefer: true,
       category: 'Appliances',
       icon: '🍋',
-      image: null,
+      imageUrl: null,
       taskType: 'GENERAL',
     },
     {
@@ -44,7 +44,7 @@ export const taskTemplates: Record<string, TaskTemplate[]> = {
       canDefer: true,
       category: 'Appliances',
       icon: '🛠️',
-      image: null,
+      imageUrl: null,
       taskType: 'GENERAL',
     },
   ],
@@ -62,7 +62,7 @@ export const taskTemplates: Record<string, TaskTemplate[]> = {
       canDefer: true,
       category: 'Appliances',
       icon: '🧯',
-      image: null,
+      imageUrl: null,
       taskType: 'GENERAL',
     },
     {
@@ -77,7 +77,7 @@ export const taskTemplates: Record<string, TaskTemplate[]> = {
       canDefer: true,
       category: 'Appliances',
       icon: '🚪',
-      image: null,
+      imageUrl: null,
       taskType: 'GENERAL',
     },
   ],
@@ -95,7 +95,7 @@ export const taskTemplates: Record<string, TaskTemplate[]> = {
       canDefer: true,
       category: 'Appliances',
       icon: '🧺',
-      image: null,
+      imageUrl: null,
       taskType: 'GENERAL',
     }
   ],
@@ -113,7 +113,7 @@ export const taskTemplates: Record<string, TaskTemplate[]> = {
       canDefer: false,
       category: 'Appliances',
       icon: '🔥',
-      image: null,
+      imageUrl: null,
       taskType: 'GENERAL',
     },
     {
@@ -128,7 +128,7 @@ export const taskTemplates: Record<string, TaskTemplate[]> = {
       canDefer: true,
       category: 'Appliances',
       icon: '🌬️',
-      image: null,
+      imageUrl: null,
       taskType: 'GENERAL',
     }
   ],
@@ -146,7 +146,7 @@ export const taskTemplates: Record<string, TaskTemplate[]> = {
       canDefer: true,
       category: 'Appliances',
       icon: '🔥',
-      image: null,
+      imageUrl: null,
       taskType: 'GENERAL',
     }
   ],
@@ -164,7 +164,7 @@ export const taskTemplates: Record<string, TaskTemplate[]> = {
       canDefer: true,
       category: 'Appliances',
       icon: '📡',
-      image: null,
+      imageUrl: null,
       taskType: 'GENERAL',
     }
   ],
@@ -182,7 +182,7 @@ export const taskTemplates: Record<string, TaskTemplate[]> = {
       canDefer: false,
       category: 'Lawn',
       icon: '🐛',
-      image: null,
+      imageUrl: null,
       taskType: 'GENERAL',
     },
     {
@@ -197,7 +197,7 @@ export const taskTemplates: Record<string, TaskTemplate[]> = {
       canDefer: true,
       category: 'Lawn',
       icon: '🌱',
-      image: null,
+      imageUrl: null,
       taskType: 'GENERAL',
     }
   ],
@@ -215,7 +215,7 @@ export const taskTemplates: Record<string, TaskTemplate[]> = {
       canDefer: true,
       category: 'Home',
       icon: '🧪',
-      image: null,
+      imageUrl: null,
       taskType: 'GENERAL',
     },
     {
@@ -230,7 +230,7 @@ export const taskTemplates: Record<string, TaskTemplate[]> = {
       canDefer: false,
       category: 'Home',
       icon: '💧',
-      image: null,
+      imageUrl: null,
       taskType: 'GENERAL',
     }
   ]

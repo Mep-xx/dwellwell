@@ -102,7 +102,7 @@ model TaskTemplate {
   title                 String
   description           String?
   icon                  String?
-  image                 String?
+  imageUrl              String?
   category              String?
   recurrenceInterval    String
   taskType              TaskType

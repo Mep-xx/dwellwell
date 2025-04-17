@@ -44,7 +44,7 @@ export async function generateTasksFromTrackable(trackable: {
     criticality: template.criticality ?? 'medium',
     icon: template.icon ?? (taskType === 'AI_GENERATED' ? '🤖' : '🧰'),
     category: template.category ?? trackable.category ?? 'General',
-    imageUrl: template.image ?? null,
+    imageUrl: template.imageUrl ?? null,
     taskType: taskType,
     userId: trackable.userId ?? '',
     trackableId: trackable.trackableId ?? '',

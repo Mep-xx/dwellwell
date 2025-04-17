@@ -57,7 +57,7 @@ export type TaskTemplate = {
   canBeOutsourced?: boolean;
   category?: string;
   icon?: string;
-  image?: string | null;
+  imageUrl?: string | null;
   taskType?: 'GENERAL' | 'AI_GENERATED' | 'USER_DEFINED';
   steps?: string[];
   equipmentNeeded?: string[];
