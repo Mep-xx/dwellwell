@@ -19,44 +19,6 @@ function extractJSONFromResponse(text: string): any {
   }
 }
 
-// Route: POST /api/ai/enrich-home
-router.post('/enrich-home', async (req, res) => {
-  const { address } = req.body;
-
-  if (!address) {
-    return res.status(400).json({ message: 'Missing address' });
-  }
-
-  const prompt = `
-I have a home at address "${address}". Based on similar properties and typical U.S. suburban layouts, provide a JSON object with the following estimated details:
-- squareFeet: number
-- numberOfRooms: number
-- yearBuilt: number
-- features: string[] (e.g. ["garage", "fireplace", "pool", "finished basement"])
-Return only the JSON object, with no explanation.
-  `.trim();
-
-  try {
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4',
-      temperature: 0.7,
-      messages: [{ role: 'user', content: prompt }],
-    });
-
-    const content = response.choices[0]?.message?.content || '';
-    const parsed = extractJSONFromResponse(content);
-
-    if (!parsed) {
-      return res.status(500).json({ message: 'Failed to parse home data' });
-    }
-
-    return res.json(parsed);
-  } catch (err) {
-    console.error('Error generating home data:', err);
-    return res.status(500).json({ error: 'Failed to generate home data' });
-  }
-});
-
 // Route: GET /api/ai/lookup-appliance
 router.get('/lookup-appliance', async (req, res) => {
   const query = req.query.query as string;

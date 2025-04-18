@@ -5,14 +5,21 @@ import { cn } from '@/lib/utils';
 
 export const Dialog = DialogPrimitive.Root;
 export const DialogTrigger = DialogPrimitive.Trigger;
+export const DialogClose = DialogPrimitive.Close;
+export const DialogTitle = DialogPrimitive.Title;
+export const DialogDescription = DialogPrimitive.Description;
 
-export function DialogContent({ children, className, ...props }: DialogPrimitive.DialogContentProps) {
+export function DialogContent({
+  children,
+  className,
+  ...props
+}: DialogPrimitive.DialogContentProps) {
   return (
     <DialogPrimitive.Portal>
-      <DialogPrimitive.Overlay className="fixed inset-0 bg-black/50 z-50" />
+      <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/50" />
       <DialogPrimitive.Content
         className={cn(
-          "fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-md bg-white p-6 shadow-lg",
+          "fixed z-50 left-1/2 top-1/2 max-h-[90vh] w-full max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-xl bg-white p-6 shadow-lg",
           className
         )}
         {...props}
@@ -24,12 +31,4 @@ export function DialogContent({ children, className, ...props }: DialogPrimitive
       </DialogPrimitive.Content>
     </DialogPrimitive.Portal>
   );
-}
-
-export function DialogHeader({ children }: { children: React.ReactNode }) {
-  return <div className="mb-4">{children}</div>;
-}
-
-export function DialogTitle({ children }: { children: React.ReactNode }) {
-  return <h2 className="text-xl font-semibold">{children}</h2>;
 }

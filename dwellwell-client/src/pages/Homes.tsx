@@ -10,16 +10,18 @@ export default function HomesPage() {
   const [selectedHomes, setSelectedHomes] = useState<Set<string>>(new Set());
   const [showAddModal, setShowAddModal] = useState(false);
 
-  useEffect(() => {
-    async function fetchHomes() {
-      try {
-        const res = await api.get('/api/homes');
-        setHomes(res.data);
-        setSelectedHomes(new Set(res.data.map((h: Home) => h.id)));
-      } catch (err) {
-        console.error('Failed to fetch homes:', err);
-      }
+  // 👇 Move this out of useEffect so it's reusable
+  const fetchHomes = async () => {
+    try {
+      const res = await api.get('/api/homes');
+      setHomes(res.data);
+      setSelectedHomes(new Set(res.data.map((h: Home) => h.id)));
+    } catch (err) {
+      console.error('Failed to fetch homes:', err);
     }
+  };
+
+  useEffect(() => {
     fetchHomes();
   }, []);
 
@@ -50,7 +52,7 @@ export default function HomesPage() {
             className="flex flex-col md:flex-row items-start md:items-center gap-4 p-4 rounded-xl shadow border bg-white"
           >
             <img
-              src={home.imageUrl}
+              src={home.imageUrl ?? 'https://www.dwellwell.io/image/home.png'}
               alt={home.address}
               className="w-full md:w-48 h-32 object-cover rounded-md"
             />
@@ -60,22 +62,41 @@ export default function HomesPage() {
                 {home.city}, {home.state}
               </p>
               <p className="text-sm text-muted-foreground">
-                {home.squareFeet.toLocaleString()} sq. ft. &nbsp; • &nbsp; {home.lotSize} acres
+                {home.squareFeet?.toLocaleString?.()} sq. ft. &nbsp; • &nbsp; {home.lotSize} acres
               </p>
               <p className="text-sm text-muted-foreground">Built in {home.yearBuilt}</p>
+
+              {home.features && home.features.length > 0 && (
+                <div className="flex flex-wrap gap-2 pt-2">
+                  {home.features.map((feature) => (
+                    <span
+                      key={feature}
+                      className="bg-gray-100 text-sm text-gray-800 px-3 py-1 rounded-full border border-gray-300"
+                    >
+                      {feature}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="flex flex-col items-center gap-2">
               <Checkbox
                 checked={selectedHomes.has(home.id)}
-                onCheckedChange={() => toggleHome(home.id)}
+                onChange={() => toggleHome(home.id)}
               />
               <Button variant="outline" size="sm">Edit</Button>
             </div>
           </div>
         ))}
       </div>
-      
-      <AddHomeModal isOpen={showAddModal} onClose={() => setShowAddModal(false)} />
+
+      <AddHomeModal
+        isOpen={showAddModal}
+        onClose={() => {
+          setShowAddModal(false);
+          fetchHomes(); // ✅ this now works
+        }}
+      />
     </div>
   );
 }

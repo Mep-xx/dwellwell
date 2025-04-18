@@ -32,11 +32,16 @@ model Home {
   id          String       @id @default(uuid())
   userId      String
   address     String
+  city        String
+  state       String
   nickname    String?
   zillowId    String?
   squareFeet  Int?
   lotSize     Float?
   yearBuilt   Int?
+  numberOfRooms Int?
+  imageUrl    String?
+  features    Json?
   createdAt   DateTime     @default(now())
   user        User         @relation(fields: [userId], references: [id])
   rooms       Room[]

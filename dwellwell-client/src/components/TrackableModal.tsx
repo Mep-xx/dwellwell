@@ -38,14 +38,14 @@ const categories: { label: string; value: TrackableCategory }[] = [
 export default function TrackableModal({ isOpen, onClose, onSave, initialData }: Props) {
   const [form, setForm] = useState<Trackable>({
     id: uuidv4(),
-    name: '',
-    type: '',
-    category: 'general',
+    userDefinedName: '',
     brand: '',
     model: '',
+    type: '',
+    category: 'GENERAL',
     serialNumber: '',
-    image: '',
-    notes: '',
+    imageUrl: '',
+    notes: ''
   });
 
   const [suggestions, setSuggestions] = useState<ApplianceLookup[]>([]);
