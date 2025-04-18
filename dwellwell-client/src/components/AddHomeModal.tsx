@@ -4,76 +4,219 @@ import {
   DialogContent,
   DialogTitle,
   DialogDescription,
+  DialogClose,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { X } from 'lucide-react';
 import { useState } from 'react';
+import { ProgressBar } from './ui/ProgressBar';
 import { api } from '@/utils/api';
 
-export function AddHomeModal({
-  isOpen,
-  onClose,
-}: {
-  isOpen: boolean;
-  onClose: () => void;
-}) {
+const FEATURE_SUGGESTIONS = [
+  'garage', 'fireplace', 'deck', 'patio', 'sunroom', 'chimney',
+  'attic', 'basement', 'walk-in closet', 'central air', 'finished basement',
+];
+
+const ROOM_TYPES = [
+  'Bedroom', 'Bathroom', 'Kitchen', 'Dining Room', 'Living Room',
+  'Office', 'Laundry Room', 'Mudroom', 'Guest Room',
+];
+
+export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+  const [step, setStep] = useState(0);
   const [address, setAddress] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [city, setCity] = useState('');
+  const [state, setState] = useState('');
+  const [squareFeet, setSquareFeet] = useState('');
+  const [lotSize, setLotSize] = useState('');
+  const [yearBuilt, setYearBuilt] = useState('');
+  const [nickname, setNickname] = useState('');
+  const [features, setFeatures] = useState<string[]>([]);
+  const [featureInput, setFeatureInput] = useState('');
+  const [rooms, setRooms] = useState(ROOM_TYPES.map((type) => ({ type, count: 0 })));
 
-  const handleSubmit = async () => {
-    if (!address.trim()) return;
+  const steps = ['Address', 'Details', 'Features'];
 
+  const addFeature = () => {
+    const trimmed = featureInput.trim().toLowerCase();
+    if (
+      trimmed &&
+      !features.includes(trimmed) &&
+      !trimmed.includes('<') &&
+      !['hot tub', 'stove', 'insert', 'range', 'furnace'].some(f => trimmed.includes(f))
+    ) {
+      setFeatures([...features, trimmed]);
+    }
+    setFeatureInput('');
+  };
+
+  const handleSave = async () => {
     try {
-      setLoading(true);
+      const numberOfRooms = rooms.reduce((sum, r) => sum + (r.count || 0), 0);
 
-      console.log('🔍 Enriching address:', address);
+      const res = await api.post('/api/homes', {
+        address,
+        city,
+        state,
+        nickname,
+        squareFeet: Number(squareFeet) || null,
+        lotSize: Number(lotSize) || null,
+        yearBuilt: Number(yearBuilt) || null,
+        numberOfRooms,
+        features,
+        imageUrl: null,
+      });
 
-      // ✅ Fixed route: now correctly matches /api/homes/ai/enrich-home
-      const enrichRes = await api.post('/api/homes/enrich-home', { address });
-      const enriched = enrichRes.data;
-      console.log('🏠 Enriched home data:', enriched);
-
+      console.log('✅ Home saved:', res.data);
       onClose();
     } catch (err) {
-      console.error('❌ Failed to enrich/save home:', err);
-    } finally {
-      setLoading(false);
+      console.error('❌ Failed to save home:', err);
     }
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="space-y-4">
-        <div className="flex flex-col space-y-1 mb-4">
-          <DialogTitle className="text-xl font-semibold">
-            Add a New Home
-          </DialogTitle>
-          <DialogDescription className="text-sm text-muted-foreground">
-            Enter your home’s address. We’ll try to fetch details automatically.
-          </DialogDescription>
+      <DialogContent className="space-y-4 max-w-xl">
+        <div className="flex flex-col space-y-1">
+          <DialogTitle className="text-2xl font-bold text-brand-primary">Add a New Home</DialogTitle>
         </div>
 
-        <Input
-          placeholder="123 Main St, Springfield, IL"
-          value={address}
-          onChange={(e) => setAddress(e.target.value)}
-        />
-
-        <div className="flex justify-end gap-2 pt-4">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 border rounded text-gray-600 hover:bg-gray-100"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={loading}
-            className="px-4 py-2 bg-brand-primary text-white rounded hover:bg-blue-600 disabled:opacity-50"
-          >
-            {loading ? 'Looking up...' : 'Submit'}
-          </button>
+        <div className="w-full px-2">
+          <ProgressBar currentStep={step} steps={steps} />
         </div>
+
+        {step === 0 && (
+          <div className="space-y-4">
+            <DialogDescription>Where is your home located?</DialogDescription>
+            <Input placeholder="Street Address" value={address} onChange={(e) => setAddress(e.target.value)} />
+            <div className="flex gap-2">
+              <Input placeholder="City" value={city} onChange={(e) => setCity(e.target.value)} />
+              <Input placeholder="State" value={state} onChange={(e) => setState(e.target.value)} />
+            </div>
+            <div className="flex justify-end">
+              <button
+                onClick={() => setStep(1)}
+                className="px-4 py-2 bg-brand-primary text-white rounded hover:bg-blue-600"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
+
+        {step === 1 && (
+          <div className="space-y-4">
+            <label>Tell us more about this home</label>
+            <Input
+              placeholder="Nickname (e.g. Lake House)"
+              value={nickname}
+              onChange={(e) => setNickname(e.target.value)}
+            />
+            <Input
+              placeholder="Square Feet"
+              type="number"
+              value={squareFeet}
+              onChange={(e) => setSquareFeet(e.target.value)}
+            />
+            <Input
+              placeholder="Lot Size (acres)"
+              type="number"
+              value={lotSize}
+              onChange={(e) => setLotSize(e.target.value)}
+            />
+            <Input
+              placeholder="Year Built"
+              type="number"
+              value={yearBuilt}
+              onChange={(e) => setYearBuilt(e.target.value)}
+            />
+            <div className="flex justify-between">
+              <button
+                onClick={() => setStep(0)}
+                className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-100"
+              >
+                Back
+              </button>
+              <button
+                onClick={() => setStep(2)}
+                className="px-4 py-2 bg-brand-primary text-white rounded hover:bg-blue-600"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
+
+        {step === 2 && (
+          <div className="space-y-6">
+            <div>
+              <label className="block mb-2 font-medium">Home Features</label>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="e.g. garage"
+                  value={featureInput}
+                  onChange={(e) => setFeatureInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && addFeature()}
+                />
+                <button
+                  onClick={addFeature}
+                  className="px-3 py-2 bg-brand-primary text-white rounded hover:bg-blue-600"
+                >
+                  Add
+                </button>
+              </div>
+              {features.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {features.map((f) => (
+                    <span
+                      key={f}
+                      className="bg-gray-100 text-sm text-gray-800 px-3 py-1 rounded-full border border-gray-300"
+                    >
+                      {f}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="block mb-2 font-medium">Rooms in your home</label>
+              <div className="space-y-2">
+                {rooms.map((room, i) => (
+                  <div key={room.type} className="flex justify-between items-center">
+                    <span>{room.type}</span>
+                    <input
+                      type="number"
+                      value={room.count}
+                      min={0}
+                      onChange={(e) => {
+                        const updated = [...rooms];
+                        updated[i].count = parseInt(e.target.value || '0');
+                        setRooms(updated);
+                      }}
+                      className="w-16 border rounded px-2 py-1"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex justify-between">
+              <button
+                onClick={() => setStep(1)}
+                className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-100"
+              >
+                Back
+              </button>
+              <button
+                onClick={handleSave}
+                className="px-4 py-2 bg-brand-primary text-white rounded hover:bg-blue-600"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

@@ -45,6 +45,7 @@ export default function HomesPage() {
         </button>
       </div>
 
+      {/* Home Tile */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {homes.map((home) => (
           <div
@@ -52,7 +53,7 @@ export default function HomesPage() {
             className="flex flex-col md:flex-row items-start md:items-center gap-4 p-4 rounded-xl shadow border bg-white"
           >
             <img
-              src={home.imageUrl ?? 'https://www.dwellwell.io/image/home.png'}
+              src={home.imageUrl ?? '../../public/images/home.png'}
               alt={home.address}
               className="w-full md:w-48 h-32 object-cover rounded-md"
             />
