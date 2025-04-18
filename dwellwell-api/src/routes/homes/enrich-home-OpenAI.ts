@@ -16,22 +16,23 @@ router.post('/enrich-home', requireAuth, async (req, res) => {
   }
 
   const prompt = `
-You are given a home address: "${address}"
+Given the U.S. address: "${address}"
 
-Parse this address and return the following as a JSON object:
+Return a JSON object that estimates the following based on typical suburban homes in the same area.
 
-- address: string (just the street address, e.g., "19 Claflin Farm Ln")
-- city: string (e.g., "Northborough")
-- state: string (2-letter abbreviation, e.g., "MA")
-- nickname: string (optional user-friendly name like "Lake House")
-- squareFeet: number (estimate if unknown)
-- lotSize: number (in acres, estimate if unknown)
-- yearBuilt: number (estimate if unknown)
-- numberOfRooms: number (estimate if unknown)
-- features: string[] (e.g. ["garage", "fireplace", "central air"])
-- imageUrl: string (use "https://via.placeholder.com/300" if unknown)
+Only include:
+- address: "19 Claflin Farm Ln"
+- city: "Northborough"
+- state: "MA"
+- squareFeet: number (estimate)
+- lotSize: number in acres (estimate)
+- yearBuilt: number (typical for that area)
+- numberOfRooms: number
+- features: string[] (e.g., ["garage", "fireplace"])
+- imageUrl: "https://via.placeholder.com/300"
 
-Return only a valid JSON object. No comments, notes, or explanation.
+Do not include any comments or explanation. Only output a valid JSON object.
+
 `.trim();
 
   console.log(prompt);

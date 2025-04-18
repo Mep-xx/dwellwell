@@ -2,7 +2,7 @@
 import express from 'express';
 import { prisma } from '../../db/prisma';
 import { requireAuth } from '../../middleware/requireAuth';
-import enrichHomeRoute from './enrich-home';
+import enrichHomeRoute from './enrich-home-OpenAI';
 
 const router = express.Router();
 
