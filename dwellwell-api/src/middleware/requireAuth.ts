@@ -7,10 +7,8 @@ import jwt from 'jsonwebtoken';
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecret';
 
 export const requireAuth = (req: Request, res: Response, next: NextFunction) => {
-  console.log("🔐 Incoming Auth Header:", req.headers.authorization);
 
   const authHeader = req.headers.authorization;
-  console.log("🔐 Incoming Auth Header:", authHeader);
 
   const token = authHeader?.split(' ')[1];
 

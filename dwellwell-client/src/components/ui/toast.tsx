@@ -1,5 +1,5 @@
 
-import { useToastStore } from "./use-toast";
+import { useToastStore } from "@/components/ui/use-toast";
 import { AnimatePresence, motion } from "framer-motion";
 
 const VARIANT_STYLES: Record<string, string> = {

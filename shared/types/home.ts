@@ -5,12 +5,14 @@ export type Home = {
   address: string;
   city: string;
   state: string;
-  nickname?: string | null;
-  squareFeet?: number | null;
-  lotSize?: number | null;
-  yearBuilt?: number | null;
-  numberOfRooms?: number | null;
-  imageUrl?: string | null;
-  createdAt: string; // or Date if you convert it on fetch
-  features?: string[] | null;
+  nickname?: string;
+  zillowId?: string;
+  squareFeet?: number;
+  lotSize?: number;
+  yearBuilt?: number;
+  numberOfRooms?: number;
+  imageUrl?: string;
+  features: string[];
+  isChecked: boolean;
+  createdAt: string;
 };

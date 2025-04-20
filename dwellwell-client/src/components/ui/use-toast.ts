@@ -1,27 +1,43 @@
-
-import { create } from "zustand";
+import { create } from 'zustand';
 
 type Toast = {
-  id?: string;
+  id: string;
   title?: string;
   description?: string;
-  variant?: "default" | "destructive" | "success" | "info" | "warning";
+  variant?: 'default' | 'success' | 'info' | 'warning' | 'destructive';
 };
 
-type ToastState = {
+type ToastStore = {
   toasts: Toast[];
-  addToast: (toast: Toast) => void;
-  removeToast: (id?: string) => void;
+  addToast: (toast: Omit<Toast, 'id'>) => void;
+  removeToast: (id: string) => void;
 };
 
-export const useToastStore = create<ToastState>((set) => ({
+export const useToastStore = create<ToastStore>((set) => ({
   toasts: [],
-  addToast: (toast) =>
-    set((state) => ({ toasts: [...state.toasts, toast] })),
+  addToast: (toast) => {
+    const id = crypto.randomUUID();
+    const newToast = { id, ...toast };
+    set((state) => ({
+      toasts: [...state.toasts, newToast],
+    }));
+
+    // Auto-remove after 4s
+    setTimeout(() => {
+      set((state) => ({
+        toasts: state.toasts.filter((t) => t.id !== id),
+      }));
+    }, 4000);
+  },
   removeToast: (id) =>
-    set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) })),
+    set((state) => ({
+      toasts: state.toasts.filter((t) => t.id !== id),
+    })),
 }));
 
-export const toast = (t: Toast) => {
-  useToastStore.getState().addToast({ ...t, id: crypto.randomUUID() });
+export const useToast = () => {
+  const { addToast } = useToastStore();
+  return {
+    toast: addToast,
+  };
 };

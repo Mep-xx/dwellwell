@@ -3,12 +3,13 @@ import { api } from '@/utils/api';
 import TrackableModal from '../components/TrackableModal';
 import TrackableTaskModal from '../components/TrackableTaskModal';
 import type { Trackable } from '@shared/types/trackable';
-import { toast } from "../components/ui/use-toast";
+import { useToast } from "@/components/ui/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { Task } from '@shared/types/task';
 import { useHome } from '@/context/HomeContext';
 
 export default function Trackables() {
+  const { toast } = useToast();
   const [trackables, setTrackables] = useState<Trackable[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [editingTrackable, setEditingTrackable] = useState<Trackable | null>(null);

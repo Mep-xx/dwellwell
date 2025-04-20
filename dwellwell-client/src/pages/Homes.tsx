@@ -4,13 +4,15 @@ import { Button } from '@/components/ui/button';
 import { api } from '@/utils/api';
 import { Home } from '@shared/types/home';
 import { AddHomeModal } from '@/components/AddHomeModal';
+import { useToast } from '@/components/ui/use-toast';
 
 export default function HomesPage() {
   const [homes, setHomes] = useState<Home[]>([]);
   const [selectedHomes, setSelectedHomes] = useState<Set<string>>(new Set());
   const [showAddModal, setShowAddModal] = useState(false);
 
-  // 👇 Move this out of useEffect so it's reusable
+  const { toast } = useToast();
+
   const fetchHomes = async () => {
     try {
       const res = await api.get('/api/homes');
@@ -25,12 +27,32 @@ export default function HomesPage() {
     fetchHomes();
   }, []);
 
-  const toggleHome = (homeId: string) => {
-    setSelectedHomes((prev) => {
-      const updated = new Set(prev);
-      updated.has(homeId) ? updated.delete(homeId) : updated.add(homeId);
-      return updated;
-    });
+  const toggleHomeChecked = async (homeId: string, newValue: boolean) => {
+    try {
+      // Optimistically update local state
+      setHomes((prev) =>
+        prev.map((home) =>
+          home.id === homeId ? { ...home, isChecked: newValue } : home
+        )
+      );
+  
+      // Send PATCH request to persist
+      await api.patch(`/api/homes/${homeId}`, { isChecked: newValue });
+  
+      // ✅ Toast message
+      toast({
+        title: newValue
+          ? 'Home included in to-do list'
+          : 'Home excluded from to-do list',
+        description: newValue
+          ? 'Tasks for this home will now appear in your maintenance dashboard.'
+          : 'This home’s tasks will be hidden from your current to-do list.',
+        variant: newValue ? 'success' : 'info',
+      });
+    } catch (err) {
+      console.error('Failed to update home checked state:', err);
+      fetchHomes();
+    }
   };
 
   return (
@@ -82,8 +104,8 @@ export default function HomesPage() {
             </div>
             <div className="flex flex-col items-center gap-2">
               <Checkbox
-                checked={selectedHomes.has(home.id)}
-                onChange={() => toggleHome(home.id)}
+                checked={home.isChecked}
+                onChange={(e) => toggleHomeChecked(home.id, e.target.checked)}
               />
               <Button variant="outline" size="sm">Edit</Button>
             </div>

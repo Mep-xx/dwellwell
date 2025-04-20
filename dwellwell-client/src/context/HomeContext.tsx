@@ -1,19 +1,7 @@
 // dwellwell-client/src/context/homecontext.tsx
 
 import { createContext, useContext, useState } from 'react';
-
-export type Home = {
-  id: string;
-  address: string;
-  nickname?: string;
-  squareFeet?: number;
-  lotSize?: number;
-  yearBuilt?: number;
-  photoUrl?: string;
-  hasPool?: boolean;
-  roomCount?: number;
-  // You can add more fields as needed
-};
+import { Home } from '@shared/types/home';
 
 type HomeContextType = {
   selectedHomeId: string | null;
