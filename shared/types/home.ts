@@ -6,7 +6,6 @@ export type Home = {
   city: string;
   state: string;
   nickname?: string | null;
-  zillowId?: string | null;
   squareFeet?: number | null;
   lotSize?: number | null;
   yearBuilt?: number | null;

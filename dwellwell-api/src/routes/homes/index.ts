@@ -1,73 +1,42 @@
-// dwellwell-api/src/routes/homes.ts
 import express from 'express';
-import { prisma } from '../../db/prisma';
 import { requireAuth } from '../../middleware/requireAuth';
 import enrichHomeRoute from './enrich-home-OpenAI';
+import { getHomes, createHome } from '../../controllers/home';
+import { prisma } from '../../db/prisma';
 
 const router = express.Router();
 
-router.use(enrichHomeRoute); // 👈 simplified route
+router.use(enrichHomeRoute);
 
-// Get all homes for the current user
-router.get('/', requireAuth, async (req, res) => {
-  try {
-    const userId = (req as any).user?.userId;
-    const homes = await prisma.home.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-    });
-    res.json(homes);
-  } catch (err) {
-    console.error('Failed to fetch homes:', err);
-    res.status(500).json({ error: 'Failed to load homes' });
+// PATCH /api/homes/:id — update isChecked
+router.patch('/:id', requireAuth, async (req, res) => {
+  const userId = (req as any).user?.userId;
+  const homeId = req.params.id;
+  const { isChecked } = req.body;
+
+  if (typeof isChecked !== 'boolean') {
+    return res.status(400).json({ error: 'isChecked must be a boolean' });
   }
-});
 
-// Create a new home manually
-router.post('/', requireAuth, async (req, res) => {
   try {
-    const userId = (req as any).user?.userId;
-    const {
-      address,
-      city,
-      state,
-      nickname,
-      zillowId,
-      squareFeet,
-      lotSize,
-      yearBuilt,
-      numberOfRooms,
-      imageUrl,
-      features,
-    } = req.body;
+    const updatedHome = await prisma.home.updateMany({
+      where: { id: homeId, userId },
+      data: { isChecked },
+    });
 
-    if (!address || !city || !state) {
-      console.error('🚫 Missing required fields:', { address, city, state });
-      return res.status(400).json({ message: 'Missing required fields: address, city, or state' });
+    if (updatedHome.count === 0) {
+      return res.status(404).json({ error: 'Home not found or not owned by user' });
     }
 
-    const home = await prisma.home.create({
-      data: {
-        userId,
-        address,
-        city,
-        state,
-        nickname,
-        zillowId,
-        squareFeet,
-        lotSize,
-        yearBuilt,
-        numberOfRooms,
-        imageUrl,
-        features,
-      },
-    });
-
-    res.status(201).json(home);
+    res.status(200).json({ success: true });
   } catch (err) {
-    console.error('Failed to create home:', err);
-    res.status(500).json({ error: 'Failed to create home' });
+    console.error(err);
+    res.status(500).json({ error: 'Failed to update home' });
   }
 });
+
+// Use the controller functions here
+router.get('/', requireAuth, getHomes);
+router.post('/', requireAuth, createHome);
 
 export default router;

@@ -1,7 +1,7 @@
-// dwellwell-api/src/routes/homes/home.ts
 import { Request, Response } from 'express';
 import { prisma } from '../db/prisma';
 
+// GET /api/homes
 export const getHomes = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user?.userId;
@@ -16,6 +16,7 @@ export const getHomes = async (req: Request, res: Response) => {
   }
 };
 
+// POST /api/homes
 export const createHome = async (req: Request, res: Response) => {
   const userId = (req as any).user?.userId;
   if (!userId) return res.status(401).json({ message: 'Unauthorized' });
@@ -25,13 +26,13 @@ export const createHome = async (req: Request, res: Response) => {
     city,
     state,
     nickname,
-    zillowId,
     squareFeet,
     lotSize,
     yearBuilt,
     numberOfRooms,
     features,
-    imageUrl
+    imageUrl,
+    isChecked = true
   } = req.body;
 
   if (!address || !city || !state) {
@@ -47,13 +48,13 @@ export const createHome = async (req: Request, res: Response) => {
         city,
         state,
         nickname: nickname ?? null,
-        zillowId: zillowId ?? null,
         squareFeet: squareFeet ?? null,
         lotSize: lotSize ?? null,
         yearBuilt: yearBuilt ?? null,
         numberOfRooms: numberOfRooms ?? null,
         features: Array.isArray(features) ? features : [],
         imageUrl: imageUrl ?? 'https://via.placeholder.com/300',
+        isChecked: true
       }
     });
 

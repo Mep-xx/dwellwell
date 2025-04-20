@@ -29,24 +29,24 @@ model LoginActivity {
 }
 
 model Home {
-  id          String       @id @default(uuid())
-  userId      String
-  address     String
-  city        String
-  state       String
-  nickname    String?
-  zillowId    String?
-  squareFeet  Int?
-  lotSize     Float?
-  yearBuilt   Int?
-  numberOfRooms Int?
-  imageUrl    String?
-  features    Json?
-  createdAt   DateTime     @default(now())
-  user        User         @relation(fields: [userId], references: [id])
-  rooms       Room[]
-  trackables  Trackable[]
-  lawnProfile LawnProfile?
+  id             String   @id @default(cuid())
+  userId         String
+  address        String
+  city           String
+  state          String
+  nickname       String?
+  squareFeet     Int?
+  lotSize        Float?
+  yearBuilt      Int?
+  numberOfRooms  Int?
+  imageUrl       String?
+  features       String[] // Stored as text[] in PostgreSQL
+  isChecked      Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  user           User     @relation(fields: [userId], references: [id])
+  rooms          Room[]
+  trackables     Trackable[]
+  lawnProfile    LawnProfile?
 }
 
 model Room {

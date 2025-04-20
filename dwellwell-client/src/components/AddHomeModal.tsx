@@ -8,7 +8,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { X } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ProgressBar } from './ui/ProgressBar';
 import { api } from '@/utils/api';
 
@@ -27,6 +27,8 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
   const [address, setAddress] = useState('');
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [suggestionsRaw, setSuggestionsRaw] = useState<any[]>([]);
   const [squareFeet, setSquareFeet] = useState('');
   const [lotSize, setLotSize] = useState('');
   const [yearBuilt, setYearBuilt] = useState('');
@@ -35,7 +37,10 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
   const [featureInput, setFeatureInput] = useState('');
   const [rooms, setRooms] = useState(ROOM_TYPES.map((type) => ({ type, count: 0 })));
 
+
   const steps = ['Address', 'Details', 'Features'];
+
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const addFeature = () => {
     const trimmed = featureInput.trim().toLowerCase();
@@ -74,6 +79,48 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
     }
   };
 
+  const handleAddressChange = async (value: string) => {
+    setAddress(value);
+    setSuggestions([]);
+
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    if (!value.trim()) return;
+
+    timeoutRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/mapbox/suggest?query=${encodeURIComponent(value)}`);
+        const data = await res.json();
+        setSuggestionsRaw(data.features);
+        const suggestionList = data.features.map((f: any) => f.place_name);
+        setSuggestions(suggestionList);
+
+      } catch (err) {
+        console.error('Backend autocomplete failed:', err);
+      }
+    }, 300);
+  };
+
+
+
+  const handleSuggestionClick = (suggestion: string, context: any[]) => {
+    setAddress(suggestion);
+
+    // Reset first
+    setCity('');
+    setState('');
+
+    for (const item of context) {
+      if (item.id.startsWith('place.')) {
+        setCity(item.text);
+      } else if (item.id.startsWith('region.') && item.short_code) {
+        setState(item.short_code.replace('US-', ''));
+      }
+    }
+
+    setSuggestions([]);
+  };
+
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="space-y-4 max-w-xl">
@@ -88,7 +135,26 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
         {step === 0 && (
           <div className="space-y-4">
             <DialogDescription>Where is your home located?</DialogDescription>
-            <Input placeholder="Street Address" value={address} onChange={(e) => setAddress(e.target.value)} />
+            <div className="relative">
+              <Input
+                placeholder="Street Address"
+                value={address}
+                onChange={(e) => handleAddressChange(e.target.value)}
+              />
+              {suggestions.length > 0 && (
+                <ul className="absolute z-50 bg-white border rounded shadow w-full max-h-40 overflow-auto">
+                  {suggestions.map((s, i) => (
+                    <li
+                      key={i}
+                      onClick={() => handleSuggestionClick(suggestionsRaw[i].place_name, suggestionsRaw[i].context || [])}
+                      className="px-4 py-2 hover:bg-gray-100 cursor-pointer text-sm"
+                    >
+                      {s}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
             <div className="flex gap-2">
               <Input placeholder="City" value={city} onChange={(e) => setCity(e.target.value)} />
               <Input placeholder="State" value={state} onChange={(e) => setState(e.target.value)} />

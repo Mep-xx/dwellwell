@@ -7,6 +7,8 @@ import lookupRoutes from './routes/lookup';
 import homeRoutes from './routes/homes';
 import aiRoutes from './routes/ai';
 import authRouter from './routes/auth';
+import mapboxRoutes from './routes/mapbox';
+
 
 dotenv.config();
 
@@ -24,8 +26,11 @@ app.use('/api/trackables', trackablesRoutes);
 app.use('/api/tasks', tasksRoutes);
 app.use('/api/lookup', lookupRoutes);
 app.use('/api/ai', aiRoutes);
-app.use('/api/auth', authRouter); 
+app.use('/api/auth', authRouter);
 app.use('/api/homes', homeRoutes);
+app.use('/api', mapboxRoutes);
+app.use('/api/mapbox', mapboxRoutes);
+
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
