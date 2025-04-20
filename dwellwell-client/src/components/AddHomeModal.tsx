@@ -102,24 +102,24 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
 
 
 
-  const handleSuggestionClick = (suggestion: string, context: any[]) => {
-    setAddress(suggestion);
-
-    // Reset first
+  const handleSuggestionClick = (place: any) => {
+    const number = place.address || '';
+    const street = place.text || '';
+    setAddress(`${number} ${street}`.trim());
+  
+    // Clear current city/state and fill from context
     setCity('');
     setState('');
-
-    for (const item of context) {
+    for (const item of place.context || []) {
       if (item.id.startsWith('place.')) {
         setCity(item.text);
       } else if (item.id.startsWith('region.') && item.short_code) {
         setState(item.short_code.replace('US-', ''));
       }
     }
-
+  
     setSuggestions([]);
   };
-
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -146,7 +146,7 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
                   {suggestions.map((s, i) => (
                     <li
                       key={i}
-                      onClick={() => handleSuggestionClick(suggestionsRaw[i].place_name, suggestionsRaw[i].context || [])}
+                      onClick={() => handleSuggestionClick(suggestionsRaw[i])}
                       className="px-4 py-2 hover:bg-gray-100 cursor-pointer text-sm"
                     >
                       {s}
