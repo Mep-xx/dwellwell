@@ -8,6 +8,8 @@ import homeRoutes from './routes/homes';
 import aiRoutes from './routes/ai';
 import authRouter from './routes/auth';
 import mapboxRoutes from './routes/mapbox';
+import taskSummaryRoute from './routes/homes/summary';
+import roomRoutes from './routes/rooms';
 
 
 dotenv.config();
@@ -22,14 +24,16 @@ app.get('/health', (req, res) => {
   res.send('API is running');
 });
 
+app.use('/api', mapboxRoutes);
 app.use('/api/trackables', trackablesRoutes);
 app.use('/api/tasks', tasksRoutes);
 app.use('/api/lookup', lookupRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/auth', authRouter);
 app.use('/api/homes', homeRoutes);
-app.use('/api', mapboxRoutes);
+app.use('/api/homes', taskSummaryRoute);
 app.use('/api/mapbox', mapboxRoutes);
+app.use('/api/rooms', roomRoutes);
 
 
 app.listen(PORT, () => {

@@ -53,7 +53,7 @@ export const createHome = async (req: Request, res: Response) => {
         yearBuilt: yearBuilt ?? null,
         numberOfRooms: numberOfRooms ?? null,
         features: Array.isArray(features) ? features : [],
-        imageUrl: imageUrl ?? 'https://via.placeholder.com/300',
+        imageUrl: imageUrl ?? '/public/images/home_placeholder.png',
         isChecked: true
       }
     });

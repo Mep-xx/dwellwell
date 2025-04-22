@@ -29,7 +29,7 @@ Only include:
 - yearBuilt: number (typical for that area)
 - numberOfRooms: number
 - features: string[] (e.g., ["garage", "fireplace"])
-- imageUrl: "https://via.placeholder.com/300"
+- imageUrl: "/public/images/home_placeholder.png"
 
 Do not include any comments or explanation. Only output a valid JSON object.
 
@@ -61,7 +61,7 @@ Do not include any comments or explanation. Only output a valid JSON object.
         lotSize: data.lotSize ?? null,
         yearBuilt: data.yearBuilt ?? null,
         numberOfRooms: data.numberOfRooms ?? null,
-        imageUrl: data.imageUrl ?? 'https://via.placeholder.com/300',
+        imageUrl: data.imageUrl ?? '/public/images/home_placeholder.png',
         features: Array.isArray(data.features) ? data.features : []
       },
     });
