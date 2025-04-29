@@ -25,38 +25,42 @@ model LoginActivity {
   ip        String?
   userAgent String?
   createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Home {
-  id             String   @id @default(cuid())
-  userId         String
-  address        String
-  city           String
-  state          String
-  nickname       String?
-  squareFeet     Int?
-  lotSize        Float?
-  yearBuilt      Int?
-  numberOfRooms  Int?
-  imageUrl       String?
-  features       String[] // Stored as text[] in PostgreSQL
-  isChecked      Boolean  @default(false)
-  createdAt      DateTime @default(now())
-  user           User     @relation(fields: [userId], references: [id])
-  rooms          Room[]
-  trackables     Trackable[]
-  lawnProfile    LawnProfile?
+  id                 String   @id @default(cuid())
+  userId             String
+  address            String
+  city               String
+  state              String
+  nickname           String?
+  squareFeet         Int?
+  lotSize            Float?
+  yearBuilt          Int?
+  numberOfRooms      Int?
+  architecturalStyle String?
+  features           String[]
+  imageUrl           String?
+  isChecked          Boolean  @default(true)
+  createdAt          DateTime @default(now())
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rooms       Room[]       @relation("HomeRooms")
+  trackables  Trackable[]  @relation("HomeTrackables")
+  lawnProfile LawnProfile?
+  vehicles    Vehicle[]    @relation("HomeVehicles")
 }
 
 model Room {
-  id         String      @id @default(uuid())
-  homeId     String
-  name       String
-  type       String
-  floor      Int?
-  home       Home        @relation(fields: [homeId], references: [id])
-  trackables Trackable[]
+  id     String @id @default(cuid())
+  homeId String
+  name   String
+  type   String
+  floor  Int?
+
+  home       Home        @relation("HomeRooms", fields: [homeId], references: [id], onDelete: Cascade)
+  trackables Trackable[] @relation("RoomTrackables")
 }
 
 model LawnProfile {
@@ -67,18 +71,37 @@ model LawnProfile {
   soilType            String?
   sunExposure         String?
   irrigationInstalled Boolean? @default(false)
-  home                Home     @relation(fields: [homeId], references: [id])
+  createdAt           DateTime @default(now())
+
+  home Home @relation(fields: [homeId], references: [id], onDelete: Cascade)
+}
+
+model Vehicle {
+  id        String   @id @default(cuid())
+  homeId    String
+  nickname  String?
+  type      String
+  make      String?
+  model     String?
+  year      Int?
+  vin       String?
+  mileage   Int?
+  imageUrl  String?
+  createdAt DateTime @default(now())
+
+  home Home @relation("HomeVehicles", fields: [homeId], references: [id], onDelete: Cascade)
 }
 
 model ApplianceCatalog {
-  id                     String                  @id @default(uuid())
-  brand                  String
-  model                  String
-  type                   String
-  category               String
-  notes                  String?
-  imageUrl               String?
-  createdAt              DateTime                @default(now())
+  id        String   @id @default(uuid())
+  brand     String
+  model     String
+  type      String
+  category  String
+  notes     String?
+  imageUrl  String?
+  createdAt DateTime @default(now())
+
   applianceTaskTemplates ApplianceTaskTemplate[]
   trackables             Trackable[]
 
@@ -86,7 +109,7 @@ model ApplianceCatalog {
 }
 
 model Trackable {
-  id                 String            @id @default(uuid())
+  id                 String    @id @default(uuid())
   homeId             String
   roomId             String?
   applianceCatalogId String?
@@ -95,59 +118,69 @@ model Trackable {
   serialNumber       String?
   imageUrl           String?
   notes              String?
-  createdAt          DateTime          @default(now())
-  home               Home              @relation(fields: [homeId], references: [id])
-  room               Room?             @relation(fields: [roomId], references: [id])
-  applianceCatalog   ApplianceCatalog? @relation(fields: [applianceCatalogId], references: [id])
-  tasks              UserTask[]
+  createdAt          DateTime  @default(now())
+
+  home             Home              @relation("HomeTrackables", fields: [homeId], references: [id], onDelete: Cascade)
+  room             Room?             @relation("RoomTrackables", fields: [roomId], references: [id], onDelete: Cascade)
+  applianceCatalog ApplianceCatalog? @relation(fields: [applianceCatalogId], references: [id])
+
+  tasks UserTask[]
 }
 
 model TaskTemplate {
-  id                    String                  @id @default(uuid())
-  title                 String
-  description           String?
-  icon                  String?
-  imageUrl              String?
-  category              String?
-  recurrenceInterval    String
-  taskType              TaskType
-  criticality           TaskCriticality         @default(medium)
+  id                 String          @id @default(uuid())
+  title              String
+  description        String?
+  icon               String?
+  imageUrl           String?
+  category           String?
+  recurrenceInterval String
+  taskType           TaskType
+  criticality        TaskCriticality @default(medium)
 
-  canDefer              Boolean                 @default(true)
-  deferLimitDays        Int                     @default(0)
-  estimatedTimeMinutes  Int                     @default(30)
-  estimatedCost         Int                     @default(0)
-  canBeOutsourced       Boolean                 @default(false)
-  
-  steps                 String[]                @default([])
-  equipmentNeeded       String[]                @default([])
-  resources             Json?
+  canDefer             Boolean @default(true)
+  deferLimitDays       Int     @default(0)
+  estimatedTimeMinutes Int     @default(30)
+  estimatedCost        Int     @default(0)
+  canBeOutsourced      Boolean @default(false)
+
+  steps           String[] @default([])
+  equipmentNeeded String[] @default([])
+  resources       Json?
+
+  createdAt DateTime @default(now())
+
   userTasks             UserTask[]
   ApplianceTaskTemplate ApplianceTaskTemplate[]
 }
 
-
 model ApplianceTaskTemplate {
-  id                 String           @id @default(uuid())
+  id                 String  @id @default(uuid())
   applianceCatalogId String
   taskTemplateId     String
   notes              String?
-  applianceCatalog   ApplianceCatalog @relation(fields: [applianceCatalogId], references: [id])
-  taskTemplate       TaskTemplate     @relation(fields: [taskTemplateId], references: [id])
+
+  applianceCatalog ApplianceCatalog @relation(fields: [applianceCatalogId], references: [id], onDelete: Cascade)
+  taskTemplate     TaskTemplate     @relation(fields: [taskTemplateId], references: [id], onDelete: Cascade)
 
   @@unique([applianceCatalogId, taskTemplateId])
 }
 
 model UserTask {
-  id            String     @id @default(uuid())
+  id             String  @id @default(uuid())
+  userId         String
+  trackableId    String
+  taskTemplateId String?
+
   title         String
   description   String
   dueDate       DateTime
   completedDate DateTime?
   status        TaskStatus
-  itemName      String
-  category      String
-  location      String?
+
+  itemName String
+  category String
+  location String?
 
   estimatedTimeMinutes Int
   estimatedCost        Int
@@ -159,23 +192,18 @@ model UserTask {
   recurrenceInterval String
   taskType           TaskType
 
+  steps           Json?
+  equipmentNeeded Json?
+  resources       Json?
+
   imageUrl String?
   icon     String?
 
-  steps           Json? // ["Shut off power", "Unscrew panel"]
-  equipmentNeeded Json? // ["Ladder", "Phillips screwdriver"]
-  resources       Json? // [{ label: "Video tutorial", url: "https://..." }]
-
-  userId      String
-  trackableId String
-
-  taskTemplate   TaskTemplate? @relation(fields: [taskTemplateId], references: [id])
-  taskTemplateId String?
-
-  user      User      @relation(fields: [userId], references: [id])
-  trackable Trackable @relation(fields: [trackableId], references: [id])
-
   createdAt DateTime @default(now())
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trackable    Trackable     @relation(fields: [trackableId], references: [id], onDelete: Cascade)
+  taskTemplate TaskTemplate? @relation(fields: [taskTemplateId], references: [id])
 }
 
 model BillingAccount {
@@ -186,7 +214,8 @@ model BillingAccount {
   status           String
   trialEndsAt      DateTime?
   createdAt        DateTime  @default(now())
-  user             User      @relation(fields: [userId], references: [id])
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model AIQueryHistory {
@@ -196,7 +225,8 @@ model AIQueryHistory {
   source          String?
   responseSummary String?
   createdAt       DateTime @default(now())
-  user            User?    @relation(fields: [userId], references: [id])
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 enum TaskStatus {

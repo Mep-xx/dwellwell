@@ -1,4 +1,4 @@
-// AddHomeModal.tsx
+// src/components/AddHomeModal.tsx
 import {
   Dialog,
   DialogContent,
@@ -6,10 +6,10 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { X } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
 import { ProgressBar } from './ui/ProgressBar';
 import { api } from '@/utils/api';
+import { useEffect, useRef, useState } from 'react';
+import { architecturalStyleLabels } from '../../../shared/architecturalStyleLabels';
 
 const FEATURE_SUGGESTIONS = [
   'garage', 'fireplace', 'deck', 'patio', 'sunroom', 'chimney',
@@ -26,19 +26,42 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
   const [address, setAddress] = useState('');
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
-  const [suggestions, setSuggestions] = useState<string[]>([]);
-  const [suggestionsRaw, setSuggestionsRaw] = useState<any[]>([]);
+  const [nickname, setNickname] = useState('');
   const [squareFeet, setSquareFeet] = useState('');
   const [lotSize, setLotSize] = useState('');
   const [yearBuilt, setYearBuilt] = useState('');
-  const [nickname, setNickname] = useState('');
   const [features, setFeatures] = useState<string[]>([]);
   const [featureInput, setFeatureInput] = useState('');
   const [rooms, setRooms] = useState<{ name: string; type: string; floor?: number }[]>([]);
-
-  const steps = ['Address', 'Details', 'Features', 'Rooms'];
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [suggestionsRaw, setSuggestionsRaw] = useState<any[]>([]);
+  const [loadingAI, setLoadingAI] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [architecturalStyle, setArchitecturalStyle] = useState('');
 
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const steps = ['Address', 'Details', 'Features', 'Rooms'];
+
+  useEffect(() => {
+    if (isOpen) {
+      resetForm();
+    }
+  }, [isOpen]);
+
+  const resetForm = () => {
+    setStep(0);
+    setAddress('');
+    setCity('');
+    setState('');
+    setNickname('');
+    setSquareFeet('');
+    setLotSize('');
+    setYearBuilt('');
+    setFeatures([]);
+    setRooms([]);
+    setSuggestions([]);
+    setSuggestionsRaw([]);
+  };
 
   useEffect(() => {
     if (step === 3 && rooms.length === 0) {
@@ -50,22 +73,12 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
     }
   }, [step]);
 
-  const addFeature = () => {
-    const trimmed = featureInput.trim().toLowerCase();
-    if (
-      trimmed &&
-      !features.includes(trimmed) &&
-      !trimmed.includes('<') &&
-      !['hot tub', 'stove', 'insert', 'range', 'furnace'].some(f => trimmed.includes(f))
-    ) {
-      setFeatures([...features, trimmed]);
-    }
-    setFeatureInput('');
-  };
-
   const handleSave = async () => {
     try {
-      const res = await api.post('/api/homes', {
+      if (saving) return; // 🛑 prevent duplicate saves
+      setSaving(true);
+
+      await api.post('/api/homes', {
         address,
         city,
         state,
@@ -74,18 +87,21 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
         lotSize: Number(lotSize) || null,
         yearBuilt: Number(yearBuilt) || null,
         numberOfRooms: rooms.length,
+        architecturalStyle: architecturalStyle || null,
         features,
         imageUrl: null,
         rooms,
       });
-      console.log('✅ Home saved:', res.data);
+
       onClose();
     } catch (err) {
       console.error('❌ Failed to save home:', err);
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleAddressChange = async (value: string) => {
+  const handleAddressChange = (value: string) => {
     setAddress(value);
     setSuggestions([]);
 
@@ -108,7 +124,9 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
   const handleSuggestionClick = (place: any) => {
     const number = place.address || '';
     const street = place.text || '';
-    setAddress(`${number} ${street}`.trim());
+    const fullAddress = `${number} ${street}`.trim();
+
+    setAddress(fullAddress);
 
     setCity('');
     setState('');
@@ -119,6 +137,42 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
     }
 
     setSuggestions([]);
+  };
+
+  const enrichHomeDetails = async () => {
+    if (!address) return;
+    try {
+      setLoadingAI(true);
+      const res = await api.post('/api/homes/enrich-home', { address, city, state });
+      const data = res.data;
+  
+      if (data.squareFeet) setSquareFeet(data.squareFeet.toString());
+      if (data.lotSize) setLotSize(data.lotSize.toString());
+      if (data.yearBuilt) setYearBuilt(data.yearBuilt.toString());
+      if (data.nickname) setNickname(data.nickname);
+      if (data.architecturalStyle) setArchitecturalStyle(data.architecturalStyle); // 🆕 ADD THIS
+      if (Array.isArray(data.features)) setFeatures(data.features);
+      if (Array.isArray(data.rooms)) setRooms(data.rooms);
+  
+    } catch (err) {
+      console.error('❌ Failed AI enrichment:', err);
+    } finally {
+      setLoadingAI(false);
+    }
+  };
+ 
+
+  const addFeature = () => {
+    const trimmed = featureInput.trim().toLowerCase();
+    if (
+      trimmed &&
+      !features.includes(trimmed) &&
+      !trimmed.includes('<') &&
+      !['hot tub', 'stove', 'insert', 'range', 'furnace'].some(f => trimmed.includes(f))
+    ) {
+      setFeatures([...features, trimmed]);
+    }
+    setFeatureInput('');
   };
 
   return (
@@ -135,8 +189,9 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
         {step === 0 && (
           <div className="space-y-4">
             <DialogDescription>Where is your home located?</DialogDescription>
+
             <div className="relative">
-              <Input placeholder="Street Address" value={address} onChange={(e) => handleAddressChange(e.target.value)} />
+              <Input placeholder="Street Address" autoComplete="new-password" value={address} onChange={(e) => handleAddressChange(e.target.value)} />
               {suggestions.length > 0 && (
                 <ul className="absolute z-50 bg-white border rounded shadow w-full max-h-40 overflow-auto">
                   {suggestions.map((s, i) => (
@@ -151,10 +206,12 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
                 </ul>
               )}
             </div>
+
             <div className="flex gap-2">
-              <Input placeholder="City" value={city} onChange={(e) => setCity(e.target.value)} />
-              <Input placeholder="State" value={state} onChange={(e) => setState(e.target.value)} />
+              <Input placeholder="City" autoComplete="off" value={city} onChange={(e) => setCity(e.target.value)} />
+              <Input placeholder="State" autoComplete="off" value={state} onChange={(e) => setState(e.target.value)} />
             </div>
+
             <div className="flex justify-end">
               <button onClick={() => setStep(1)} className="px-4 py-2 bg-brand-primary text-white rounded hover:bg-blue-600">Next</button>
             </div>
@@ -165,9 +222,35 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
           <div className="space-y-4">
             <label>Tell us more about this home</label>
             <Input placeholder="Nickname (e.g. Lake House)" value={nickname} onChange={(e) => setNickname(e.target.value)} />
+
+            <div className="flex justify-start">
+              <button
+                onClick={enrichHomeDetails}
+                className="text-sm text-blue-600 hover:underline flex items-center gap-1"
+                disabled={loadingAI}
+              >
+                {loadingAI ? 'Thinking...' : '✨ Suggest Home Details'}
+              </button>
+            </div>
+
+            <select
+              id="style"
+              value={architecturalStyle}
+              onChange={(e) => setArchitecturalStyle(e.target.value)}
+              className="w-full border rounded px-3 py-2 text-sm"
+            >
+              <option value="">Select a style</option>
+              {Object.keys(architecturalStyleLabels).sort().map((key) => (
+                <option key={key} value={key}>
+                  {architecturalStyleLabels[key]}
+                </option>
+              ))}
+            </select>
+
             <Input placeholder="Square Feet" type="number" value={squareFeet} onChange={(e) => setSquareFeet(e.target.value)} />
             <Input placeholder="Lot Size (acres)" type="number" value={lotSize} onChange={(e) => setLotSize(e.target.value)} />
             <Input placeholder="Year Built" type="number" value={yearBuilt} onChange={(e) => setYearBuilt(e.target.value)} />
+
             <div className="flex justify-between">
               <button onClick={() => setStep(0)} className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-100">Back</button>
               <button onClick={() => setStep(2)} className="px-4 py-2 bg-brand-primary text-white rounded hover:bg-blue-600">Next</button>
@@ -193,6 +276,7 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
                 </div>
               )}
             </div>
+
             <div className="flex justify-between">
               <button onClick={() => setStep(1)} className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-100">Back</button>
               <button onClick={() => setStep(3)} className="px-4 py-2 bg-brand-primary text-white rounded hover:bg-blue-600">Next</button>
@@ -208,7 +292,7 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
                 <div key={index} className="flex gap-2 items-center mb-2">
                   <Input
                     placeholder="Room Name (e.g. Master Bedroom)"
-                    value={room.name || ''}
+                    value={room.name}
                     onChange={(e) => {
                       const updated = [...rooms];
                       updated[index].name = e.target.value;
@@ -234,7 +318,7 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
                     placeholder="Floor #"
                     type="number"
                     className="w-20"
-                    value={room.floor || ''}
+                    value={room.floor ?? ''}
                     onChange={(e) => {
                       const updated = [...rooms];
                       updated[index].floor = parseInt(e.target.value || '0');
@@ -260,9 +344,17 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
                 + Add Another Room
               </button>
             </div>
+
             <div className="flex justify-between">
               <button onClick={() => setStep(2)} className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-100">Back</button>
-              <button onClick={handleSave} className="px-4 py-2 bg-brand-primary text-white rounded hover:bg-blue-600">Save</button>
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="px-4 py-2 bg-brand-primary text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {saving ? 'Saving...' : 'Save'}
+              </button>
+
             </div>
           </div>
         )}

@@ -1,6 +1,6 @@
-// dwellwell-api/src/routes/homes/enrich-home.ts
+// dwellwell-api/src/routes/homes/enrich-home-OpenAI.ts
+
 import express from 'express';
-import { prisma } from '../../db/prisma';
 import { requireAuth } from '../../middleware/requireAuth';
 import { OpenAI } from 'openai';
 
@@ -8,34 +8,34 @@ const router = express.Router();
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 router.post('/enrich-home', requireAuth, async (req, res) => {
-  const userId = (req as any).user.userId;
-  const { address } = req.body;
+  const { address, city, state } = req.body;
 
-  if (!address || typeof address !== 'string') {
-    return res.status(400).json({ message: 'Missing or invalid address' });
+  if (!address || typeof address !== 'string' || !city || !state) {
+    return res.status(400).json({ message: 'Missing or invalid address, city, or state' });
   }
 
   const prompt = `
-Given the U.S. address: "${address}"
+Given the full address: "${address}, ${city}, ${state}", attempt to find accurate property details based on real-world public sources like Zillow, Redfin, Realtor.com, or similar.
 
-Return a JSON object that estimates the following based on typical suburban homes in the same area.
+If accurate information cannot be found, provide your best estimate based on similar homes in the area.
 
-Only include:
-- address: "19 Claflin Farm Ln"
-- city: "Northborough"
-- state: "MA"
-- squareFeet: number (estimate)
-- lotSize: number in acres (estimate)
-- yearBuilt: number (typical for that area)
-- numberOfRooms: number
-- features: string[] (e.g., ["garage", "fireplace"])
-- imageUrl: "/public/images/home_placeholder.png"
+Return ONLY a valid JSON object with the following fields:
 
-Do not include any comments or explanation. Only output a valid JSON object.
+- address: (string) Full street address
+- city: (string) City name
+- state: (string) Two-letter U.S. state abbreviation
+- squareFeet: (number) Estimated living area in square feet
+- lotSize: (number) Lot size in acres
+- yearBuilt: (number) Year the home was built
+- numberOfRooms: (number) Estimated total number of rooms
+- features: (string[]) List of notable features
+- imageUrl: (string) Placeholder (default: "/public/images/home_placeholder.png")
+- architecturalStyle: (string) Common architectural style (e.g., "Colonial")
 
-`.trim();
-
-  console.log(prompt);
+⚠️ Important:
+- Strict JSON only.
+- Reasonable estimates are allowed if public data is unavailable.
+  `.trim();
 
   try {
     const completion = await openai.chat.completions.create({
@@ -47,32 +47,34 @@ Do not include any comments or explanation. Only output a valid JSON object.
     const content = completion.choices[0]?.message?.content;
     if (!content) return res.status(500).json({ message: 'No response from OpenAI' });
 
-    const data = JSON.parse(content);
+    const enrichedHome = safeJsonParse(content);
 
-    console.log('Saving home for userId:', userId);
-    const saved = await prisma.home.create({
-      data: {
-        userId,
-        address: data.address,
-        city: data.city,
-        state: data.state,
-        nickname: data.nickname ?? null,
-        squareFeet: data.squareFeet ?? null,
-        lotSize: data.lotSize ?? null,
-        yearBuilt: data.yearBuilt ?? null,
-        numberOfRooms: data.numberOfRooms ?? null,
-        imageUrl: data.imageUrl ?? '/public/images/home_placeholder.png',
-        features: Array.isArray(data.features) ? data.features : []
-      },
-    });
+    // ✅ NEW: Instead of saving to database, just return the enriched data
+    return res.status(200).json(enrichedHome);
 
-    console.log(saved);
-
-    return res.status(201).json(saved);
   } catch (err) {
-    console.error('Failed to enrich or save home:', err);
-    return res.status(500).json({ message: 'Error saving enriched home' });
+    console.error('Failed to enrich home:', err);
+    return res.status(500).json({ message: 'Failed to enrich home' });
   }
 });
+
+function safeJsonParse(text: string): any {
+  try {
+    return JSON.parse(text);
+  } catch {
+    const cleaned = text
+      .replace(/```json|```/g, '')
+      .replace(/\\n/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    try {
+      return JSON.parse(cleaned);
+    } catch (finalErr) {
+      console.error('❌ Final JSON parse failed:', finalErr);
+      throw new Error('Invalid JSON from OpenAI');
+    }
+  }
+}
 
 export default router;

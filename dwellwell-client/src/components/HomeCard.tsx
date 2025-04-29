@@ -56,6 +56,9 @@ export function HomeCard({ home, summary, onToggle, onEdit, onDelete }: Props) {
 
       {/* Info */}
       <div className="p-4 space-y-2 text-sm text-gray-700">
+        {home.nickname && (
+          <p className="text-sm text-gray-500 italic">{home.nickname}</p>
+        )}
         <p className="text-base font-semibold text-gray-800">
           {home.address}, {home.city}, {home.state}
         </p>
@@ -102,21 +105,15 @@ export function HomeCard({ home, summary, onToggle, onEdit, onDelete }: Props) {
       </div>
 
       {/* Expand / Collapse Button */}
-      {home.rooms?.length > 0 && (
+      {home.rooms && home.rooms.length > 0 && (
         <button
           onClick={() => setExpanded((prev) => !prev)}
-          className="w-full text-sm text-blue-600 hover:underline flex items-center justify-center gap-1 py-2"
+          className="px-4 py-2 bg-brand-primary/10 hover:bg-brand-primary/20 text-brand-primary rounded-full flex items-center gap-2 text-sm font-medium mx-auto my-2 transition-colors"
         >
-          {expanded ? (
-            <>
-              <ChevronUp className="w-4 h-4" /> Show Less
-            </>
-          ) : (
-            <>
-              <ChevronDown className="w-4 h-4" /> Show More
-            </>
-          )}
+          {expanded ? "Show Less" : "Show More"}
+          {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </button>
+
       )}
 
       {/* Expanded Room Details */}
@@ -180,6 +177,7 @@ export function HomeCard({ home, summary, onToggle, onEdit, onDelete }: Props) {
           >
             <Trash2 className="w-5 h-5" />
           </button>
+
         </div>
       </div>
     </div>
