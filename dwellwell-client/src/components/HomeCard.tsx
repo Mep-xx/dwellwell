@@ -49,7 +49,7 @@ export function HomeCard({ home, summary, onToggle, onEdit, onDelete }: Props) {
     <div className="rounded-xl border shadow bg-white overflow-hidden">
       {/* Image */}
       <img
-        src={home.imageUrl ?? '/public/images/home_placeholder.png'}
+        src={home.imageUrl ?? '/images/home_placeholder.png'}
         alt={home.address}
         className="w-full h-40 object-cover"
       />

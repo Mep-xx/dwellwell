@@ -29,7 +29,7 @@ Return ONLY a valid JSON object with the following fields:
 - yearBuilt: (number) Year the home was built
 - numberOfRooms: (number) Estimated total number of rooms
 - features: (string[]) List of notable features
-- imageUrl: (string) Placeholder (default: "/public/images/home_placeholder.png")
+- imageUrl: (string) Placeholder (default: "images/home_placeholder.png")
 - architecturalStyle: (string) Common architectural style (e.g., "Colonial")
 
 ⚠️ Important:

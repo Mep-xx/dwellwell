@@ -10,6 +10,7 @@ import { ProgressBar } from './ui/ProgressBar';
 import { api } from '@/utils/api';
 import { useEffect, useRef, useState } from 'react';
 import { architecturalStyleLabels } from '../../../shared/architecturalStyleLabels';
+import { ImageUpload } from './ui/ImageUpload';
 
 const FEATURE_SUGGESTIONS = [
   'garage', 'fireplace', 'deck', 'patio', 'sunroom', 'chimney',
@@ -38,6 +39,8 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
   const [loadingAI, setLoadingAI] = useState(false);
   const [saving, setSaving] = useState(false);
   const [architecturalStyle, setArchitecturalStyle] = useState('');
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+
 
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const steps = ['Address', 'Details', 'Features', 'Rooms'];
@@ -89,7 +92,7 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
         numberOfRooms: rooms.length,
         architecturalStyle: architecturalStyle || null,
         features,
-        imageUrl: null,
+        imageUrl,
         rooms,
       });
 
@@ -145,7 +148,7 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
       setLoadingAI(true);
       const res = await api.post('/api/homes/enrich-home', { address, city, state });
       const data = res.data;
-  
+
       if (data.squareFeet) setSquareFeet(data.squareFeet.toString());
       if (data.lotSize) setLotSize(data.lotSize.toString());
       if (data.yearBuilt) setYearBuilt(data.yearBuilt.toString());
@@ -153,14 +156,14 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
       if (data.architecturalStyle) setArchitecturalStyle(data.architecturalStyle); // 🆕 ADD THIS
       if (Array.isArray(data.features)) setFeatures(data.features);
       if (Array.isArray(data.rooms)) setRooms(data.rooms);
-  
+
     } catch (err) {
       console.error('❌ Failed AI enrichment:', err);
     } finally {
       setLoadingAI(false);
     }
   };
- 
+
 
   const addFeature = () => {
     const trimmed = featureInput.trim().toLowerCase();
@@ -223,6 +226,8 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
             <label>Tell us more about this home</label>
             <Input placeholder="Nickname (e.g. Lake House)" value={nickname} onChange={(e) => setNickname(e.target.value)} />
 
+            <ImageUpload onUploadComplete={(url) => setImageUrl(url)} />
+
             <div className="flex justify-start">
               <button
                 onClick={enrichHomeDetails}
@@ -262,14 +267,49 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
           <div className="space-y-6">
             <div>
               <label className="block mb-2 font-medium">Home Features</label>
+              {/* Input box for manual features */}
               <div className="flex gap-2">
-                <Input placeholder="e.g. garage" value={featureInput} onChange={(e) => setFeatureInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addFeature()} />
-                <button onClick={addFeature} className="px-3 py-2 bg-brand-primary text-white rounded hover:bg-blue-600">Add</button>
+                <Input
+                  placeholder="e.g. garage"
+                  value={featureInput}
+                  onChange={(e) => setFeatureInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && addFeature()}
+                />
+                <button
+                  onClick={addFeature}
+                  className="px-3 py-2 bg-brand-primary text-white rounded hover:bg-blue-600"
+                >
+                  Add
+                </button>
               </div>
+
+              <p className="text-xs text-gray-500 mb-2">
+                Tap a suggestion below or type your own feature.
+              </p>
+
+              {/* Feature suggestions (click to add) */}
+              <div className="flex flex-wrap gap-2 mt-3">
+                {FEATURE_SUGGESTIONS.filter(f => !features.includes(f)).map((suggestion) => (
+                  <button
+                    key={suggestion}
+                    onClick={() => {
+                      setFeatures([...features, suggestion]);
+                    }}
+                    className="px-3 py-1 bg-gray-100 hover:bg-blue-100 text-gray-800 rounded-full text-sm border"
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
+
+              {/* Added features display */}
               {features.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-3">
+                <div className="flex flex-wrap gap-2 mt-4">
                   {features.map((f) => (
-                    <span key={f} className="bg-gray-100 text-sm text-gray-800 px-3 py-1 rounded-full border border-gray-300">
+                    <span
+                      key={f}
+                      className="bg-gray-100 text-sm text-gray-800 px-3 py-1 rounded-full border border-gray-300"
+                    >
                       {f}
                     </span>
                   ))}
@@ -277,9 +317,14 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
               )}
             </div>
 
+            {/* Navigation buttons */}
             <div className="flex justify-between">
-              <button onClick={() => setStep(1)} className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-100">Back</button>
-              <button onClick={() => setStep(3)} className="px-4 py-2 bg-brand-primary text-white rounded hover:bg-blue-600">Next</button>
+              <button onClick={() => setStep(1)} className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-100">
+                Back
+              </button>
+              <button onClick={() => setStep(3)} className="px-4 py-2 bg-brand-primary text-white rounded hover:bg-blue-600">
+                Next
+              </button>
             </div>
           </div>
         )}

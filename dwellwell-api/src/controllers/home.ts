@@ -69,7 +69,7 @@ export const createHome = async (req: Request, res: Response) => {
         numberOfRooms: numberOfRooms ?? null,
         architecturalStyle: architecturalStyle ?? null,
         features: features ?? [],
-        imageUrl: imageUrl ?? '/public/images/home_placeholder.png',
+        imageUrl: imageUrl ?? '/images/home_placeholder.png',
         isChecked: isChecked,
         rooms: {
           create: Array.isArray(rooms)

@@ -1,54 +1,46 @@
+// /dwellwell-client/src/components/EditHomeModal.tsx
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { ImageUpload } from '@/components/ui/ImageUpload';
+import { useState } from 'react';
 import { Home } from '@shared/types/home';
-import { useState, useEffect } from 'react';
 
-type EditHomeModalProps = {
+type Props = {
   isOpen: boolean;
-  home: Home | null;
-  onSave: (updatedHome: Partial<Home>) => void;
-  onCancel: () => void;
+  home: Home;
+  onClose: () => void;
+  onSave: (updated: Partial<Home>) => void;
 };
 
-export function EditHomeModal({ isOpen, home, onSave, onCancel }: EditHomeModalProps) {
-  const [nickname, setNickname] = useState('');
-  const [squareFeet, setSquareFeet] = useState('');
-  const [lotSize, setLotSize] = useState('');
-  const [yearBuilt, setYearBuilt] = useState('');
-
-  useEffect(() => {
-    if (home) {
-      setNickname(home.nickname || '');
-      setSquareFeet(home.squareFeet?.toString() || '');
-      setLotSize(home.lotSize?.toString() || '');
-      setYearBuilt(home.yearBuilt?.toString() || '');
-    }
-  }, [home]);
+export function EditHomeModal({ isOpen, onClose, home, onSave }: Props) {
+  const [nickname, setNickname] = useState(home.nickname ?? '');
+  const [squareFeet, setSquareFeet] = useState(home.squareFeet?.toString() ?? '');
+  const [lotSize, setLotSize] = useState(home.lotSize?.toString() ?? '');
+  const [yearBuilt, setYearBuilt] = useState(home.yearBuilt?.toString() ?? '');
+  const [imageUrl, setImageUrl] = useState(home.imageUrl ?? '');
 
   const handleSave = () => {
-    if (!home) return;
-
     onSave({
-      id: home.id,
-      nickname: nickname || null,
-      squareFeet: squareFeet ? parseInt(squareFeet) : null,
-      lotSize: lotSize ? parseFloat(lotSize) : null,
-      yearBuilt: yearBuilt ? parseInt(yearBuilt) : null,
+      nickname,
+      squareFeet: squareFeet ? Number(squareFeet) : null,
+      lotSize: lotSize ? Number(lotSize) : null,
+      yearBuilt: yearBuilt ? Number(yearBuilt) : null,
+      imageUrl,
     });
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onCancel}>
+    <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="space-y-4 max-w-md">
-        <DialogTitle className="text-2xl font-bold text-brand-primary">Edit Home Details</DialogTitle>
-        <DialogDescription className="text-gray-600">
-          Update your home's nickname, square footage, lot size, and year built.
-        </DialogDescription>
+        <div className="flex flex-col space-y-1">
+          <DialogTitle className="text-2xl font-bold text-brand-primary">Edit Home</DialogTitle>
+          <DialogDescription>Edit home details below.</DialogDescription>
+        </div>
 
-        <div className="space-y-2">
+        <div className="space-y-4">
           <Input
-            placeholder="Nickname (optional)"
+            placeholder="Nickname"
             value={nickname}
             onChange={(e) => setNickname(e.target.value)}
           />
@@ -70,15 +62,21 @@ export function EditHomeModal({ isOpen, home, onSave, onCancel }: EditHomeModalP
             value={yearBuilt}
             onChange={(e) => setYearBuilt(e.target.value)}
           />
-        </div>
 
-        <div className="flex justify-end gap-4 pt-4">
-          <Button variant="outline" onClick={onCancel}>
-            Cancel
-          </Button>
-          <Button onClick={handleSave}>
-            Save Changes
-          </Button>
+          <div>
+            <label className="block text-sm mb-2 font-medium text-gray-700">Home Image</label>
+            {imageUrl && (
+              <div className="mb-3">
+                <img src={imageUrl} alt="Current Home" className="rounded w-full max-h-40 object-cover" />
+              </div>
+            )}
+            <ImageUpload onUploadComplete={(url) => setImageUrl(url)} />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4">
+            <Button variant="outline" onClick={onClose}>Cancel</Button>
+            <Button onClick={handleSave}>Save</Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

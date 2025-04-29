@@ -2,11 +2,11 @@ import { useEffect, useState } from 'react';
 import { api } from '@/utils/api';
 import { Home } from '@shared/types/home';
 import { AddHomeModal } from '@/components/AddHomeModal';
-import { useToast } from '@/components/ui/use-toast';
+import { EditHomeModal } from '@/components/EditHomeModal';
+import { DeleteHomeModal } from '@/components/DeleteHomeModal';
 import { HomeCard } from '@/components/HomeCard';
 import { Room } from '@shared/types/room';
-import { DeleteHomeModal } from '@/components/DeleteHomeModal';
-import { EditHomeModal } from '@/components/EditHomeModal';
+import { useToast } from '@/components/ui/use-toast';
 
 type TaskSummary = {
   complete: number;
@@ -24,17 +24,17 @@ export default function HomesPage() {
   const [homes, setHomes] = useState<HomeWithStats[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
-  const [deleting, setDeleting] = useState(false);
-  const { toast } = useToast();
   const [editTargetHome, setEditTargetHome] = useState<Home | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
+  const { toast } = useToast();
 
   const fetchHomes = async () => {
     try {
       const res = await api.get('/api/homes');
       const fetchedHomes: Home[] = res.data;
 
-      const enriched = await Promise.all(
+      const enrichedHomes = await Promise.all(
         fetchedHomes.map(async (home) => {
           try {
             const [summaryRes, roomsRes] = await Promise.all([
@@ -54,7 +54,7 @@ export default function HomesPage() {
         })
       );
 
-      setHomes(enriched);
+      setHomes(enrichedHomes);
     } catch (err) {
       console.error('Failed to fetch homes:', err);
     }
@@ -65,18 +65,15 @@ export default function HomesPage() {
   }, []);
 
   const toggleHomeChecked = async (homeId: string, newValue: boolean) => {
-    // Save the previous state for rollback
     const previousHomes = [...homes];
 
     try {
-      // Optimistically update UI
       setHomes((prev) =>
         prev.map((home) =>
           home.id === homeId ? { ...home, isChecked: newValue } : home
         )
       );
 
-      // Call correct API
       await api.patch(`/api/homes/${homeId}/check`, { isChecked: newValue });
 
       toast({
@@ -85,19 +82,15 @@ export default function HomesPage() {
           : 'Home excluded from to-do list',
         description: newValue
           ? 'Tasks for this home will now appear in your maintenance dashboard.'
-          : 'This home’s tasks will be hidden from your current to-do list.',
+          : 'This home’s tasks will be hidden from your maintenance dashboard.',
         variant: newValue ? 'success' : 'info',
       });
-
     } catch (err) {
-      console.error('Failed to update home checked state:', err);
-
-      // Rollback to previous state if error
+      console.error('Failed to update isChecked:', err);
       setHomes(previousHomes);
-
       toast({
         title: 'Error updating home',
-        description: 'We were unable to update your selection. Please try again.',
+        description: 'Could not update your selection. Please try again.',
         variant: 'destructive',
       });
     }
@@ -118,11 +111,13 @@ export default function HomesPage() {
         yearBuilt: updatedFields.yearBuilt,
         architecturalStyle: updatedFields.architecturalStyle,
       });
-      fetchHomes();
+
+      await fetchHomes();
       setEditTargetHome(null);
+
       toast({
         title: 'Home updated',
-        description: 'Your home details have been saved.',
+        description: 'Your changes have been saved.',
         variant: 'success',
       });
     } catch (err) {
@@ -135,7 +130,6 @@ export default function HomesPage() {
     }
   };
 
-
   const confirmDelete = (homeId: string) => {
     setDeleteTargetId(homeId);
   };
@@ -146,18 +140,20 @@ export default function HomesPage() {
     try {
       setDeleting(true);
       await api.delete(`/api/homes/${deleteTargetId}`);
-      setHomes((prev) => prev.filter((h) => h.id !== deleteTargetId));
+
+      setHomes((prev) => prev.filter((home) => home.id !== deleteTargetId));
       setDeleteTargetId(null);
+
       toast({
         title: 'Home deleted',
-        description: 'This home has been removed from your dashboard.',
+        description: 'This home has been removed.',
         variant: 'destructive',
       });
     } catch (err) {
       console.error('Failed to delete home:', err);
       toast({
         title: 'Error deleting home',
-        description: 'Something went wrong while deleting.',
+        description: 'Something went wrong during deletion.',
         variant: 'destructive',
       });
     } finally {
@@ -167,6 +163,7 @@ export default function HomesPage() {
 
   return (
     <div className="p-6">
+      {/* Top Header */}
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-brand-primary">My Homes</h1>
         <button
@@ -177,6 +174,7 @@ export default function HomesPage() {
         </button>
       </div>
 
+      {/* Homes Grid */}
       <div className="flex flex-wrap gap-6">
         {homes.map((home) => (
           <div key={home.id} className="w-full md:w-[32%]">
@@ -185,12 +183,13 @@ export default function HomesPage() {
               summary={home.taskSummary}
               onToggle={toggleHomeChecked}
               onEdit={handleEdit}
-              onDelete={handleDelete}
+              onDelete={() => confirmDelete(home.id)}
             />
           </div>
         ))}
       </div>
 
+      {/* Modals */}
       <AddHomeModal
         isOpen={showAddModal}
         onClose={() => {
@@ -205,12 +204,14 @@ export default function HomesPage() {
         onCancel={() => setDeleteTargetId(null)}
       />
 
-      <EditHomeModal
-        isOpen={!!editTargetHome}
-        home={editTargetHome}
-        onSave={handleSaveEdit}
-        onCancel={() => setEditTargetHome(null)}
-      />
+      {editTargetHome && (
+        <EditHomeModal
+          isOpen={!!editTargetHome}
+          home={editTargetHome}
+          onSave={handleSaveEdit}
+          onCancel={() => setEditTargetHome(null)}
+        />
+      )}
     </div>
   );
 }

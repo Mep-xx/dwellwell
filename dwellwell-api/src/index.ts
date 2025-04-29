@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'path';
 import trackablesRoutes from './routes/trackables';
 import tasksRoutes from './routes/tasks';
 import lookupRoutes from './routes/lookup';
@@ -10,6 +11,7 @@ import authRouter from './routes/auth';
 import mapboxRoutes from './routes/mapbox';
 import taskSummaryRoute from './routes/homes/summary';
 import roomRoutes from './routes/rooms';
+import uploadHomeImageRoute from './routes/uploads/home-image';
 
 
 dotenv.config();
@@ -34,6 +36,12 @@ app.use('/api/homes', homeRoutes);
 app.use('/api/homes', taskSummaryRoute);
 app.use('/api/mapbox', mapboxRoutes);
 app.use('/api/rooms', roomRoutes);
+
+// Serve static images
+app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
+
+// Mount the upload route
+app.use('/api', uploadHomeImageRoute);
 
 
 app.listen(PORT, () => {
