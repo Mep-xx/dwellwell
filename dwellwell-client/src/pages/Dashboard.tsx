@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import TaskCard from '../components/TaskCard';
 import { initialTasks } from '../data/mockTasks';
-import { TaskCategory, TaskStatus } from '../../../dwellwell-api/src/shared/types/task';
+import { TaskCategory, TaskStatus } from '@shared/types/task';
 
 const categoryIcons: Record<TaskCategory, string> = {
   appliance: '🔧',
