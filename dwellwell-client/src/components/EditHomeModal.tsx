@@ -72,7 +72,7 @@ export function EditHomeModal({ isOpen, onClose, home, onSave }: Props) {
 
             <ImageUpload
               homeId={home.id}
-              onUploadComplete={(relativePath) => setImageUrl(relativePath)}
+              onUploadComplete={(relativePath) => setImageUrl(`${relativePath}?t=${Date.now()}`)}
             />
           </div>
 

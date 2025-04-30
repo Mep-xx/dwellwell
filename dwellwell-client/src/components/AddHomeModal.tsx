@@ -14,8 +14,8 @@ import { ImageUpload } from './ui/imageupload';
 import { Home } from '@shared/types/home';
 
 const FEATURE_SUGGESTIONS = [
-  'garage', 'fireplace', 'deck', 'patio', 'sunroom', 'chimney',
-  'attic', 'basement', 'walk-in closet', 'central air', 'finished basement',
+  'Garage', 'Fireplace', 'Deck', 'Patio', 'Sunroom', 'Chimney',
+  'Attic', 'Basement', 'Walk-in closet', 'Central air', 'Finished basement',
 ];
 
 const ROOM_TYPES = [
@@ -114,7 +114,7 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
       await api.patch(`/api/homes/${newHomeId}`, {
         imageUrl: filename,
       });
-      onClose();
+
     } catch (err) {
       console.error('❌ Failed to save imageUrl:', err);
     }
@@ -263,14 +263,18 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
           <div className="space-y-6">
             <label className="block mb-2 font-medium">Home Features</label>
             <div className="flex gap-2">
-              <Input placeholder="e.g. garage" value={featureInput} onChange={(e) => setFeatureInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addFeature()} />
+              <Input placeholder="e.g. Garage" value={featureInput} onChange={(e) => setFeatureInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addFeature()} />
               <button onClick={addFeature} className="px-3 py-2 bg-brand-primary text-white rounded hover:bg-blue-600">Add</button>
             </div>
             {features.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-3">
                 {features.map((f) => (
-                  <span key={f} className="bg-gray-100 text-sm text-gray-800 px-3 py-1 rounded-full border border-gray-300">{f}</span>
+                  <span key={f} className="bg-gray-100 text-sm text-gray-800 px-3 py-1 rounded-full border border-gray-300 flex items-center gap-2">
+                    {f}
+                    <button onClick={() => setFeatures(features.filter(feat => feat !== f))} className="text-red-500 hover:text-red-700 font-bold">×</button>
+                  </span>
                 ))}
+
               </div>
             )}
 
@@ -353,6 +357,7 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
         {step === 4 && newHomeId && (
           <div className="space-y-6">
             <label className="block mb-2 font-medium">Upload a Home Photo (optional)</label>
+
             <ImageUpload
               homeId={newHomeId}
               onUploadComplete={(filename) => {
@@ -360,19 +365,34 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
                 finalizeImageUpload(filename);
               }}
             />
-            {imageUploadedUrl && (
-              <img
-                src={`${import.meta.env.VITE_API_BASE_URL}/uploads/${imageUploadedUrl}`}
-                alt="Preview"
-                className="mt-3 rounded w-full max-h-48 object-cover"
-              />
-            )}
 
-            <div className="text-right">
-              <button onClick={onClose} className="mt-4 text-sm text-gray-600 hover:underline">
-                Skip & Finish
-              </button>
-            </div>
+            {imageUploadedUrl ? (
+              <>
+                <img
+                  src={`${import.meta.env.VITE_API_BASE_URL}/uploads/${imageUploadedUrl}`}
+                  alt="Preview"
+                  className="mt-3 rounded w-full max-h-48 object-cover"
+                />
+                <p className="text-sm text-green-700 mt-2">✅ Your home has been saved!</p>
+                <div className="text-right">
+                  <button
+                    onClick={onClose}
+                    className="mt-4 px-4 py-2 bg-brand-primary text-white rounded hover:bg-blue-600"
+                  >
+                    Complete
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="text-right">
+                <button
+                  onClick={onClose}
+                  className="mt-4 text-sm text-gray-600 hover:underline"
+                >
+                  Skip for now
+                </button>
+              </div>
+            )}
           </div>
         )}
       </DialogContent>
