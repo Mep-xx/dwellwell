@@ -11,6 +11,7 @@ import { api } from '@/utils/api';
 import { useEffect, useRef, useState } from 'react';
 import { architecturalStyleLabels } from '../../../shared/architecturalStyleLabels';
 import { ImageUpload } from './ui/imageupload';
+import { Home } from '@shared/types/home';
 
 const FEATURE_SUGGESTIONS = [
   'garage', 'fireplace', 'deck', 'patio', 'sunroom', 'chimney',
@@ -39,10 +40,11 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
   const [loadingAI, setLoadingAI] = useState(false);
   const [saving, setSaving] = useState(false);
   const [architecturalStyle, setArchitecturalStyle] = useState('');
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [imageUploadedUrl, setImageUploadedUrl] = useState<string | null>(null);
+  const [newHomeId, setNewHomeId] = useState<string | null>(null);
 
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const steps = ['Address', 'Details', 'Features', 'Rooms'];
+  const steps = ['Address', 'Details', 'Features', 'Rooms', 'Photo'];
 
   useEffect(() => {
     if (isOpen) resetForm();
@@ -60,9 +62,10 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
     setArchitecturalStyle('');
     setFeatures([]);
     setRooms([]);
-    setImageUrl(null);
     setSuggestions([]);
     setSuggestionsRaw([]);
+    setNewHomeId(null);
+    setImageUploadedUrl(null);
   };
 
   useEffect(() => {
@@ -80,7 +83,7 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
       if (saving) return;
       setSaving(true);
 
-      await api.post('/api/homes', {
+      const res = await api.post('/api/homes', {
         address,
         city,
         state,
@@ -91,15 +94,29 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
         numberOfRooms: rooms.length,
         architecturalStyle: architecturalStyle || null,
         features,
-        imageUrl,
         rooms,
       });
 
-      onClose();
+      const savedHome: Home = res.data;
+      setNewHomeId(savedHome.id);
+      setStep(4); // ⬅️ move to Image Upload step
     } catch (err) {
       console.error('❌ Failed to save home:', err);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const finalizeImageUpload = async (filename: string) => {
+    if (!newHomeId) return;
+
+    try {
+      await api.patch(`/api/homes/${newHomeId}`, {
+        imageUrl: filename,
+      });
+      onClose();
+    } catch (err) {
+      console.error('❌ Failed to save imageUrl:', err);
     }
   };
 
@@ -186,9 +203,8 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
         {step === 0 && (
           <div className="space-y-4">
             <DialogDescription>Where is your home located?</DialogDescription>
-
             <div className="relative">
-              <Input placeholder="Street Address" autoComplete="new-password" value={address} onChange={(e) => handleAddressChange(e.target.value)} />
+              <Input placeholder="Street Address" value={address} onChange={(e) => handleAddressChange(e.target.value)} />
               {suggestions.length > 0 && (
                 <ul className="absolute z-50 bg-white border rounded shadow w-full max-h-40 overflow-auto">
                   {suggestions.map((s, i) => (
@@ -201,8 +217,8 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
             </div>
 
             <div className="flex gap-2">
-              <Input placeholder="City" autoComplete="off" value={city} onChange={(e) => setCity(e.target.value)} />
-              <Input placeholder="State" autoComplete="off" value={state} onChange={(e) => setState(e.target.value)} />
+              <Input placeholder="City" value={city} onChange={(e) => setCity(e.target.value)} />
+              <Input placeholder="State" value={state} onChange={(e) => setState(e.target.value)} />
             </div>
 
             <div className="flex justify-end">
@@ -215,16 +231,6 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
           <div className="space-y-4">
             <label>Tell us more about this home</label>
             <Input placeholder="Nickname (e.g. Lake House)" value={nickname} onChange={(e) => setNickname(e.target.value)} />
-
-            {/* Image Upload */}
-            <ImageUpload onUploadComplete={(filename) => setImageUrl(filename)} />
-            {imageUrl && (
-              <img
-                src={`/uploads/${imageUrl}`} // 🛠️ always prepending /uploads/ here
-                alt="Preview"
-                className="mt-3 rounded w-full max-h-48 object-cover"
-              />
-            )}
             <div className="flex justify-start">
               <button
                 onClick={enrichHomeDetails}
@@ -235,12 +241,10 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
               </button>
             </div>
 
-            <select id="style" value={architecturalStyle} onChange={(e) => setArchitecturalStyle(e.target.value)} className="w-full border rounded px-3 py-2 text-sm">
+            <select value={architecturalStyle} onChange={(e) => setArchitecturalStyle(e.target.value)} className="w-full border rounded px-3 py-2 text-sm">
               <option value="">Select a style</option>
               {Object.keys(architecturalStyleLabels).sort().map((key) => (
-                <option key={key} value={key}>
-                  {architecturalStyleLabels[key]}
-                </option>
+                <option key={key} value={key}>{architecturalStyleLabels[key]}</option>
               ))}
             </select>
 
@@ -257,42 +261,32 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
 
         {step === 2 && (
           <div className="space-y-6">
-            <div>
-              <label className="block mb-2 font-medium">Home Features</label>
-              <div className="flex gap-2">
-                <Input placeholder="e.g. garage" value={featureInput} onChange={(e) => setFeatureInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addFeature()} />
-                <button onClick={addFeature} className="px-3 py-2 bg-brand-primary text-white rounded hover:bg-blue-600">Add</button>
+            <label className="block mb-2 font-medium">Home Features</label>
+            <div className="flex gap-2">
+              <Input placeholder="e.g. garage" value={featureInput} onChange={(e) => setFeatureInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addFeature()} />
+              <button onClick={addFeature} className="px-3 py-2 bg-brand-primary text-white rounded hover:bg-blue-600">Add</button>
+            </div>
+            {features.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-3">
+                {features.map((f) => (
+                  <span key={f} className="bg-gray-100 text-sm text-gray-800 px-3 py-1 rounded-full border border-gray-300">{f}</span>
+                ))}
               </div>
-              {features.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-3">
-                  {features.map((f) => (
-                    <span key={f} className="bg-gray-100 text-sm text-gray-800 px-3 py-1 rounded-full border border-gray-300">
-                      {f}
-                    </span>
-                  ))}
-                </div>
-              )}
-              {FEATURE_SUGGESTIONS.length > 0 && (
-                <div className="mt-3">
-                  <p className="text-xs text-gray-500 mb-1">Suggestions:</p>
-                  <div className="flex flex-wrap gap-2">
-                    {FEATURE_SUGGESTIONS.map((suggestion) => (
-                      <button
-                        key={suggestion}
-                        onClick={() => {
-                          if (!features.includes(suggestion)) {
-                            setFeatures([...features, suggestion]);
-                          }
-                        }}
-                        className="text-xs px-3 py-1 rounded-full border border-gray-300 text-gray-600 bg-gray-50 hover:bg-gray-100"
-                      >
-                        {suggestion}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
+            )}
 
+            <div className="mt-3">
+              <p className="text-xs text-gray-500 mb-1">Suggestions:</p>
+              <div className="flex flex-wrap gap-2">
+                {FEATURE_SUGGESTIONS.map((sugg) => (
+                  <button
+                    key={sugg}
+                    onClick={() => !features.includes(sugg) && setFeatures([...features, sugg])}
+                    className="text-xs px-3 py-1 rounded-full border border-gray-300 text-gray-600 bg-gray-50 hover:bg-gray-100"
+                  >
+                    {sugg}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="flex justify-between">
@@ -304,75 +298,80 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
 
         {step === 3 && (
           <div className="space-y-6">
-            <div>
-              <label className="block mb-2 font-medium">Define Your Rooms</label>
-              {rooms.map((room, index) => (
-                <div key={index} className="flex gap-2 items-center mb-2">
-                  <Input
-                    placeholder="Room Name (e.g. Master Bedroom)"
-                    value={room.name}
-                    onChange={(e) => {
-                      const updated = [...rooms];
-                      updated[index].name = e.target.value;
-                      setRooms(updated);
-                    }}
-                  />
-                  <select
-                    value={room.type}
-                    onChange={(e) => {
-                      const updated = [...rooms];
-                      updated[index].type = e.target.value;
-                      setRooms(updated);
-                    }}
-                    className="border rounded px-2 py-1"
-                  >
-                    {ROOM_TYPES.map((type) => (
-                      <option key={type} value={type}>
-                        {type}
-                      </option>
-                    ))}
-                  </select>
-                  <Input
-                    placeholder="Floor #"
-                    type="number"
-                    className="w-20"
-                    value={room.floor ?? ''}
-                    onChange={(e) => {
-                      const updated = [...rooms];
-                      updated[index].floor = parseInt(e.target.value || '0');
-                      setRooms(updated);
-                    }}
-                  />
-                  <button
-                    onClick={() => {
-                      const updated = [...rooms];
-                      updated.splice(index, 1);
-                      setRooms(updated);
-                    }}
-                    className="text-red-600 hover:text-red-800 text-sm"
-                  >
-                    ✖
-                  </button>
-                </div>
-              ))}
-              <button
-                onClick={() => setRooms([...rooms, { name: '', type: 'Bedroom', floor: undefined }])}
-                className="mt-2 text-blue-600 hover:underline text-sm"
-              >
-                + Add Another Room
-              </button>
-            </div>
+            <label className="block mb-2 font-medium">Define Your Rooms</label>
+            {rooms.map((room, index) => (
+              <div key={index} className="flex gap-2 items-center mb-2">
+                <Input placeholder="Room Name" value={room.name} onChange={(e) => {
+                  const updated = [...rooms];
+                  updated[index].name = e.target.value;
+                  setRooms(updated);
+                }} />
+                <select value={room.type} onChange={(e) => {
+                  const updated = [...rooms];
+                  updated[index].type = e.target.value;
+                  setRooms(updated);
+                }} className="border rounded px-2 py-1">
+                  {ROOM_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+                <Input
+                  placeholder="Floor #"
+                  type="number"
+                  className="w-20"
+                  value={room.floor ?? ''}
+                  onChange={(e) => {
+                    const updated = [...rooms];
+                    updated[index].floor = parseInt(e.target.value || '0');
+                    setRooms(updated);
+                  }}
+                />
+                <button
+                  onClick={() => {
+                    const updated = [...rooms];
+                    updated.splice(index, 1);
+                    setRooms(updated);
+                  }}
+                  className="text-red-600 hover:text-red-800 text-sm"
+                >
+                  ✖
+                </button>
+              </div>
+            ))}
+            <button
+              onClick={() => setRooms([...rooms, { name: '', type: 'Bedroom', floor: undefined }])}
+              className="mt-2 text-blue-600 hover:underline text-sm"
+            >
+              + Add Another Room
+            </button>
 
             <div className="flex justify-between">
               <button onClick={() => setStep(2)} className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-100">Back</button>
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="px-4 py-2 bg-brand-primary text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {saving ? 'Saving...' : 'Save'}
-              </button>
+              <button onClick={handleSave} className="px-4 py-2 bg-brand-primary text-white rounded hover:bg-blue-600">Next</button>
+            </div>
+          </div>
+        )}
 
+        {step === 4 && newHomeId && (
+          <div className="space-y-6">
+            <label className="block mb-2 font-medium">Upload a Home Photo (optional)</label>
+            <ImageUpload
+              homeId={newHomeId}
+              onUploadComplete={(filename) => {
+                setImageUploadedUrl(filename);
+                finalizeImageUpload(filename);
+              }}
+            />
+            {imageUploadedUrl && (
+              <img
+                src={`${import.meta.env.VITE_API_BASE_URL}/uploads/${imageUploadedUrl}`}
+                alt="Preview"
+                className="mt-3 rounded w-full max-h-48 object-cover"
+              />
+            )}
+
+            <div className="text-right">
+              <button onClick={onClose} className="mt-4 text-sm text-gray-600 hover:underline">
+                Skip & Finish
+              </button>
             </div>
           </div>
         )}

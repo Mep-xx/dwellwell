@@ -32,6 +32,7 @@ export function EditHomeModal({ isOpen, onClose, home, onSave }: Props) {
 
   const handleSave = () => {
     onSave({
+      id: home.id, // Needed for PATCH route
       nickname,
       squareFeet: squareFeet ? Number(squareFeet) : null,
       lotSize: lotSize ? Number(lotSize) : null,
@@ -49,29 +50,10 @@ export function EditHomeModal({ isOpen, onClose, home, onSave }: Props) {
         </div>
 
         <div className="space-y-4">
-          <Input
-            placeholder="Nickname"
-            value={nickname}
-            onChange={(e) => setNickname(e.target.value)}
-          />
-          <Input
-            placeholder="Square Feet"
-            type="number"
-            value={squareFeet}
-            onChange={(e) => setSquareFeet(e.target.value)}
-          />
-          <Input
-            placeholder="Lot Size (acres)"
-            type="number"
-            value={lotSize}
-            onChange={(e) => setLotSize(e.target.value)}
-          />
-          <Input
-            placeholder="Year Built"
-            type="number"
-            value={yearBuilt}
-            onChange={(e) => setYearBuilt(e.target.value)}
-          />
+          <Input placeholder="Nickname" value={nickname} onChange={(e) => setNickname(e.target.value)} />
+          <Input placeholder="Square Feet" type="number" value={squareFeet} onChange={(e) => setSquareFeet(e.target.value)} />
+          <Input placeholder="Lot Size (acres)" type="number" value={lotSize} onChange={(e) => setLotSize(e.target.value)} />
+          <Input placeholder="Year Built" type="number" value={yearBuilt} onChange={(e) => setYearBuilt(e.target.value)} />
 
           {/* 🖼️ Home Image Upload */}
           <div>
@@ -80,25 +62,22 @@ export function EditHomeModal({ isOpen, onClose, home, onSave }: Props) {
             {imageUrl && (
               <div className="mb-3">
                 <img
-                  src={imageUrl.startsWith('/uploads') ? imageUrl : `/uploads/${imageUrl}`}
+                  src={`${import.meta.env.VITE_API_BASE_URL}/uploads/${imageUrl}`}
                   alt="Current Home"
                   className="rounded w-full max-h-40 object-cover"
                 />
               </div>
             )}
 
+
             <ImageUpload
-              onUploadComplete={(filename) => {
-                const clean = filename.replace(/^\/uploads\//, '');
-                setImageUrl(clean);
-              }}
+              homeId={home.id}
+              onUploadComplete={(relativePath) => setImageUrl(relativePath)}
             />
           </div>
 
           <div className="flex justify-end gap-3 pt-4">
-            <Button variant="outline" onClick={onClose}>
-              Cancel
-            </Button>
+            <Button variant="outline" onClick={onClose}>Cancel</Button>
             <Button onClick={handleSave}>Save</Button>
           </div>
         </div>

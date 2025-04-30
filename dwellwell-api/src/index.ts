@@ -36,6 +36,9 @@ app.use('/api/mapbox', mapboxRoutes);
 app.use('/api/rooms', roomRoutes);
 
 // Serve Static Files (Home Images)
+import uploadHomeImageRoute from './routes/homes/upload-image';
+app.use('/api', uploadHomeImageRoute);
+
 app.use('/uploads', express.static(path.resolve(__dirname, '../uploads')));
 
 app.listen(PORT, () => {

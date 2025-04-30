@@ -50,10 +50,11 @@ export function HomeCard({ home, summary, onToggle, onEdit, onDelete }: Props) {
   return (
     <div className="rounded-xl border shadow bg-white overflow-hidden">
       {/* Image */}
-      <img src={
-          home.imageUrl?.startsWith('/') || home.imageUrl?.startsWith('http')
-            ? home.imageUrl
-            : `/uploads/${home.imageUrl ?? 'home_placeholder.png'}`
+      <img
+        src={
+          home.imageUrl
+            ? `${import.meta.env.VITE_API_BASE_URL}/uploads/${home.imageUrl}`
+            : '/images/home_placeholder.png'
         }
         alt={home.nickname || home.address}
         title={home.nickname || home.address}

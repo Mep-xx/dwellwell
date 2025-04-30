@@ -154,7 +154,7 @@ export const updateHomeIsChecked = async (req: Request, res: Response) => {
 export const updateHome = async (req: Request, res: Response) => {
   const userId = (req as any).user?.userId;
   const { id } = req.params;
-  const { nickname, squareFeet, lotSize, yearBuilt, architecturalStyle } = req.body;
+  const { nickname, squareFeet, lotSize, yearBuilt, architecturalStyle, imageUrl } = req.body;
 
   if (!userId) {
     return res.status(401).json({ message: 'Unauthorized' });
@@ -180,7 +180,8 @@ export const updateHome = async (req: Request, res: Response) => {
         squareFeet: squareFeet ?? null,
         lotSize: lotSize ?? null,
         yearBuilt: yearBuilt ?? null,
-        architecturalStyle: architecturalStyle ?? null, // 🆕 Allow editing style
+        architecturalStyle: architecturalStyle ?? null,
+        imageUrl: imageUrl ?? null,
       },
     });
 

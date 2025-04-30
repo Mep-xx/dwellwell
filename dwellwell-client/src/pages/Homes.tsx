@@ -150,7 +150,7 @@ export default function HomesPage() {
       toast({
         title: 'Home deleted',
         description: 'This home has been removed.',
-        variant: 'destructive',
+        variant: 'default',
       });
     } catch (err) {
       console.error('Failed to delete home:', err);
