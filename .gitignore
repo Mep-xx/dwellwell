@@ -21,3 +21,6 @@ Thumbs.db
 # Build artifacts
 build/
 coverage/
+
+# Ignore uploads directory
+/uploads/
