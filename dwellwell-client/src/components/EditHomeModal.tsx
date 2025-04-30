@@ -2,8 +2,8 @@
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { ImageUpload } from '@/components/ui/ImageUpload';
-import { useState } from 'react';
+import { ImageUpload } from '@/components/ui/imageupload';
+import { useState, useEffect } from 'react';
 import { Home } from '@shared/types/home';
 
 type Props = {
@@ -18,7 +18,17 @@ export function EditHomeModal({ isOpen, onClose, home, onSave }: Props) {
   const [squareFeet, setSquareFeet] = useState(home.squareFeet?.toString() ?? '');
   const [lotSize, setLotSize] = useState(home.lotSize?.toString() ?? '');
   const [yearBuilt, setYearBuilt] = useState(home.yearBuilt?.toString() ?? '');
-  const [imageUrl, setImageUrl] = useState(home.imageUrl ?? '');
+  const [imageUrl, setImageUrl] = useState<string | null>(home.imageUrl ?? null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setNickname(home.nickname ?? '');
+      setSquareFeet(home.squareFeet?.toString() ?? '');
+      setLotSize(home.lotSize?.toString() ?? '');
+      setYearBuilt(home.yearBuilt?.toString() ?? '');
+      setImageUrl(home.imageUrl ?? null);
+    }
+  }, [isOpen, home]);
 
   const handleSave = () => {
     onSave({
@@ -35,7 +45,7 @@ export function EditHomeModal({ isOpen, onClose, home, onSave }: Props) {
       <DialogContent className="space-y-4 max-w-md">
         <div className="flex flex-col space-y-1">
           <DialogTitle className="text-2xl font-bold text-brand-primary">Edit Home</DialogTitle>
-          <DialogDescription>Edit home details below.</DialogDescription>
+          <DialogDescription>Edit your home details below.</DialogDescription>
         </div>
 
         <div className="space-y-4">
@@ -63,18 +73,32 @@ export function EditHomeModal({ isOpen, onClose, home, onSave }: Props) {
             onChange={(e) => setYearBuilt(e.target.value)}
           />
 
+          {/* 🖼️ Home Image Upload */}
           <div>
             <label className="block text-sm mb-2 font-medium text-gray-700">Home Image</label>
+
             {imageUrl && (
               <div className="mb-3">
-                <img src={imageUrl} alt="Current Home" className="rounded w-full max-h-40 object-cover" />
+                <img
+                  src={imageUrl.startsWith('/uploads') ? imageUrl : `/uploads/${imageUrl}`}
+                  alt="Current Home"
+                  className="rounded w-full max-h-40 object-cover"
+                />
               </div>
             )}
-            <ImageUpload onUploadComplete={(url) => setImageUrl(url)} />
+
+            <ImageUpload
+              onUploadComplete={(filename) => {
+                const clean = filename.replace(/^\/uploads\//, '');
+                setImageUrl(clean);
+              }}
+            />
           </div>
 
           <div className="flex justify-end gap-3 pt-4">
-            <Button variant="outline" onClick={onClose}>Cancel</Button>
+            <Button variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
             <Button onClick={handleSave}>Save</Button>
           </div>
         </div>

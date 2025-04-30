@@ -3,8 +3,8 @@ import express from 'express';
 import { requireAuth } from '../../middleware/requireAuth';
 import { getHomes, createHome, updateHome, deleteHome } from '../../controllers/home';
 import enrichHomeRoute from './enrich-home-OpenAI';
-import { prisma } from '../../db/prisma';
 import { updateHomeIsChecked } from '../../controllers/home';
+import uploadRoute from './upload-image'; // ⬅️  (Relative to homes folder)
 
 const router = express.Router();
 
@@ -25,6 +25,6 @@ router.delete('/:id', requireAuth, deleteHome);
 // ✅ External routes (like OpenAI enrichment)
 router.use(enrichHomeRoute);
 
-
+router.use('/', uploadRoute);              // ⬅️  Attach it under /api/homes/
 
 export default router;

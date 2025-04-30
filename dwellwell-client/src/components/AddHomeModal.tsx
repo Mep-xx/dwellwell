@@ -6,11 +6,11 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { ProgressBar } from './ui/ProgressBar';
+import { ProgressBar } from './ui/progressbar';
 import { api } from '@/utils/api';
 import { useEffect, useRef, useState } from 'react';
 import { architecturalStyleLabels } from '../../../shared/architecturalStyleLabels';
-import { ImageUpload } from './ui/ImageUpload';
+import { ImageUpload } from './ui/imageupload';
 
 const FEATURE_SUGGESTIONS = [
   'garage', 'fireplace', 'deck', 'patio', 'sunroom', 'chimney',
@@ -41,14 +41,11 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
   const [architecturalStyle, setArchitecturalStyle] = useState('');
   const [imageUrl, setImageUrl] = useState<string | null>(null);
 
-
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const steps = ['Address', 'Details', 'Features', 'Rooms'];
 
   useEffect(() => {
-    if (isOpen) {
-      resetForm();
-    }
+    if (isOpen) resetForm();
   }, [isOpen]);
 
   const resetForm = () => {
@@ -60,8 +57,10 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
     setSquareFeet('');
     setLotSize('');
     setYearBuilt('');
+    setArchitecturalStyle('');
     setFeatures([]);
     setRooms([]);
+    setImageUrl(null);
     setSuggestions([]);
     setSuggestionsRaw([]);
   };
@@ -78,7 +77,7 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
 
   const handleSave = async () => {
     try {
-      if (saving) return; // 🛑 prevent duplicate saves
+      if (saving) return;
       setSaving(true);
 
       await api.post('/api/homes', {
@@ -116,8 +115,7 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
         const res = await fetch(`/api/mapbox/suggest?query=${encodeURIComponent(value)}`);
         const data = await res.json();
         setSuggestionsRaw(data.features);
-        const suggestionList = data.features.map((f: any) => f.place_name);
-        setSuggestions(suggestionList);
+        setSuggestions(data.features.map((f: any) => f.place_name));
       } catch (err) {
         console.error('Backend autocomplete failed:', err);
       }
@@ -130,7 +128,6 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
     const fullAddress = `${number} ${street}`.trim();
 
     setAddress(fullAddress);
-
     setCity('');
     setState('');
     for (const item of place.context || []) {
@@ -138,7 +135,6 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
       else if (item.id.startsWith('region.') && item.short_code)
         setState(item.short_code.replace('US-', ''));
     }
-
     setSuggestions([]);
   };
 
@@ -153,17 +149,15 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
       if (data.lotSize) setLotSize(data.lotSize.toString());
       if (data.yearBuilt) setYearBuilt(data.yearBuilt.toString());
       if (data.nickname) setNickname(data.nickname);
-      if (data.architecturalStyle) setArchitecturalStyle(data.architecturalStyle); // 🆕 ADD THIS
+      if (data.architecturalStyle) setArchitecturalStyle(data.architecturalStyle);
       if (Array.isArray(data.features)) setFeatures(data.features);
       if (Array.isArray(data.rooms)) setRooms(data.rooms);
-
     } catch (err) {
       console.error('❌ Failed AI enrichment:', err);
     } finally {
       setLoadingAI(false);
     }
   };
-
 
   const addFeature = () => {
     const trimmed = featureInput.trim().toLowerCase();
@@ -198,11 +192,7 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
               {suggestions.length > 0 && (
                 <ul className="absolute z-50 bg-white border rounded shadow w-full max-h-40 overflow-auto">
                   {suggestions.map((s, i) => (
-                    <li
-                      key={i}
-                      onClick={() => handleSuggestionClick(suggestionsRaw[i])}
-                      className="px-4 py-2 hover:bg-gray-100 cursor-pointer text-sm"
-                    >
+                    <li key={i} onClick={() => handleSuggestionClick(suggestionsRaw[i])} className="px-4 py-2 hover:bg-gray-100 cursor-pointer text-sm">
                       {s}
                     </li>
                   ))}
@@ -226,8 +216,15 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
             <label>Tell us more about this home</label>
             <Input placeholder="Nickname (e.g. Lake House)" value={nickname} onChange={(e) => setNickname(e.target.value)} />
 
-            <ImageUpload onUploadComplete={(url) => setImageUrl(url)} />
-
+            {/* Image Upload */}
+            <ImageUpload onUploadComplete={(filename) => setImageUrl(filename)} />
+            {imageUrl && (
+              <img
+                src={`/uploads/${imageUrl}`} // 🛠️ always prepending /uploads/ here
+                alt="Preview"
+                className="mt-3 rounded w-full max-h-48 object-cover"
+              />
+            )}
             <div className="flex justify-start">
               <button
                 onClick={enrichHomeDetails}
@@ -238,12 +235,7 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
               </button>
             </div>
 
-            <select
-              id="style"
-              value={architecturalStyle}
-              onChange={(e) => setArchitecturalStyle(e.target.value)}
-              className="w-full border rounded px-3 py-2 text-sm"
-            >
+            <select id="style" value={architecturalStyle} onChange={(e) => setArchitecturalStyle(e.target.value)} className="w-full border rounded px-3 py-2 text-sm">
               <option value="">Select a style</option>
               {Object.keys(architecturalStyleLabels).sort().map((key) => (
                 <option key={key} value={key}>
@@ -267,64 +259,45 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
           <div className="space-y-6">
             <div>
               <label className="block mb-2 font-medium">Home Features</label>
-              {/* Input box for manual features */}
               <div className="flex gap-2">
-                <Input
-                  placeholder="e.g. garage"
-                  value={featureInput}
-                  onChange={(e) => setFeatureInput(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && addFeature()}
-                />
-                <button
-                  onClick={addFeature}
-                  className="px-3 py-2 bg-brand-primary text-white rounded hover:bg-blue-600"
-                >
-                  Add
-                </button>
+                <Input placeholder="e.g. garage" value={featureInput} onChange={(e) => setFeatureInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addFeature()} />
+                <button onClick={addFeature} className="px-3 py-2 bg-brand-primary text-white rounded hover:bg-blue-600">Add</button>
               </div>
-
-              <p className="text-xs text-gray-500 mb-2">
-                Tap a suggestion below or type your own feature.
-              </p>
-
-              {/* Feature suggestions (click to add) */}
-              <div className="flex flex-wrap gap-2 mt-3">
-                {FEATURE_SUGGESTIONS.filter(f => !features.includes(f)).map((suggestion) => (
-                  <button
-                    key={suggestion}
-                    onClick={() => {
-                      setFeatures([...features, suggestion]);
-                    }}
-                    className="px-3 py-1 bg-gray-100 hover:bg-blue-100 text-gray-800 rounded-full text-sm border"
-                  >
-                    {suggestion}
-                  </button>
-                ))}
-              </div>
-
-              {/* Added features display */}
               {features.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-4">
+                <div className="flex flex-wrap gap-2 mt-3">
                   {features.map((f) => (
-                    <span
-                      key={f}
-                      className="bg-gray-100 text-sm text-gray-800 px-3 py-1 rounded-full border border-gray-300"
-                    >
+                    <span key={f} className="bg-gray-100 text-sm text-gray-800 px-3 py-1 rounded-full border border-gray-300">
                       {f}
                     </span>
                   ))}
                 </div>
               )}
+              {FEATURE_SUGGESTIONS.length > 0 && (
+                <div className="mt-3">
+                  <p className="text-xs text-gray-500 mb-1">Suggestions:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {FEATURE_SUGGESTIONS.map((suggestion) => (
+                      <button
+                        key={suggestion}
+                        onClick={() => {
+                          if (!features.includes(suggestion)) {
+                            setFeatures([...features, suggestion]);
+                          }
+                        }}
+                        className="text-xs px-3 py-1 rounded-full border border-gray-300 text-gray-600 bg-gray-50 hover:bg-gray-100"
+                      >
+                        {suggestion}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
             </div>
 
-            {/* Navigation buttons */}
             <div className="flex justify-between">
-              <button onClick={() => setStep(1)} className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-100">
-                Back
-              </button>
-              <button onClick={() => setStep(3)} className="px-4 py-2 bg-brand-primary text-white rounded hover:bg-blue-600">
-                Next
-              </button>
+              <button onClick={() => setStep(1)} className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-100">Back</button>
+              <button onClick={() => setStep(3)} className="px-4 py-2 bg-brand-primary text-white rounded hover:bg-blue-600">Next</button>
             </div>
           </div>
         )}

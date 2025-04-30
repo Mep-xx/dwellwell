@@ -1,3 +1,5 @@
+// src/components/HomeCard.tsx
+
 import { useState } from 'react';
 import { Home } from '@shared/types/home';
 import { Room } from '@shared/types/room';
@@ -48,9 +50,13 @@ export function HomeCard({ home, summary, onToggle, onEdit, onDelete }: Props) {
   return (
     <div className="rounded-xl border shadow bg-white overflow-hidden">
       {/* Image */}
-      <img
-        src={home.imageUrl ?? '/images/home_placeholder.png'}
-        alt={home.address}
+      <img src={
+          home.imageUrl?.startsWith('/') || home.imageUrl?.startsWith('http')
+            ? home.imageUrl
+            : `/uploads/${home.imageUrl ?? 'home_placeholder.png'}`
+        }
+        alt={home.nickname || home.address}
+        title={home.nickname || home.address}
         className="w-full h-40 object-cover"
       />
 
@@ -113,14 +119,13 @@ export function HomeCard({ home, summary, onToggle, onEdit, onDelete }: Props) {
           {expanded ? "Show Less" : "Show More"}
           {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </button>
-
       )}
 
       {/* Expanded Room Details */}
       {expanded && (
         <div className="px-4 pb-4 space-y-6">
           {home.rooms?.map((room) => {
-            const stats = getRoomStats(room.tasks);
+            const stats = getRoomStats(room.tasks || []);
             return (
               <div key={room.id} className="border-t pt-4">
                 <p className="font-medium text-gray-800">
@@ -177,7 +182,6 @@ export function HomeCard({ home, summary, onToggle, onEdit, onDelete }: Props) {
           >
             <Trash2 className="w-5 h-5" />
           </button>
-
         </div>
       </div>
     </div>

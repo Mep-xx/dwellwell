@@ -1,3 +1,5 @@
+// src/pages/Homes.tsx
+
 import { useEffect, useState } from 'react';
 import { api } from '@/utils/api';
 import { Home } from '@shared/types/home';
@@ -101,15 +103,16 @@ export default function HomesPage() {
   };
 
   const handleSaveEdit = async (updatedFields: Partial<Home>) => {
-    if (!updatedFields.id) return;
+    if (!editTargetHome?.id) return;
 
     try {
-      await api.patch(`/api/homes/${updatedFields.id}`, {
+      await api.patch(`/api/homes/${editTargetHome.id}`, {
         nickname: updatedFields.nickname,
         squareFeet: updatedFields.squareFeet,
         lotSize: updatedFields.lotSize,
         yearBuilt: updatedFields.yearBuilt,
         architecturalStyle: updatedFields.architecturalStyle,
+        imageUrl: updatedFields.imageUrl,
       });
 
       await fetchHomes();
@@ -163,7 +166,6 @@ export default function HomesPage() {
 
   return (
     <div className="p-6">
-      {/* Top Header */}
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-brand-primary">My Homes</h1>
         <button
@@ -174,7 +176,6 @@ export default function HomesPage() {
         </button>
       </div>
 
-      {/* Homes Grid */}
       <div className="flex flex-wrap gap-6">
         {homes.map((home) => (
           <div key={home.id} className="w-full md:w-[32%]">
@@ -189,7 +190,6 @@ export default function HomesPage() {
         ))}
       </div>
 
-      {/* Modals */}
       <AddHomeModal
         isOpen={showAddModal}
         onClose={() => {

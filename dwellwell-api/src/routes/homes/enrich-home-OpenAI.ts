@@ -33,9 +33,12 @@ Return ONLY a valid JSON object with the following fields:
 - architecturalStyle: (string) Common architectural style (e.g., "Colonial")
 
 ⚠️ Important:
-- Strict JSON only.
+- Only output a pure valid JSON object, with no extra text, no introductions, no explanations, no commentary.
+- DO NOT say anything like "As an AI..." or any explanation — output ONLY the JSON.
 - Reasonable estimates are allowed if public data is unavailable.
   `.trim();
+
+  console.log('✨ OpenAI Enrich Prompt:', prompt); // 👈 Add this
 
   try {
     const completion = await openai.chat.completions.create({
@@ -59,22 +62,57 @@ Return ONLY a valid JSON object with the following fields:
 });
 
 function safeJsonParse(text: string): any {
-  try {
-    return JSON.parse(text);
-  } catch {
-    const cleaned = text
-      .replace(/```json|```/g, '')
-      .replace(/\\n/g, '')
-      .replace(/\s+/g, ' ')
-      .trim();
+  const requiredFields = [
+    'address',
+    'city',
+    'state',
+    'squareFeet',
+    'lotSize',
+    'yearBuilt',
+    'numberOfRooms',
+    'features',
+    'imageUrl',
+    'architecturalStyle',
+  ];
 
+  const tryParse = (raw: string) => {
     try {
-      return JSON.parse(cleaned);
-    } catch (finalErr) {
-      console.error('❌ Final JSON parse failed:', finalErr);
-      throw new Error('Invalid JSON from OpenAI');
+      const parsed = JSON.parse(raw);
+      const isObject = parsed && typeof parsed === 'object' && !Array.isArray(parsed);
+
+      if (!isObject) throw new Error('Parsed result is not an object');
+
+      const missing = requiredFields.filter((key) => !(key in parsed));
+      if (missing.length > 0) {
+        throw new Error(`Missing required field(s): ${missing.join(', ')}`);
+      }
+
+      return parsed;
+    } catch (err) {
+      return null;
     }
-  }
+  };
+
+  // First: try raw
+  const rawFirstTry = tryParse(text);
+  if (rawFirstTry) return rawFirstTry;
+
+  console.warn('⚠️ Raw OpenAI output failed JSON parse or schema check');
+  console.warn('🔎 Raw content:\n', text);
+
+  // Second: try cleaned version
+  const cleaned = text
+    .replace(/```json|```/g, '')
+    .replace(/\\n/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const cleanedTry = tryParse(cleaned);
+  if (cleanedTry) return cleanedTry;
+
+  console.error('❌ Final attempt to parse enriched home data failed.');
+  console.error('🧾 Final cleaned content:', cleaned);
+  throw new Error('Invalid or incomplete JSON from OpenAI');
 }
 
 export default router;
