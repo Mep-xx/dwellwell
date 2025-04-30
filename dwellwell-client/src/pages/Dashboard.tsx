@@ -30,8 +30,6 @@ export default function Dashboard() {
   const [timeframe, setTimeframe] = useState<Timeframe>('week');
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
 
-  console.log("Fetching dashboard... with token?", localStorage.getItem("dwellwell-token"));
-
   const now = new Date();
 
   const isInCurrentTimeframe = (dateStr: string) => {

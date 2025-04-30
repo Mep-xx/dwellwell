@@ -117,7 +117,7 @@ export function HomeCard({ home, summary, onToggle, onEdit, onDelete }: Props) {
           onClick={() => setExpanded((prev) => !prev)}
           className="px-4 py-2 bg-brand-primary/10 hover:bg-brand-primary/20 text-brand-primary rounded-full flex items-center gap-2 text-sm font-medium mx-auto my-2 transition-colors"
         >
-          {expanded ? "Show Less" : "Show More"}
+          {expanded ? "Hide Rooms" : "Show Rooms"}
           {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </button>
       )}
