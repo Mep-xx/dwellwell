@@ -8,6 +8,7 @@ export const getHomes = async (req: Request, res: Response) => {
     const homes = await prisma.home.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
+      include: { rooms: true },
     });
     res.json(homes);
   } catch (err) {
@@ -34,8 +35,14 @@ export const createHome = async (req: Request, res: Response) => {
     features,
     imageUrl,
     rooms = [],
-    isChecked = true
+    isChecked = true,
+    boilerType,
+    hasCentralAir,
+    hasBaseboard,
+    roofType,
+    sidingType,
   } = req.body;
+  
 
   if (!address || !city || !state) {
     console.error('🚫 Missing required fields:', { address, city, state });
@@ -71,18 +78,20 @@ export const createHome = async (req: Request, res: Response) => {
         features: features ?? [],
         imageUrl: imageUrl ?? '/images/home_placeholder.png',
         isChecked: isChecked,
+        boilerType: boilerType ?? null,
+        hasCentralAir: hasCentralAir ?? false,
+        hasBaseboard: hasBaseboard ?? false,
+        roofType: roofType ?? null,
+        sidingType: sidingType ?? null,
         rooms: {
           create: Array.isArray(rooms)
             ? rooms.map((room: any) => ({
-              name: room.name,
-              type: room.type,
-              floor: room.floor ?? null,
-            }))
+                name: room.name,
+                type: room.type,
+                floor: room.floor ?? null,
+              }))
             : [],
         },
-      },
-      include: {
-        rooms: true, // Optional, returns the created rooms too
       },
     });
 

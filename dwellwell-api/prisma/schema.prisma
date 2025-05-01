@@ -45,6 +45,12 @@ model Home {
   isChecked          Boolean  @default(true)
   createdAt          DateTime @default(now())
 
+  boilerType         String?
+  hasCentralAir      Boolean  @default(false)
+  hasBaseboard       Boolean  @default(false)
+  roofType           String?
+  sidingType         String?
+
   user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   rooms       Room[]       @relation("HomeRooms")
   trackables  Trackable[]  @relation("HomeTrackables")
@@ -52,15 +58,16 @@ model Home {
   vehicles    Vehicle[]    @relation("HomeVehicles")
 }
 
+
 model Room {
   id     String @id @default(cuid())
-  homeId String
   name   String
   type   String
   floor  Int?
-
   home       Home        @relation("HomeRooms", fields: [homeId], references: [id], onDelete: Cascade)
+  homeId String
   trackables Trackable[] @relation("RoomTrackables")
+  tasks     Task[]
 }
 
 model LawnProfile {
@@ -125,6 +132,14 @@ model Trackable {
   applianceCatalog ApplianceCatalog? @relation(fields: [applianceCatalogId], references: [id])
 
   tasks UserTask[]
+}
+
+model Task {
+  id        String   @id @default(cuid())
+  name      String
+  roomId    String
+  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
 }
 
 model TaskTemplate {

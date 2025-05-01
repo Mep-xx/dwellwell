@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '@/utils/api';
 import { Home } from '@shared/types/home';
-import { AddHomeModal } from '@/components/AddHomeModal';
+import { AddHomeWizard } from '@/components/AddHomeWizard';
 import { EditHomeModal } from '@/components/EditHomeModal';
 import { DeleteHomeModal } from '@/components/DeleteHomeModal';
 import { HomeCard } from '@/components/HomeCard';
@@ -190,13 +190,21 @@ export default function HomesPage() {
         ))}
       </div>
 
-      <AddHomeModal
+      <AddHomeWizard
         isOpen={showAddModal}
         onClose={() => {
           setShowAddModal(false);
           fetchHomes();
         }}
       />
+
+      {/* <AddHomeModal
+        isOpen={showAddModal}
+        onClose={() => {
+          setShowAddModal(false);
+          fetchHomes();
+        }}
+      /> */}
 
       <DeleteHomeModal
         isOpen={!!deleteTargetId}
