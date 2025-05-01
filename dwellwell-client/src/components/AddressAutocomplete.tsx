@@ -22,6 +22,7 @@ export function AddressAutocomplete({
   const [suggestions, setSuggestions] = useState<AddressParts[]>([]);
   const [loading, setLoading] = useState(false);
   const suppressRef = useRef(false);
+  const [dropdownVisible, setDropdownVisible] = useState(false);
 
   useEffect(() => {
     if (suppressRef.current) {
@@ -29,7 +30,10 @@ export function AddressAutocomplete({
       return;
     }
 
-    if (input.length < 5) return;
+    if (input.length < 5) {
+      setSuggestions([]);
+      return;
+    }
 
     const delayDebounce = setTimeout(async () => {
       setLoading(true);
@@ -51,9 +55,11 @@ export function AddressAutocomplete({
         });
 
         setSuggestions(mapped);
+        setDropdownVisible(true);
       } catch (err) {
         console.error('Failed to get suggestions', err);
         setSuggestions([]);
+        setDropdownVisible(false);
       } finally {
         setLoading(false);
       }
@@ -67,18 +73,22 @@ export function AddressAutocomplete({
     setInput(suggestion.displayName);
     onSelectSuggestion(suggestion);
     setSuggestions([]);
+    setDropdownVisible(false);
   };
 
   return (
     <div className="relative">
       <Input
         value={input}
-        onChange={(e) => setInput(e.target.value)}
+        onChange={(e) => {
+          setInput(e.target.value);
+          setDropdownVisible(false);
+        }}
         autoComplete="new-password"
         placeholder="Start typing your address..."
       />
 
-      {suggestions.length > 0 && (
+      {dropdownVisible && suggestions.length > 0 && (
         <ul className="absolute bg-white border border-gray-300 mt-1 w-full rounded z-10 max-h-60 overflow-auto shadow-lg">
           {suggestions.map((s, i) => (
             <li

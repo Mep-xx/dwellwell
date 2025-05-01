@@ -18,6 +18,7 @@ export const getHomes = async (req: Request, res: Response) => {
 };
 
 // POST /api/homes
+// POST /api/homes
 export const createHome = async (req: Request, res: Response) => {
   const userId = (req as any).user?.userId;
   if (!userId) return res.status(401).json({ message: 'Unauthorized' });
@@ -42,21 +43,27 @@ export const createHome = async (req: Request, res: Response) => {
     roofType,
     sidingType,
   } = req.body;
-  
 
   if (!address || !city || !state) {
-    console.error('🚫 Missing required fields:', { address, city, state });
     return res.status(400).json({ message: 'Missing required fields: address, city, or state' });
   }
 
+  const normalizeFloor = (floor: string | number | null | undefined): number | null => {
+    if (typeof floor === 'number') return floor;
+    switch (floor) {
+      case 'Basement': return -1;
+      case '1st Floor': return 1;
+      case '2nd Floor': return 2;
+      case '3rd Floor': return 3;
+      case 'Attic': return 99;
+      case 'Other': return 0;
+      default: return null;
+    }
+  };
+
   try {
     const existingHome = await prisma.home.findFirst({
-      where: {
-        userId,
-        address,
-        city,
-        state,
-      },
+      where: { userId, address, city, state },
     });
 
     if (existingHome) {
@@ -86,10 +93,10 @@ export const createHome = async (req: Request, res: Response) => {
         rooms: {
           create: Array.isArray(rooms)
             ? rooms.map((room: any) => ({
-                name: room.name,
-                type: room.type,
-                floor: room.floor ?? null,
-              }))
+              name: room.name,
+              type: room.type,
+              floor: normalizeFloor(room.floor),
+            }))
             : [],
         },
       },
@@ -101,6 +108,7 @@ export const createHome = async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Failed to create home' });
   }
 };
+
 
 export const deleteHome = async (req: Request, res: Response) => {
   const userId = (req as any).user?.userId;

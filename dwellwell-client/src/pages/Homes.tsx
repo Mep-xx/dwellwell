@@ -192,10 +192,8 @@ export default function HomesPage() {
 
       <AddHomeWizard
         isOpen={showAddModal}
-        onClose={() => {
-          setShowAddModal(false);
-          fetchHomes();
-        }}
+        onClose={() => setShowAddModal(false)}
+        onComplete={fetchHomes}
       />
 
       {/* <AddHomeModal
