@@ -27,7 +27,6 @@ export default function HomesPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [editTargetHome, setEditTargetHome] = useState<Home | null>(null);
-  const [deleting, setDeleting] = useState(false);
 
   const { toast } = useToast();
 
@@ -141,7 +140,6 @@ export default function HomesPage() {
     if (!deleteTargetId) return;
 
     try {
-      setDeleting(true);
       await api.delete(`/api/homes/${deleteTargetId}`);
 
       setHomes((prev) => prev.filter((home) => home.id !== deleteTargetId));
@@ -159,8 +157,6 @@ export default function HomesPage() {
         description: 'Something went wrong during deletion.',
         variant: 'destructive',
       });
-    } finally {
-      setDeleting(false);
     }
   };
 
