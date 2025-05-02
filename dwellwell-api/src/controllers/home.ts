@@ -25,6 +25,7 @@ export const createHome = async (req: Request, res: Response) => {
 
   const {
     address,
+    apartment,
     city,
     state,
     nickname,
@@ -63,7 +64,7 @@ export const createHome = async (req: Request, res: Response) => {
 
   try {
     const existingHome = await prisma.home.findFirst({
-      where: { userId, address, city, state },
+      where: { userId, address, city, state, apartment },
     });
 
     if (existingHome) {
@@ -74,6 +75,7 @@ export const createHome = async (req: Request, res: Response) => {
       data: {
         userId,
         address,
+        apartment,
         city,
         state,
         nickname: nickname ?? null,

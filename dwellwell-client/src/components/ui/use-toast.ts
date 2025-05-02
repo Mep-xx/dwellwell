@@ -41,3 +41,5 @@ export const useToast = () => {
     toast: addToast,
   };
 };
+
+export const toast = useToastStore.getState().addToast;

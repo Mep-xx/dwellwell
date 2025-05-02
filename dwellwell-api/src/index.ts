@@ -17,7 +17,10 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-app.use(cors());
+app.use(cors({
+  origin: 'http://localhost:5173', // not '*'
+  credentials: true,
+}));
 app.use(express.json());
 
 app.get('/health', (req, res) => {
@@ -30,7 +33,7 @@ app.use('/api/tasks', tasksRoutes);
 app.use('/api/lookup', lookupRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/auth', authRouter);
-app.use('/api/homes', homeRoutes);          
+app.use('/api/homes', homeRoutes);
 app.use('/api/homes', taskSummaryRoute);
 app.use('/api/mapbox', mapboxRoutes);
 app.use('/api/rooms', roomRoutes);

@@ -6,6 +6,8 @@ import { ProgressBar } from './ui/progressbar';
 import { api } from '@/utils/api';
 import { AddressAutocomplete } from './AddressAutocomplete';
 import { ImageUpload } from './ui/imageupload';
+import axios from 'axios';
+
 
 export function AddHomeWizard({
   isOpen,
@@ -21,6 +23,7 @@ export function AddHomeWizard({
   const [step, setStep] = useState(0);
 
   const [address, setAddress] = useState('');
+  const [apartment, setApartment] = useState('');
   const [city, setCity] = useState('');
   const [zip, setZip] = useState('');
   const [state, setState] = useState('');
@@ -39,6 +42,8 @@ export function AddHomeWizard({
   const [newHomeId, setNewHomeId] = useState<string | null>(null);
   const [imageUploadedUrl, setImageUploadedUrl] = useState('');
   const [homeCreated, setHomeCreated] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
 
   const resetWizard = () => {
     setStep(0);
@@ -66,6 +71,7 @@ export function AddHomeWizard({
   const handleSaveHome = async () => {
 
     try {
+      setSaveError(null);
       setSaving(true);
 
       const normalizeFloor = (floor: string | undefined): number | null => {
@@ -87,6 +93,7 @@ export function AddHomeWizard({
 
       const res = await api.post('/api/homes', {
         address,
+        apartment,
         city,
         state,
         zip,
@@ -104,9 +111,14 @@ export function AddHomeWizard({
 
       setNewHomeId(res.data.id);
       setHomeCreated(true);
-    } catch (err) {
-      console.error('❌ Failed to save home:', err);
-    } finally {
+    } catch (err: any) {
+      if (axios.isAxiosError(err) && err.response?.status === 409) {
+        setSaveError('A home at this address already exists.');
+      } else {
+        setSaveError('Failed to save home. Please try again.');
+      }
+    }
+    finally {
       setSaving(false);
     }
   };
@@ -155,6 +167,12 @@ export function AddHomeWizard({
                 setAddress(e.target.value);
                 setAddressSelected(false);
               }}
+              disabled={addressSelected}
+            />
+            <Input
+              placeholder="Apartment / Unit (optional)"
+              value={apartment}
+              onChange={(e) => setApartment(e.target.value)}
               disabled={addressSelected}
             />
             <div className="flex flex-wrap gap-2">
@@ -479,7 +497,7 @@ export function AddHomeWizard({
 
         {step === 5 && (
           <div className="space-y-2 text-sm">
-            <p><strong>Address:</strong> {address}, {city}, {state} {zip}</p>
+            <p><strong>Address:</strong> {address}{apartment ? ` Apt ${apartment}` : ''}, {city}, {state} {zip}</p>
             <p><strong>HVAC:</strong> {heatingCoolingTypes.join(', ') || 'None specified'}, Boiler: {boilerType || 'N/A'}</p>
             <p><strong>Exterior:</strong> Roof: {roofType}, Siding: {sidingType}</p>
             <p>
@@ -490,6 +508,12 @@ export function AddHomeWizard({
               }).join(', ')}
             </p>
             <p><strong>Features:</strong> {features.join(', ')}</p>
+          </div>
+        )}
+
+        {saveError && (
+          <div className="bg-red-100 text-red-700 px-4 py-2 rounded text-sm border border-red-300">
+            {saveError}
           </div>
         )}
 
