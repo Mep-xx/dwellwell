@@ -60,17 +60,23 @@ model Home {
   @@unique([userId, address, city, state, apartment])
 }
 
-
 model Room {
-  id     String @id @default(cuid())
-  name   String
-  type   String
-  floor  Int?
-  home       Home        @relation("HomeRooms", fields: [homeId], references: [id], onDelete: Cascade)
-  homeId String
-  trackables Trackable[] @relation("RoomTrackables")
-  tasks     Task[]
+  id               String      @id @default(cuid())
+  name             String
+  type             String
+  floor            Int?
+
+  hasFireplace     Boolean     @default(false)
+  hasBoiler        Boolean     @default(false)
+  hasSmokeDetector Boolean     @default(false)
+
+  home             Home        @relation("HomeRooms", fields: [homeId], references: [id], onDelete: Cascade)
+  homeId           String
+
+  trackables       Trackable[] @relation("RoomTrackables")
+  tasks            Task[]
 }
+
 
 model LawnProfile {
   id                  String   @id @default(uuid())

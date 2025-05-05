@@ -6,6 +6,9 @@ import { ProgressBar } from './ui/progressbar';
 import { api } from '@/utils/api';
 import { AddressAutocomplete } from './AddressAutocomplete';
 import { ImageUpload } from './ui/imageupload';
+import { RoomTypeSelect } from '@/components/RoomTypeSelect';
+import { ROOM_TYPES } from '@shared/constants/roomTypes';
+import { ROOM_TYPE_ICONS } from '@shared/constants/roomTypes';
 import axios from 'axios';
 
 
@@ -136,7 +139,7 @@ export function AddHomeWizard({
       }}
     >
       <DialogContent
-        className="space-y-4 max-w-3xl"
+        className="space-y-4 max-w-5xl"
         aria-describedby="home-wizard-description"
       >
         <DialogTitle className="text-2xl font-bold text-brand-primary">Add a New Home</DialogTitle>
@@ -299,92 +302,107 @@ export function AddHomeWizard({
         {step === 2 && (
           <div className="space-y-4">
             <p className="text-sm text-gray-600">
-              Rooms help us recommend interior tasks. Select common rooms or add your own.
+              Add the rooms in your home. We’ll use this to recommend interior maintenance tasks.
             </p>
 
-            {/* Quick Add Buttons */}
-            <div className="flex flex-wrap gap-2">
-              {['Bedroom', 'Bathroom', 'Kitchen', 'Dining Room', 'Living Room', 'Office'].map((type) => (
-                <button
-                  key={type}
-                  onClick={() =>
-                    setRooms([...rooms, { name: '', type, floor: '' }])
-                  }
-                  className="bg-gray-100 hover:bg-gray-200 text-sm px-3 py-1 rounded"
-                >
-                  + {type}
-                </button>
-              ))}
-            </div>
-
-            {/* Room List with Scroll */}
-            <div className="max-h-[300px] overflow-y-auto pr-1">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {rooms.map((room, i) => (
-                  <div
-                    key={i}
-                    className="flex flex-col gap-2 border rounded p-4 bg-white shadow-sm"
+            {/* Quick Add */}
+            <div>
+              <label className="block font-medium text-sm mb-1">Quick Add</label>
+              <div className="flex flex-wrap gap-2">
+                {ROOM_TYPES.map((type) => (
+                  <button
+                    key={type}
+                    onClick={() =>
+                      setRooms([...rooms, { name: '', type, floor: '1st Floor' }])
+                    }
+                    className="flex items-center gap-1 bg-white border text-sm px-3 py-1 rounded hover:bg-gray-100 transition"
                   >
-                    <div className="flex flex-col sm:flex-row gap-2">
-                      <Input
-                        placeholder="Room Type"
-                        value={room.type}
-                        onChange={(e) => {
-                          const updated = [...rooms];
-                          updated[i].type = e.target.value;
-                          setRooms(updated);
-                        }}
-                        className="flex-1"
-                      />
-                      <Input
-                        placeholder="Nickname (optional)"
-                        value={room.name}
-                        onChange={(e) => {
-                          const updated = [...rooms];
-                          updated[i].name = e.target.value;
-                          setRooms(updated);
-                        }}
-                        className="flex-1"
-                      />
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <select
-                        value={room.floor || ''}
-                        onChange={(e) => {
-                          const updated = [...rooms];
-                          updated[i].floor = e.target.value;
-                          setRooms(updated);
-                        }}
-                        className="border rounded px-2 py-1 text-sm"
-                      >
-                        <option value="">Floor</option>
-                        <option value="Basement">Basement</option>
-                        <option value="1st Floor">1st Floor</option>
-                        <option value="2nd Floor">2nd Floor</option>
-                        <option value="3rd Floor">3rd Floor</option>
-                        <option value="Attic">Attic</option>
-                        <option value="Other">Other</option>
-                      </select>
-                      <button
-                        onClick={() => setRooms(rooms.filter((_, idx) => idx !== i))}
-                        className="text-red-500 text-sm hover:underline"
-                      >
-                        ✖ Remove
-                      </button>
-                    </div>
-                  </div>
+                    <span className="text-lg">{ROOM_TYPE_ICONS[type] ?? '📦'}</span> {type}
+                  </button>
                 ))}
               </div>
             </div>
 
+            {/* Room List Grouped by Floor */}
+            <div className="space-y-6 max-h-[300px] overflow-y-auto pr-1">
+              {['Basement', '1st Floor', '2nd Floor', '3rd Floor', 'Attic', 'Other'].map((floor) => {
+                const grouped = rooms.filter((r) => r.floor === floor);
+                if (grouped.length === 0) return null;
 
-            {/* Custom Room Button */}
-            <button
-              onClick={() => setRooms([...rooms, { name: '', type: '', floor: '' }])}
-              className="text-blue-600 text-sm mt-2"
-            >
-              + Add Custom Room
-            </button>
+                return (
+                  <div key={floor} className="space-y-2">
+                    <div className="sticky top-0 bg-white z-10 border-b py-1">
+                      <h4 className="font-semibold text-sm text-brand-primary">{floor}</h4>
+                    </div>
+
+                    <div className="space-y-2">
+                      {grouped.map((room, i) => {
+                        const globalIndex = rooms.findIndex((r) => r === room);
+                        return (
+                          <div
+                            key={globalIndex}
+                            className="grid grid-cols-[auto_1fr_1fr_1fr_auto] gap-2 items-center p-2 border rounded bg-gray-50 hover:shadow-md transition-all duration-200"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="text-xl transition-transform duration-200 ease-in-out group-hover:scale-110">
+                                {ROOM_TYPE_ICONS[room.type] ?? '📦'}
+                              </span>
+                              <RoomTypeSelect
+                                value={room.type}
+                                label=""
+                                onChange={(val) => {
+                                  const updated = [...rooms];
+                                  updated[globalIndex].type = val;
+                                  setRooms(updated);
+                                }}
+                              />
+                            </div>
+
+                            <Input
+                              placeholder="Nickname (optional)"
+                              value={room.name}
+                              onChange={(e) => {
+                                const updated = [...rooms];
+                                updated[globalIndex].name = e.target.value;
+                                setRooms(updated);
+                              }}
+                            />
+
+                            <select
+                              value={room.floor || ''}
+                              onChange={(e) => {
+                                const updated = [...rooms];
+                                updated[globalIndex].floor = e.target.value;
+                                setRooms(updated);
+                              }}
+                              className="border rounded px-3 py-2 text-sm"
+                            >
+                              <option value="">Floor</option>
+                              <option value="Basement">Basement</option>
+                              <option value="1st Floor">1st Floor</option>
+                              <option value="2nd Floor">2nd Floor</option>
+                              <option value="3rd Floor">3rd Floor</option>
+                              <option value="Attic">Attic</option>
+                              <option value="Other">Other</option>
+                            </select>
+
+                            <button
+                              onClick={() =>
+                                setRooms(rooms.filter((_, idx) => idx !== globalIndex))
+                              }
+                              className="text-red-500 hover:text-red-700 transition"
+                              aria-label="Remove room"
+                            >
+                              <span className="text-xl leading-none">✕</span>
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 

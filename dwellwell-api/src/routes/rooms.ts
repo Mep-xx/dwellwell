@@ -1,11 +1,60 @@
-import express from 'express';
+import express, { Request, Response } from 'express';
 import { prisma } from '../db/prisma';
 import { requireAuth } from '../middleware/requireAuth';
 
 const router = express.Router();
 
+// PATCH /api/rooms/:id
+export const updateRoom = async (req: Request, res: Response) => {
+  const userId = (req as any).user?.userId;
+  const { id } = req.params;
+
+  try {
+    const room = await prisma.room.findUnique({ where: { id } });
+    if (!room) return res.status(404).json({ message: 'Room not found' });
+
+    const home = await prisma.home.findUnique({ where: { id: room.homeId } });
+    if (home?.userId !== userId) {
+      return res.status(403).json({ message: 'Forbidden' });
+    }
+
+    const {
+      name,
+      type,
+      floor,
+      hasFireplace,
+      hasBoiler,
+      hasSmokeDetector,
+    }: {
+      name: string;
+      type: string;
+      floor?: number;
+      hasFireplace?: boolean;
+      hasBoiler?: boolean;
+      hasSmokeDetector?: boolean;
+    } = req.body;
+
+    const updatedRoom = await prisma.room.update({
+      where: { id },
+      data: {
+        name,
+        type,
+        floor,
+        hasFireplace,
+        hasBoiler,
+        hasSmokeDetector,
+      },
+    });
+
+    res.json(updatedRoom);
+  } catch (err) {
+    console.error('Failed to update room:', err);
+    res.status(500).json({ error: 'Failed to update room' });
+  }
+};
+
 // Get all rooms for a home
-router.get('/home/:homeId', requireAuth, async (req, res) => {
+router.get('/home/:homeId', requireAuth, async (req: Request, res: Response) => {
   const userId = (req as any).user.userId;
   const { homeId } = req.params;
 
@@ -27,9 +76,26 @@ router.get('/home/:homeId', requireAuth, async (req, res) => {
 });
 
 // Add a room to a home
-router.post('/', requireAuth, async (req, res) => {
+router.post('/', requireAuth, async (req: Request, res: Response) => {
   const userId = (req as any).user.userId;
-  const { homeId, name, type, floor } = req.body;
+
+  const {
+    homeId,
+    name,
+    type,
+    floor,
+    hasFireplace = false,
+    hasBoiler = false,
+    hasSmokeDetector = false,
+  }: {
+    homeId: string;
+    name: string;
+    type: string;
+    floor?: number;
+    hasFireplace?: boolean;
+    hasBoiler?: boolean;
+    hasSmokeDetector?: boolean;
+  } = req.body;
 
   if (!homeId || !name || !type) {
     return res.status(400).json({ error: 'Missing required fields' });
@@ -44,7 +110,10 @@ router.post('/', requireAuth, async (req, res) => {
         homeId,
         name,
         type,
-        floor: floor ?? undefined,
+        floor,
+        hasFireplace,
+        hasBoiler,
+        hasSmokeDetector,
       },
     });
 
@@ -55,8 +124,11 @@ router.post('/', requireAuth, async (req, res) => {
   }
 });
 
+// Properly attach the PATCH route
+router.patch('/:id', requireAuth, updateRoom);
+
 // Delete a room
-router.delete('/:id', requireAuth, async (req, res) => {
+router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
   const { id } = req.params;
   const userId = (req as any).user.userId;
 

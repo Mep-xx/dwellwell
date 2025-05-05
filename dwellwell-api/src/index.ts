@@ -37,6 +37,7 @@ app.use('/api/homes', homeRoutes);
 app.use('/api/homes', taskSummaryRoute);
 app.use('/api/mapbox', mapboxRoutes);
 app.use('/api/rooms', roomRoutes);
+app.patch('/api/rooms/:id', roomRoutes);
 
 // Serve Static Files (Home Images)
 import uploadHomeImageRoute from './routes/homes/upload-image';

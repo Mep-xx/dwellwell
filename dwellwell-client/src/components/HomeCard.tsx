@@ -1,11 +1,13 @@
-// src/components/HomeCard.tsx
-
 import { useState } from 'react';
 import { Home } from '@shared/types/home';
 import { Room } from '@shared/types/room';
 import { Task } from '@shared/types/task';
+import { ROOM_TYPE_ICONS } from '@shared/constants/roomTypes';
 import { Switch } from '@/components/ui/switch';
-import { Pencil, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Pencil, Trash2, ChevronDown, ChevronUp, Settings2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { EditRoomModal } from '@/components/EditRoomModal';
+
 
 type TaskSummary = {
   complete: number;
@@ -24,6 +26,7 @@ type Props = {
 
 export function HomeCard({ home, summary, onToggle, onEdit, onDelete }: Props) {
   const [expanded, setExpanded] = useState(false);
+  const [editingRoom, setEditingRoom] = useState<Room | null>(null);
 
   const getPercent = (complete: number, total: number) =>
     total === 0 ? 0 : Math.round((complete / total) * 100);
@@ -73,7 +76,7 @@ export function HomeCard({ home, summary, onToggle, onEdit, onDelete }: Props) {
           {home.squareFeet?.toLocaleString?.()} sq. ft. • {home.lotSize} acres • Built in{' '}
           {home.yearBuilt}
         </p>
-        {home.features?.length > 0 && (
+        {Array.isArray(home.features) && home.features.length > 0 && (
           <div className="flex flex-wrap gap-2">
             {home.features.map((feature) => (
               <span
@@ -93,15 +96,9 @@ export function HomeCard({ home, summary, onToggle, onEdit, onDelete }: Props) {
           🏅 Maintenance Score: {getPercent(summary?.complete || 0, summary?.total || 0)}% Complete
         </p>
         <p className="text-sm text-gray-600 flex gap-4">
-          <span className="flex items-center gap-1">
-            ✅ {summary?.complete ?? 0} Tasks Done
-          </span>
-          <span className="flex items-center gap-1">
-            🕒 {summary?.dueSoon ?? 0} Due Soon
-          </span>
-          <span className="flex items-center gap-1">
-            ⚠️ {summary?.overdue ?? 0} Overdue
-          </span>
+          <span className="flex items-center gap-1">✅ {summary?.complete ?? 0} Tasks Done</span>
+          <span className="flex items-center gap-1">🕒 {summary?.dueSoon ?? 0} Due Soon</span>
+          <span className="flex items-center gap-1">⚠️ {summary?.overdue ?? 0} Overdue</span>
         </p>
         <div className="w-full bg-gray-200 h-2 rounded mt-2 overflow-hidden">
           <div
@@ -117,7 +114,7 @@ export function HomeCard({ home, summary, onToggle, onEdit, onDelete }: Props) {
           onClick={() => setExpanded((prev) => !prev)}
           className="px-4 py-2 bg-brand-primary/10 hover:bg-brand-primary/20 text-brand-primary rounded-full flex items-center gap-2 text-sm font-medium mx-auto my-2 transition-colors"
         >
-          {expanded ? "Hide Rooms" : "Show Rooms"}
+          {expanded ? 'Hide Rooms' : 'Show Rooms'}
           {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </button>
       )}
@@ -129,9 +126,22 @@ export function HomeCard({ home, summary, onToggle, onEdit, onDelete }: Props) {
             const stats = getRoomStats(room.tasks || []);
             return (
               <div key={room.id} className="border-t pt-4">
-                <p className="font-medium text-gray-800">
-                  {room.name} ({room.type})
-                </p>
+                <div className="flex justify-between items-center">
+                  <p className="font-medium text-gray-800 flex items-center gap-2">
+                    <span className="text-lg">
+                      {ROOM_TYPE_ICONS[room.type] ?? '📦'}
+                    </span>
+                    {room.name || room.type}
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-gray-500 hover:text-brand-primary"
+                    onClick={() => setEditingRoom(room)}
+                  >
+                    <Settings2 className="w-4 h-4" />
+                  </Button>
+                </div>
                 <p className="text-sm text-gray-600">
                   ✅ {stats.complete} done • 🕒 {stats.dueSoon} due soon • ⚠️ {stats.overdue} overdue
                 </p>
@@ -185,6 +195,19 @@ export function HomeCard({ home, summary, onToggle, onEdit, onDelete }: Props) {
           </button>
         </div>
       </div>
+
+      {/* Room Edit Modal */}
+      {editingRoom && (
+        <EditRoomModal
+          room={editingRoom}
+          isOpen={true}
+          onClose={() => setEditingRoom(null)}
+          onSave={() => {
+            setEditingRoom(null);
+            // optionally refetch home or trigger parent update
+          }}
+        />
+      )}
     </div>
   );
 }

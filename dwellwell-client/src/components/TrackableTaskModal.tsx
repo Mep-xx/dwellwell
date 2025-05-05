@@ -1,4 +1,4 @@
-import { Task } from '../../../dwellwell-api/src/shared/types/task';
+import { Task } from '../../../shared/types/task';
 
 type Props = {
   isOpen: boolean;

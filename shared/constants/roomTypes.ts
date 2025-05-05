@@ -1,0 +1,36 @@
+// @shared/constants/roomTypes.ts
+export const ROOM_TYPES = [
+    'Bathroom',
+    'Bedroom',
+    'Kitchen',
+    'Living Room',
+    'Dining Room',
+    'Office',
+    'Laundry Room',
+    'Garage',
+    'Basement',
+    'Attic',
+    'Closet',
+    'Pantry',
+    'Mudroom',
+    'Entryway',
+    'Other',
+  ];
+    
+export const ROOM_TYPE_ICONS: Record<string, string> = {
+  Kitchen: '🍳',
+  Bathroom: '🛁',
+  Bedroom: '🛏️',
+  'Living Room': '🛋️',
+  'Dining Room': '🍽️',
+  Office: '💻',
+  'Laundry Room': '🧺',
+  Garage: '🚗',
+  Basement: '🏚️',
+  Attic: '🪜',
+  Closet: '🚪',
+  Pantry: '🧂',
+  Mudroom: '🥾',
+  Entryway: '🚪',
+  Other: '❓',
+};

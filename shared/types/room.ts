@@ -1,8 +1,11 @@
-export type Room = {
+  export type Room = {
     id: string;
+    name: string;     // e.g., “Master Bathroom”
+    type: string;     // e.g., “Bathroom”, “Bedroom”
+    floor?: number;   // optional numeric floor reference
     homeId: string;
-    name: string;       // e.g., “Master Bathroom”
-    type: string;       // e.g., “Bathroom”, “Bedroom”
-    floor?: number;     // optional numeric floor reference
+    hasFireplace?: boolean;
+    hasBoiler?: boolean;
+    hasSmokeDetector?: boolean;
   };
   
