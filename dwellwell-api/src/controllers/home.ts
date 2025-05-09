@@ -18,7 +18,6 @@ export const getHomes = async (req: Request, res: Response) => {
 };
 
 // POST /api/homes
-// POST /api/homes
 export const createHome = async (req: Request, res: Response) => {
   const userId = (req as any).user?.userId;
   if (!userId) return res.status(401).json({ message: 'Unauthorized' });
@@ -33,8 +32,8 @@ export const createHome = async (req: Request, res: Response) => {
     lotSize,
     yearBuilt,
     numberOfRooms,
-    architecturalStyle,
     features,
+    architecturalStyle,
     imageUrl,
     rooms = [],
     isChecked = true,
@@ -111,7 +110,7 @@ export const createHome = async (req: Request, res: Response) => {
   }
 };
 
-
+// DELETE /api/homes/:id
 export const deleteHome = async (req: Request, res: Response) => {
   const userId = (req as any).user?.userId;
   const { id } = req.params;
@@ -143,7 +142,7 @@ export const deleteHome = async (req: Request, res: Response) => {
   }
 };
 
-// Update only the isChecked field on a home
+// PATCH /api/homes/:id/isChecked
 export const updateHomeIsChecked = async (req: Request, res: Response) => {
   const userId = (req as any).user?.userId;
   const homeId = req.params.id;
@@ -170,19 +169,25 @@ export const updateHomeIsChecked = async (req: Request, res: Response) => {
   }
 };
 
+// PATCH /api/homes/:id
 export const updateHome = async (req: Request, res: Response) => {
   const userId = (req as any).user?.userId;
   const { id } = req.params;
-  const { nickname, squareFeet, lotSize, yearBuilt, architecturalStyle, imageUrl } = req.body;
+  const {
+    nickname,
+    squareFeet,
+    lotSize,
+    yearBuilt,
+    architecturalStyle,
+    imageUrl,
+  } = req.body;
 
   if (!userId) {
     return res.status(401).json({ message: 'Unauthorized' });
   }
 
   try {
-    const home = await prisma.home.findUnique({
-      where: { id },
-    });
+    const home = await prisma.home.findUnique({ where: { id } });
 
     if (!home) {
       return res.status(404).json({ message: 'Home not found' });

@@ -1,4 +1,4 @@
-// FULL CLEANED AddHomeWizard.tsx CONTENT
+import axios from 'axios';
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -7,10 +7,12 @@ import { api } from '@/utils/api';
 import { AddressAutocomplete } from './AddressAutocomplete';
 import { ImageUpload } from './ui/imageupload';
 import { RoomTypeSelect } from '@/components/RoomTypeSelect';
-import { ROOM_TYPES } from '@shared/constants/roomTypes';
-import { ROOM_TYPE_ICONS } from '@shared/constants/roomTypes';
-import axios from 'axios';
-
+import { ROOM_TYPES, ROOM_TYPE_ICONS } from '@shared/constants/roomTypes';
+import { houseRoomTemplates } from '@shared/houseRoomTemplates';
+import { floorToLabel, labelToFloor } from '@/utils/floorHelpers'; // adjust path
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
+import { arrayMove, SortableContext, verticalListSortingStrategy, } from '@dnd-kit/sortable';
+import { SortableRoomCard } from './SortableRoomCard'; // You’ll create this to support DnD rooms
 
 export function AddHomeWizard({
   isOpen,
@@ -21,7 +23,6 @@ export function AddHomeWizard({
   onClose: () => void;
   onComplete?: () => void;
 }) {
-
   const steps = ['Address', 'Home Info', 'Rooms', 'Features', 'Photo', 'Summary'];
   const [step, setStep] = useState(0);
 
@@ -39,18 +40,20 @@ export function AddHomeWizard({
   const [roofType, setRoofType] = useState('');
   const [sidingType, setSidingType] = useState('');
   const [features, setFeatures] = useState<string[]>([]);
-  const [rooms, setRooms] = useState<{ name: string; type: string; floor?: string }[]>([]);
-  const [saving, setSaving] = useState(false);
+  const [rooms, setRooms] = useState<{ name: string; type: string; floor?: number }[]>([]);
+  const [architecturalStyle, setArchitecturalStyle] = useState('');
+  const [imageUploadedUrl, setImageUploadedUrl] = useState('');
   const [addressSelected, setAddressSelected] = useState(false);
   const [newHomeId, setNewHomeId] = useState<string | null>(null);
-  const [imageUploadedUrl, setImageUploadedUrl] = useState('');
   const [homeCreated, setHomeCreated] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-
+  const sensors = useSensors(useSensor(PointerSensor));
 
   const resetWizard = () => {
     setStep(0);
     setAddress('');
+    setApartment('');
     setCity('');
     setZip('');
     setState('');
@@ -64,18 +67,19 @@ export function AddHomeWizard({
     setSidingType('');
     setFeatures([]);
     setRooms([]);
-    setSaving(false);
+    setArchitecturalStyle('');
+    setImageUploadedUrl('');
     setAddressSelected(false);
     setNewHomeId(null);
-    setImageUploadedUrl('');
     setHomeCreated(false);
+    setSaving(false);
+    setSaveError(null);
   };
 
   const handleSaveHome = async () => {
-
     try {
-      setSaveError(null);
       setSaving(true);
+      setSaveError(null);
 
       const normalizeFloor = (floor: string | undefined): number | null => {
         switch (floor) {
@@ -89,9 +93,9 @@ export function AddHomeWizard({
         }
       };
 
-      const transformedRooms = rooms.map((r) => ({
-        ...r,
-        floor: normalizeFloor(r.floor),
+      const transformedRooms = rooms.map((room) => ({
+        ...room,
+        floor: normalizeFloor(floorToLabel(room.floor)),
       }));
 
       const res = await api.post('/api/homes', {
@@ -104,12 +108,14 @@ export function AddHomeWizard({
         squareFeet: Number(squareFeet) || null,
         lotSize: Number(lotSize) || null,
         yearBuilt: Number(yearBuilt) || null,
-        features,
-        rooms: transformedRooms,
+        architecturalStyle,
         boilerType,
         heatingCoolingTypes,
         roofType,
         sidingType,
+        features,
+        rooms: transformedRooms,
+        isChecked: true,
       });
 
       setNewHomeId(res.data.id);
@@ -120,8 +126,7 @@ export function AddHomeWizard({
       } else {
         setSaveError('Failed to save home. Please try again.');
       }
-    }
-    finally {
+    } finally {
       setSaving(false);
     }
   };
@@ -138,15 +143,15 @@ export function AddHomeWizard({
         }
       }}
     >
-      <DialogContent
-        className="space-y-4 max-w-5xl"
-        aria-describedby="home-wizard-description"
-      >
+      <DialogContent className="space-y-4 !max-w-4xl w-full" aria-describedby="home-wizard-description">
         <DialogTitle className="text-2xl font-bold text-brand-primary">Add a New Home</DialogTitle>
         <DialogDescription>
           Fill out the steps to add and describe your home.
         </DialogDescription>
         <ProgressBar currentStep={step} steps={steps} />
+
+
+        {/* STEP 0: Address */}
         {step === 0 && (
           <div className="space-y-4">
             <p className="text-sm text-gray-600">Enter your address so we can personalize tasks like lawn care and regional upkeep.</p>
@@ -163,248 +168,200 @@ export function AddHomeWizard({
             />
             <hr className="my-4" />
             <p className="text-sm font-medium">Or enter your address manually:</p>
-            <Input
-              placeholder="Street Address"
-              value={address}
-              onChange={(e) => {
-                setAddress(e.target.value);
-                setAddressSelected(false);
-              }}
-              disabled={addressSelected}
-            />
-            <Input
-              placeholder="Apartment / Unit (optional)"
-              value={apartment}
-              onChange={(e) => setApartment(e.target.value)}
-              disabled={addressSelected}
-            />
+            <Input placeholder="Street Address" value={address} onChange={(e) => {
+              setAddress(e.target.value);
+              setAddressSelected(false);
+            }} disabled={addressSelected} />
+            <Input placeholder="Apartment / Unit (optional)" value={apartment} onChange={(e) => setApartment(e.target.value)} disabled={addressSelected} />
             <div className="flex flex-wrap gap-2">
-              <Input
-                className="flex-1"
-                placeholder="City"
-                value={city}
-                onChange={(e) => setCity(e.target.value)}
-                disabled={addressSelected}
-              />
-              <select
-                value={state}
-                onChange={(e) => setState(e.target.value)}
-                className="border rounded px-3 py-2 text-sm w-[100px]"
-                disabled={addressSelected}
-              >
+              <Input className="flex-1" placeholder="City" value={city} onChange={(e) => setCity(e.target.value)} disabled={addressSelected} />
+              <select value={state} onChange={(e) => setState(e.target.value)} className="border rounded px-3 py-2 text-sm w-[100px]" disabled={addressSelected}>
                 <option value="">State</option>
-                {['AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA', 'HI', 'ID', 'IL', 'IN', 'IA',
-                  'KS', 'KY', 'LA', 'ME', 'MD', 'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ',
-                  'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC', 'SD', 'TN', 'TX', 'UT', 'VT',
-                  'VA', 'WA', 'WV', 'WI', 'WY'].map((abbr) => (
-                    <option key={abbr} value={abbr}>{abbr}</option>
-                  ))}
+                {['AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA', 'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD', 'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ', 'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC', 'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY'].map((abbr) => (
+                  <option key={abbr} value={abbr}>{abbr}</option>
+                ))}
               </select>
-              <Input
-                className="w-[100px]"
-                placeholder="ZIP"
-                value={zip}
-                onChange={(e) => setZip(e.target.value)}
-                disabled={addressSelected}
-              />
+              <Input className="w-[100px]" placeholder="ZIP" value={zip} onChange={(e) => setZip(e.target.value)} disabled={addressSelected} />
             </div>
           </div>
         )}
 
+        {/* STEP 1: Home Info */}
         {step === 1 && (
           <div className="space-y-4">
             <p className="text-sm text-gray-600">Tell us how your home is heated and cooled. You can skip anything you're unsure about.</p>
-            <label className="block font-medium text-lg">Tell Us About Your Home</label>
-
-            <Input
-              placeholder="Home Nickname (optional)"
-              value={nickname}
-              onChange={(e) => setNickname(e.target.value)}
-            />
-
+            <Input placeholder="Home Nickname (optional)" value={nickname} onChange={(e) => setNickname(e.target.value)} />
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              <Input
-                type="number"
-                placeholder="Square Feet"
-                value={squareFeet}
-                onChange={(e) => setSquareFeet(e.target.value)}
-              />
-              <Input
-                type="number"
-                placeholder="Lot Size (acres)"
-                value={lotSize}
-                onChange={(e) => setLotSize(e.target.value)}
-              />
-              <Input
-                type="number"
-                placeholder="Year Built"
-                value={yearBuilt}
-                onChange={(e) => setYearBuilt(e.target.value)}
-              />
+              <Input type="number" placeholder="Square Feet" value={squareFeet} onChange={(e) => setSquareFeet(e.target.value)} />
+              <Input type="number" placeholder="Lot Size (acres)" value={lotSize} onChange={(e) => setLotSize(e.target.value)} />
+              <Input type="number" placeholder="Year Built" value={yearBuilt} onChange={(e) => setYearBuilt(e.target.value)} />
             </div>
 
+            {/* HVAC */}
             <div className="pt-4 space-y-2">
               <label className="block font-medium">Heating and Cooling Systems</label>
-              <p className="text-sm text-gray-500">Select all that apply.</p>
               <div className="grid grid-cols-2 gap-2">
-                {[
-                  'Central Air',
-                  'Baseboard Heating',
-                  'Boiler (Radiators)',
-                  'Forced Hot Air',
-                  'Heat Pump',
-                  'Radiant Heating',
-                  'Ductless Mini-Split',
-                  'Pellet Stove',
-                  'Space Heater',
-                  'Solar Heating'
-                ].map((option) => (
+                {['Central Air', 'Baseboard Heating', 'Boiler (Radiators)', 'Forced Hot Air', 'Heat Pump', 'Radiant Heating', 'Ductless Mini-Split', 'Pellet Stove', 'Space Heater', 'Solar Heating'].map((option) => (
                   <label key={option} className="text-sm">
-                    <input
-                      type="checkbox"
-                      className="mr-2"
-                      checked={heatingCoolingTypes.includes(option)}
-                      onChange={() => {
-                        setHeatingCoolingTypes((prev) =>
-                          prev.includes(option)
-                            ? prev.filter((item) => item !== option)
-                            : [...prev, option]
-                        );
-                      }}
-                    />
+                    <input type="checkbox" className="mr-2" checked={heatingCoolingTypes.includes(option)} onChange={() => {
+                      setHeatingCoolingTypes((prev) => prev.includes(option) ? prev.filter((x) => x !== option) : [...prev, option]);
+                    }} />
                     {option}
                   </label>
                 ))}
               </div>
-              <Input
-                placeholder="Boiler Type (optional)"
+              <select
                 value={boilerType}
                 onChange={(e) => setBoilerType(e.target.value)}
-              />
+                className="border rounded px-3 py-2 text-sm w-full"
+              >
+                <option value="">Select Boiler Type</option>
+                <option value="Steam">Steam</option>
+                <option value="Hot Water">Hot Water</option>
+                <option value="Combination (Combi)">Combination (Combi)</option>
+                <option value="Condensing">Condensing</option>
+                <option value="Electric">Electric</option>
+                <option value="Oil-Fired">Oil-Fired</option>
+                <option value="Gas-Fired">Gas-Fired</option>
+                <option value="Other">Other</option>
+              </select>
             </div>
 
+            {/* Roof + Siding */}
             <div className="pt-4 space-y-2">
-              <label className="block font-medium">Exterior Details</label>
-              <Input
-                placeholder="Roof Type (e.g. Asphalt Shingle)"
-                value={roofType}
-                onChange={(e) => setRoofType(e.target.value)}
-              />
-              <Input
-                placeholder="Siding Type (e.g. Vinyl, Wood)"
-                value={sidingType}
-                onChange={(e) => setSidingType(e.target.value)}
-              />
+              <label className="block font-medium">Roof Type</label>
+              <select value={roofType} onChange={(e) => setRoofType(e.target.value)} className="border rounded px-3 py-2 text-sm w-full">
+                <option value="">Select Roof Type</option>
+                <option value="Asphalt Shingle">Asphalt Shingle</option>
+                <option value="Metal">Metal</option>
+                <option value="Clay Tile">Clay Tile</option>
+                <option value="Slate">Slate</option>
+                <option value="Wood Shake">Wood Shake</option>
+                <option value="Rubber">Rubber (EPDM)</option>
+                <option value="Flat">Flat / Built-up</option>
+                <option value="Other">Other</option>
+              </select>
+
+              <label className="block font-medium mt-2">Siding Type</label>
+              <select value={sidingType} onChange={(e) => setSidingType(e.target.value)} className="border rounded px-3 py-2 text-sm w-full">
+                <option value="">Select Siding Type</option>
+                <option value="Vinyl">Vinyl</option>
+                <option value="Wood">Wood</option>
+                <option value="Fiber Cement">Fiber Cement (Hardie)</option>
+                <option value="Stucco">Stucco</option>
+                <option value="Brick">Brick</option>
+                <option value="Stone">Stone</option>
+                <option value="Metal">Metal</option>
+                <option value="Other">Other</option>
+              </select>
             </div>
           </div>
         )}
 
+        {/* Step 2: Rooms */}
         {step === 2 && (
           <div className="space-y-4">
-            <p className="text-sm text-gray-600">
-              Add the rooms in your home. We’ll use this to recommend interior maintenance tasks.
-            </p>
+            <label className="block font-medium">Architectural Style</label>
+            <select
+              value={architecturalStyle}
+              onChange={(e) => {
+                const style = e.target.value;
+                setArchitecturalStyle(style);
+                if (style !== 'Other' && houseRoomTemplates[style]) {
+                  setRooms(
+                    houseRoomTemplates[style].map((r) => ({ ...r, floor: r.floor ?? 1 }))
+                  );
+                } else {
+                  setRooms([]);
+                }
+              }}
+              className="border rounded px-3 py-2 text-sm w-full"
+            >
+              <option value="">Select Style</option>
+              {Object.keys(houseRoomTemplates).map((style) => (
+                <option key={style} value={style}>{style}</option>
+              ))}
+              <option value="Other">Other</option>
+            </select>
 
             {/* Quick Add */}
-            <div>
-              <label className="block font-medium text-sm mb-1">Quick Add</label>
-              <div className="flex flex-wrap gap-2">
-                {ROOM_TYPES.map((type) => (
-                  <button
-                    key={type}
-                    onClick={() =>
-                      setRooms([...rooms, { name: '', type, floor: '1st Floor' }])
-                    }
-                    className="flex items-center gap-1 bg-white border text-sm px-3 py-1 rounded hover:bg-gray-100 transition"
-                  >
-                    <span className="text-lg">{ROOM_TYPE_ICONS[type] ?? '📦'}</span> {type}
-                  </button>
-                ))}
-              </div>
+            <div className="flex flex-wrap gap-2">
+              {ROOM_TYPES.map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => setRooms([...rooms, { name: '', type, floor: 1 }])}
+                  className="flex items-center gap-1 border px-3 py-1 rounded"
+                >
+                  <span>{ROOM_TYPE_ICONS[type] ?? '📦'}</span> {type}
+                </button>
+              ))}
             </div>
 
-            {/* Room List Grouped by Floor */}
+            {/* Drag-and-Drop Room Editor */}
             <div className="space-y-6 max-h-[300px] overflow-y-auto pr-1">
-              {['Basement', '1st Floor', '2nd Floor', '3rd Floor', 'Attic', 'Other'].map((floor) => {
-                const grouped = rooms.filter((r) => r.floor === floor);
-                if (grouped.length === 0) return null;
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={({ active, over }: DragEndEvent) => {
+                  if (active.id !== over?.id) {
+                    const oldIndex = Number(active.id);
+                    const newIndex = Number(over?.id);
+                    setRooms((rooms) => arrayMove(rooms, oldIndex, newIndex));
+                  }
+                }}
+              >
+                {Array.from(
+                  new Set(
+                    rooms
+                      .map((r) => floorToLabel(r.floor))
+                      .filter(Boolean)
+                      .concat(['Basement', '1st Floor', '2nd Floor', '3rd Floor', 'Attic', 'Other'])
+                  )
+                ).map((floorLabel) => {
+                  const grouped = rooms
+                    .map((r, index) => ({ ...r, _index: index })) // carry index
+                    .filter((r) => floorToLabel(r.floor) === floorLabel);
 
-                return (
-                  <div key={floor} className="space-y-2">
-                    <div className="sticky top-0 bg-white z-10 border-b py-1">
-                      <h4 className="font-semibold text-sm text-brand-primary">{floor}</h4>
-                    </div>
+                  if (grouped.length === 0) return null;
 
-                    <div className="space-y-2">
-                      {grouped.map((room, i) => {
-                        const globalIndex = rooms.findIndex((r) => r === room);
-                        return (
-                          <div
-                            key={globalIndex}
-                            className="grid grid-cols-[auto_1fr_1fr_1fr_auto] gap-2 items-center p-2 border rounded bg-gray-50 hover:shadow-md transition-all duration-200"
-                          >
-                            <div className="flex items-center gap-2">
-                              <span className="text-xl transition-transform duration-200 ease-in-out group-hover:scale-110">
-                                {ROOM_TYPE_ICONS[room.type] ?? '📦'}
-                              </span>
-                              <RoomTypeSelect
-                                value={room.type}
-                                label=""
-                                onChange={(val) => {
-                                  const updated = [...rooms];
-                                  updated[globalIndex].type = val;
-                                  setRooms(updated);
-                                }}
-                              />
-                            </div>
+                  return (
+                    <div key={floorLabel} className="space-y-2">
+                      <div className="sticky top-0 z-10 bg-white border-b py-1">
+                        <h4 className="font-semibold text-sm text-brand-primary">{floorLabel}</h4>
+                      </div>
 
-                            <Input
-                              placeholder="Nickname (optional)"
-                              value={room.name}
-                              onChange={(e) => {
-                                const updated = [...rooms];
-                                updated[globalIndex].name = e.target.value;
-                                setRooms(updated);
+                      <SortableContext
+                        items={grouped.map((r) => r._index)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        <div className="space-y-2">
+                          {grouped.map(({ _index, ...room }) => (
+                            <SortableRoomCard
+                              key={_index}
+                              id={_index}
+                              room={room}
+                              onChange={(updated) => {
+                                const updatedRooms = [...rooms];
+                                updatedRooms[_index] = updated;
+                                setRooms(updatedRooms);
+                              }}
+                              onRemove={() => {
+                                const updatedRooms = rooms.filter((_, i) => i !== _index);
+                                setRooms(updatedRooms);
                               }}
                             />
-
-                            <select
-                              value={room.floor || ''}
-                              onChange={(e) => {
-                                const updated = [...rooms];
-                                updated[globalIndex].floor = e.target.value;
-                                setRooms(updated);
-                              }}
-                              className="border rounded px-3 py-2 text-sm"
-                            >
-                              <option value="">Floor</option>
-                              <option value="Basement">Basement</option>
-                              <option value="1st Floor">1st Floor</option>
-                              <option value="2nd Floor">2nd Floor</option>
-                              <option value="3rd Floor">3rd Floor</option>
-                              <option value="Attic">Attic</option>
-                              <option value="Other">Other</option>
-                            </select>
-
-                            <button
-                              onClick={() =>
-                                setRooms(rooms.filter((_, idx) => idx !== globalIndex))
-                              }
-                              className="text-red-500 hover:text-red-700 transition"
-                              aria-label="Remove room"
-                            >
-                              <span className="text-xl leading-none">✕</span>
-                            </button>
-                          </div>
-                        );
-                      })}
+                          ))}
+                        </div>
+                      </SortableContext>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </DndContext>
             </div>
           </div>
         )}
+
 
         {step === 3 && (
           <div className="space-y-4">
@@ -522,7 +479,7 @@ export function AddHomeWizard({
               <strong>Rooms:</strong>{' '}
               {rooms.map(r => {
                 const label = r.name ? `${r.name} (${r.type})` : r.type;
-                return r.floor ? `${label} [${r.floor}]` : label;
+                return r.floor ? `${label} [${floorToLabel(r.floor)}]` : label;
               }).join(', ')}
             </p>
             <p><strong>Features:</strong> {features.join(', ')}</p>
@@ -574,6 +531,6 @@ export function AddHomeWizard({
           </div>
         </div>
       </DialogContent>
-    </Dialog>
+    </Dialog >
   );
 }

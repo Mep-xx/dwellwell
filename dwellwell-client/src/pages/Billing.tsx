@@ -12,8 +12,8 @@ export default function Billing() {
       paymentMethod: '**** **** **** 4242',
       description: 'DwellWell Premium Subscription (Monthly)',
       quantity: '1',
-      amount: '$9.99',
-      total: '$9.99',
+      amount: '$3.99',
+      total: '$3.99',
     });
 
     const element = document.createElement('div');
@@ -103,19 +103,19 @@ export default function Billing() {
               {[
                 {
                   date: 'Apr 5, 2025',
-                  amount: '$9.99',
+                  amount: '$3.99',
                   status: 'Paid',
                   url: '#',
                 },
                 {
                   date: 'Mar 5, 2025',
-                  amount: '$9.99',
+                  amount: '$3.99',
                   status: 'Paid',
                   url: '#',
                 },
                 {
                   date: 'Feb 5, 2025',
-                  amount: '$9.99',
+                  amount: '$3.99',
                   status: 'Failed',
                   url: '#',
                 },
