@@ -11,7 +11,6 @@ import { api } from '@/utils/api';
 import { Room } from '@shared/types/room';
 import { useToast } from '@/components/ui/use-toast';
 import { RoomTypeSelect } from '@/components/RoomTypeSelect';
-import { ROOM_TYPE_ICONS } from '@shared/constants/roomTypes';
 import { Button } from '@/components/ui/button';
 
 type Props = {
@@ -19,6 +18,12 @@ type Props = {
   isOpen: boolean;
   onClose: () => void;
   onSave: () => void;
+};
+
+type RoomTask = {
+  id: string;
+  title: string;
+  disabled: boolean;
 };
 
 // Normalize floor string ➜ number to match Prisma schema
@@ -49,6 +54,7 @@ export function EditRoomModal({ room, isOpen, onClose, onSave }: Props) {
   const [fireplace, setFireplace] = useState(false);
   const [boiler, setBoiler] = useState(false);
   const [smoke, setSmoke] = useState(false);
+  const [tasks, setTasks] = useState<RoomTask[]>([]);
 
   useEffect(() => {
     if (room) {
@@ -57,20 +63,36 @@ export function EditRoomModal({ room, isOpen, onClose, onSave }: Props) {
       setFloor(
         typeof room.floor === 'number'
           ? {
-            [-1]: 'Basement',
-            0: 'Other',
-            1: '1st Floor',
-            2: '2nd Floor',
-            3: '3rd Floor',
-            99: 'Attic',
-          }[room.floor] || ''
+              [-1]: 'Basement',
+              0: 'Other',
+              1: '1st Floor',
+              2: '2nd Floor',
+              3: '3rd Floor',
+              99: 'Attic',
+            }[room.floor] || ''
           : ''
       );
       setFireplace(room.hasFireplace || false);
       setBoiler(room.hasBoiler || false);
       setSmoke(room.hasSmokeDetector || false);
+
+      api
+        .get(`/api/rooms/${room.id}/tasks`)
+        .then((res) => setTasks(res.data))
+        .catch((err) => {
+          console.error('Failed to load room tasks', err);
+          toast({ title: 'Failed to load tasks', variant: 'destructive' });
+        });
     }
   }, [room]);
+
+  const toggleTask = (taskId: string) => {
+    setTasks((prev) =>
+      prev.map((task) =>
+        task.id === taskId ? { ...task, disabled: !task.disabled } : task
+      )
+    );
+  };
 
   const handleSubmit = async () => {
     try {
@@ -82,6 +104,11 @@ export function EditRoomModal({ room, isOpen, onClose, onSave }: Props) {
         hasBoiler: boiler,
         hasSmokeDetector: smoke,
       });
+
+      await api.patch(`/api/rooms/${room?.id}/tasks`, {
+        disabledTaskIds: tasks.filter((t) => t.disabled).map((t) => t.id),
+      });
+
       onSave();
       onClose();
       toast({ title: 'Room updated', variant: 'success' });
@@ -93,9 +120,9 @@ export function EditRoomModal({ room, isOpen, onClose, onSave }: Props) {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent>
+      <DialogContent className="max-w-md w-full space-y-4 max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Edit Room</DialogTitle>
+          <DialogTitle className="text-2xl font-bold text-brand-primary">Edit Room</DialogTitle>
           <DialogDescription>
             Update the room’s details and features. This helps DwellWell generate better reminders.
           </DialogDescription>
@@ -170,6 +197,26 @@ export function EditRoomModal({ room, isOpen, onClose, onSave }: Props) {
                 <span className="text-gray-500">🔔</span>
                 Smoke Detector
               </label>
+            </div>
+          </div>
+
+          {/* Tracked Tasks */}
+          <div className="space-y-2 pt-4">
+            <label className="block text-sm font-medium text-gray-700">Tracked Tasks</label>
+            <div className="border rounded p-2 max-h-48 overflow-y-auto space-y-2">
+              {tasks.map((task) => (
+                <label key={task.id} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={!task.disabled}
+                    onChange={() => toggleTask(task.id)}
+                  />
+                  {task.title}
+                </label>
+              ))}
+              {tasks.length === 0 && (
+                <p className="text-xs text-gray-500 italic">No tasks assigned to this room.</p>
+              )}
             </div>
           </div>
         </div>

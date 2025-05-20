@@ -151,4 +151,91 @@ router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
   }
 });
 
+// Get all tasks assigned to a room
+router.get('/:id/tasks', requireAuth, async (req: Request, res: Response) => {
+  const userId = (req as any).user.userId;
+  const { id } = req.params;
+
+  try {
+    const room = await prisma.room.findUnique({
+      where: { id },
+      include: {
+        home: true,
+        tasks: true,
+      },
+    });
+
+    if (!room || room.home.userId !== userId) {
+      return res.status(404).json({ message: 'Room not found or unauthorized' });
+    }
+
+    const disabledTasks = await prisma.disabledTask.findMany({
+      where: {
+        userId,
+        taskId: { in: room.tasks.map((t) => t.id) },
+      },
+    });
+
+    const disabledMap = new Set(disabledTasks.map((dt) => dt.taskId));
+
+    const result = room.tasks.map((task) => ({
+      id: task.id,
+      title: task.title,
+      disabled: disabledMap.has(task.id),
+    }));
+
+
+
+    res.json(result);
+  } catch (err) {
+    console.error('Failed to fetch room tasks:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Update disabled tasks for a room
+router.patch('/:id/tasks', requireAuth, async (req: Request, res: Response) => {
+  const userId = (req as any).user.userId;
+  const { id } = req.params;
+  const { disabledTaskIds } = req.body;
+
+  try {
+    const room = await prisma.room.findUnique({
+      where: { id },
+      include: {
+        home: true,
+        tasks: true,
+      },
+    });
+
+    if (!room || room.home.userId !== userId) {
+      return res.status(403).json({ message: 'Forbidden' });
+    }
+
+    // Delete all existing DisabledTask records for this room's tasks
+    await prisma.disabledTask.deleteMany({
+      where: {
+        userId,
+        taskId: {
+          in: room.tasks.map((t) => t.id),
+        },
+      },
+    });
+
+    // Insert new disabled records
+    if (Array.isArray(disabledTaskIds) && disabledTaskIds.length > 0) {
+      const inserts = disabledTaskIds.map((taskId: string) => ({
+        userId,
+        taskId,
+      }));
+      await prisma.disabledTask.createMany({ data: inserts });
+    }
+
+    res.json({ message: 'Room tasks updated' });
+  } catch (err) {
+    console.error('Failed to update room tasks:', err);
+    res.status(500).json({ error: 'Failed to update tasks' });
+  }
+});
+
 export default router;

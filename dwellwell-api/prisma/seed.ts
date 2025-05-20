@@ -1,4 +1,4 @@
-import { PrismaClient, TaskType } from '@prisma/client';
+import { PrismaClient, TaskType, TaskCriticality } from '@prisma/client';
 const { ApplianceCatalog } = require('./mockApplianceCatalog');
 
 const prisma = new PrismaClient();
@@ -32,7 +32,7 @@ async function seedTaskTemplates() {
       title: 'Clean Dishwasher Filter',
       description: 'Remove and rinse the dishwasher filter to prevent clogging.',
       recurrenceInterval: '3 months',
-      criticality: 'TaskCriticality.MEDIUM',
+      criticality: TaskCriticality.medium,
       canDefer: true,
       deferLimitDays: 30,
       estimatedTimeMinutes: 15,
@@ -56,7 +56,7 @@ async function seedTaskTemplates() {
       title: 'Change HVAC Filter',
       description: 'Replace the air filter to ensure efficient airflow.',
       recurrenceInterval: '3 months',
-      criticality: 'TaskCriticality.HIGH',
+      criticality: TaskCriticality.high,
       canDefer: false,
       deferLimitDays: 0,
       estimatedTimeMinutes: 10,
@@ -79,7 +79,7 @@ async function seedTaskTemplates() {
       title: 'Flush Water Heater',
       description: 'Drain and flush sediment from your water heater.',
       recurrenceInterval: 'yearly',
-      criticality: 'TaskCriticality.HIGH',
+      criticality: TaskCriticality.high,
       canDefer: true,
       deferLimitDays: 60,
       estimatedTimeMinutes: 45,

@@ -17,6 +17,7 @@ model User {
   billingAccount  BillingAccount?
   userTasks       UserTask[]
   aiQueries       AIQueryHistory[]
+  disabledTasks   DisabledTask[]
 }
 
 model LoginActivity {
@@ -76,7 +77,6 @@ model Room {
   trackables       Trackable[] @relation("RoomTrackables")
   tasks            Task[]
 }
-
 
 model LawnProfile {
   id                  String   @id @default(uuid())
@@ -143,11 +143,27 @@ model Trackable {
 }
 
 model Task {
-  id        String   @id @default(cuid())
-  name      String
-  roomId    String
-  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  id         String   @id @default(cuid())
+  title      String
+  roomId     String
+  room       Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  sourceType String   // 'room' | 'trackable' | 'vehicle' | 'lawn'
+  sourceId   String   // e.g. Room.id
+  createdAt  DateTime @default(now())
+
+  disabledByUsers DisabledTask[]
+}
+
+model DisabledTask {
+  id      String   @id @default(cuid())
+  userId String
+  taskId String
   createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, taskId])
 }
 
 model TaskTemplate {
