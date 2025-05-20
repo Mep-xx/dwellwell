@@ -20,8 +20,8 @@ export const requireAuth = (req: Request, res: Response, next: NextFunction) => 
     const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload & { userId: string };
     (req as any).user = decoded; // 👈 using `as any` avoids type error
     next();
-  } catch (err) {
+  } catch (err: any) {
     console.error('JWT verification failed:', err);
-    return res.status(401).json({ message: 'Invalid token' });
+    return res.status(401).json({ message: err.message || 'Unauthorized' }); // ✅ send specific reason
   }
 };

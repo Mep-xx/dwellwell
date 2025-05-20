@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
+import jwt from 'jsonwebtoken';
 import { prisma } from '../db/prisma';
+import bcrypt from 'bcrypt';
 import { hashPassword, comparePassword, generateToken } from '../utils/auth';
 
 export const signup = async (req: Request, res: Response) => {
@@ -32,22 +34,37 @@ export const signup = async (req: Request, res: Response) => {
 export const login = async (req: Request, res: Response) => {
   const { email, password } = req.body;
 
-  if (!email || !password)
-    return res.status(400).json({ message: 'Email and password are required' });
-
   try {
     const user = await prisma.user.findUnique({ where: { email } });
-    if (!user)
-      return res.status(401).json({ message: 'Invalid credentials' });
 
-    const match = await comparePassword(password, user.password);
-    if (!match)
+    if (!user || !(await bcrypt.compare(password, user.password))) {
       return res.status(401).json({ message: 'Invalid credentials' });
+    }
 
-    const token = generateToken(user.id);
-    res.status(200).json({ token, user: { id: user.id, email: user.email } });
+    const accessToken = jwt.sign({ userId: user.id }, process.env.JWT_SECRET!, {
+      expiresIn: '15m',
+    });
+
+    const refreshToken = jwt.sign({ userId: user.id }, process.env.REFRESH_TOKEN_SECRET!, {
+      expiresIn: '7d',
+    });
+
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+
+    return res.json({
+      accessToken,
+      user: {
+        id: user.id,
+        email: user.email,
+      },
+    });
   } catch (err) {
     console.error('Login error:', err);
-    res.status(500).json({ message: 'Server error' });
+    return res.status(500).json({ message: 'Internal server error' });
   }
 };
