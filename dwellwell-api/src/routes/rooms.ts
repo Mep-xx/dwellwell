@@ -4,6 +4,40 @@ import { requireAuth } from '../middleware/requireAuth';
 
 const router = express.Router();
 
+// Utility: Map room type to task template category
+const mapRoomTypeToCategory = (roomType: string): string => {
+  return roomType.trim().toLowerCase();
+};
+
+// Utility: Generate tasks for a room
+const generateTasksForRoom = async (roomId: string, roomType: string) => {
+  const category = mapRoomTypeToCategory(roomType);
+  console.log(`🧩 Mapping room type "${roomType}" to category "${category}"`);
+
+  const templates = await prisma.taskTemplate.findMany({
+    where: { category },
+  });
+
+  console.log(`🔍 Found ${templates.length} task templates for category "${category}"`);
+
+  if (templates.length === 0) {
+    console.warn(`⚠️ No task templates found for room type "${roomType}" (category "${category}")`);
+    return;
+  }
+
+  const tasks = templates.map((template) => ({
+    title: template.title,
+    sourceType: 'room',
+    sourceId: roomId,
+    roomId,
+  }));
+
+  console.log(`🛠️ Creating ${tasks.length} tasks for room ID ${roomId}`);
+  await prisma.task.createMany({ data: tasks });
+};
+
+
+
 // PATCH /api/rooms/:id
 export const updateRoom = async (req: Request, res: Response) => {
   const userId = (req as any).user?.userId;
@@ -53,7 +87,7 @@ export const updateRoom = async (req: Request, res: Response) => {
   }
 };
 
-// Get all rooms for a home
+// Get all rooms for a home (with tasks included)
 router.get('/home/:homeId', requireAuth, async (req: Request, res: Response) => {
   const userId = (req as any).user.userId;
   const { homeId } = req.params;
@@ -62,7 +96,11 @@ router.get('/home/:homeId', requireAuth, async (req: Request, res: Response) => 
     const home = await prisma.home.findFirst({
       where: { id: homeId, userId },
       include: {
-        rooms: true,
+        rooms: {
+          include: {
+            tasks: true, // ✅ include the room's tasks
+          },
+        },
       },
     });
 
@@ -75,7 +113,8 @@ router.get('/home/:homeId', requireAuth, async (req: Request, res: Response) => 
   }
 });
 
-// Add a room to a home
+
+// Add a room to a home (with automatic task creation)
 router.post('/', requireAuth, async (req: Request, res: Response) => {
   const userId = (req as any).user.userId;
 
@@ -117,6 +156,14 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
       },
     });
 
+    console.log(`🏠 Creating tasks for new room "${type}" (${room.id})...`);
+
+    // Automatically create tasks for this room type
+    console.log(`⚙️ Generating tasks for room: ${room.id} of type: ${type}`);
+    await generateTasksForRoom(room.id, type);
+    console.log(`✅ Finished task generation for room: ${room.id}`);
+
+
     res.status(201).json(room);
   } catch (err) {
     console.error('Failed to create room:', err);
@@ -124,7 +171,7 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
   }
 });
 
-// Properly attach the PATCH route
+// PATCH route for updateRoom
 router.patch('/:id', requireAuth, updateRoom);
 
 // Delete a room
@@ -151,7 +198,7 @@ router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
   }
 });
 
-// Get all tasks assigned to a room
+// Get tasks assigned to a room
 router.get('/:id/tasks', requireAuth, async (req: Request, res: Response) => {
   const userId = (req as any).user.userId;
   const { id } = req.params;
@@ -184,8 +231,6 @@ router.get('/:id/tasks', requireAuth, async (req: Request, res: Response) => {
       disabled: disabledMap.has(task.id),
     }));
 
-
-
     res.json(result);
   } catch (err) {
     console.error('Failed to fetch room tasks:', err);
@@ -212,7 +257,6 @@ router.patch('/:id/tasks', requireAuth, async (req: Request, res: Response) => {
       return res.status(403).json({ message: 'Forbidden' });
     }
 
-    // Delete all existing DisabledTask records for this room's tasks
     await prisma.disabledTask.deleteMany({
       where: {
         userId,
@@ -222,7 +266,6 @@ router.patch('/:id/tasks', requireAuth, async (req: Request, res: Response) => {
       },
     });
 
-    // Insert new disabled records
     if (Array.isArray(disabledTaskIds) && disabledTaskIds.length > 0) {
       const inserts = disabledTaskIds.map((taskId: string) => ({
         userId,

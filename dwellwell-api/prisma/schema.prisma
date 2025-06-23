@@ -187,6 +187,8 @@ model TaskTemplate {
   equipmentNeeded String[] @default([])
   resources       Json?
 
+  roomType String? // Example: "Bathroom", "Kitchen", "Attic"
+
   createdAt DateTime @default(now())
 
   userTasks             UserTask[]

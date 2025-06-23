@@ -12,6 +12,7 @@ export const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('dwellwell-token');
+    console.log(token);
     if (token && config.headers) {
       config.headers['Authorization'] = `Bearer ${token}`;
     }
@@ -71,12 +72,17 @@ api.interceptors.response.use(
         originalRequest.headers['Authorization'] = `Bearer ${newAccessToken}`;
         return api(originalRequest);
       } catch (refreshError) {
-        apiLogout(); // Clear token, redirect to login
+        apiLogout(); // your helper function
+        localStorage.removeItem('dwellwell-token');
+        localStorage.removeItem('dwellwell-user');
+
         toast({
           title: 'Session expired',
           description: 'Please log in again.',
           variant: 'destructive',
         });
+
+        window.location.href = '/login'; // hard redirect to clear context
         return;
       } finally {
         isRefreshing = false;

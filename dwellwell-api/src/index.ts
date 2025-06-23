@@ -13,6 +13,8 @@ import taskSummaryRoute from './routes/homes/summary';
 import roomRoutes from './routes/rooms';
 import cookieParser from 'cookie-parser';
 
+console.log('🚀 Server booting...');
+
 dotenv.config();
 
 const app = express();
@@ -26,6 +28,12 @@ app.use(cors({
 }));
 
 app.use(express.json());
+
+// 🔍 Log all incoming requests
+app.use((req, res, next) => {
+  console.log(`🛰️ ${req.method} ${req.originalUrl} — Auth: ${req.headers.authorization || 'None'}`);
+  next();
+});
 
 app.get('/health', (req, res) => {
   res.send('API is running');

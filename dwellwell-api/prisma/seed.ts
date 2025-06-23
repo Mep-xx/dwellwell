@@ -28,6 +28,43 @@ async function seedApplianceCatalog() {
 
 async function seedTaskTemplates() {
   const templates = [
+    // Room-Based Tasks
+    {
+      title: 'Clean Bathroom Mirror',
+      description: 'Wipe down mirrors with glass cleaner.',
+      recurrenceInterval: 'weekly',
+      criticality: TaskCriticality.low,
+      canDefer: true,
+      deferLimitDays: 7,
+      estimatedTimeMinutes: 5,
+      estimatedCost: 0,
+      canBeOutsourced: false,
+      category: 'bathroom',
+      icon: '🪞',
+      taskType: TaskType.GENERAL,
+      steps: ['Spray cleaner', 'Wipe with cloth'],
+      equipmentNeeded: ['Glass cleaner', 'Microfiber cloth'],
+      resources: [],
+    },
+    {
+      title: 'Vacuum Living Room Carpet',
+      description: 'Vacuum carpet to remove dirt and dust.',
+      recurrenceInterval: 'weekly',
+      criticality: TaskCriticality.medium,
+      canDefer: true,
+      deferLimitDays: 7,
+      estimatedTimeMinutes: 15,
+      estimatedCost: 0,
+      canBeOutsourced: true,
+      category: 'living room',
+      icon: '🧹',
+      taskType: TaskType.GENERAL,
+      steps: ['Move furniture as needed', 'Vacuum thoroughly'],
+      equipmentNeeded: ['Vacuum'],
+      resources: [],
+    },
+
+    // Trackable-Based Tasks
     {
       title: 'Clean Dishwasher Filter',
       description: 'Remove and rinse the dishwasher filter to prevent clogging.',
@@ -38,7 +75,7 @@ async function seedTaskTemplates() {
       estimatedTimeMinutes: 15,
       estimatedCost: 0,
       canBeOutsourced: false,
-      category: 'kitchen',
+      category: 'appliance',
       icon: '🧼',
       taskType: TaskType.GENERAL,
       steps: [
@@ -62,7 +99,7 @@ async function seedTaskTemplates() {
       estimatedTimeMinutes: 10,
       estimatedCost: 20,
       canBeOutsourced: false,
-      category: 'heating',
+      category: 'appliance',
       icon: '🌬️',
       taskType: TaskType.GENERAL,
       steps: [
@@ -73,30 +110,6 @@ async function seedTaskTemplates() {
       equipmentNeeded: ['New air filter', 'Gloves'],
       resources: [
         { label: 'Filter Sizing Guide', url: 'https://example.com/hvac-filters' },
-      ],
-    },
-    {
-      title: 'Flush Water Heater',
-      description: 'Drain and flush sediment from your water heater.',
-      recurrenceInterval: 'yearly',
-      criticality: TaskCriticality.high,
-      canDefer: true,
-      deferLimitDays: 60,
-      estimatedTimeMinutes: 45,
-      estimatedCost: 0,
-      canBeOutsourced: true,
-      category: 'plumbing',
-      icon: '🚿',
-      taskType: TaskType.GENERAL,
-      steps: [
-        'Turn off power/gas to heater',
-        'Connect hose to drain valve',
-        'Open drain and flush until clear',
-        'Close drain, refill, and restore power',
-      ],
-      equipmentNeeded: ['Garden hose', 'Bucket', 'Gloves'],
-      resources: [
-        { label: 'How to flush your heater', url: 'https://example.com/water-heater-flush' },
       ],
     },
   ];

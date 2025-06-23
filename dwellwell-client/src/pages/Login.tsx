@@ -18,6 +18,9 @@ export default function Login() {
       const res = await api.post('/api/auth/login', { email, password });
       const { token, user } = res.data;
 
+      localStorage.setItem('dwellwell-token', token);
+      localStorage.setItem('dwellwell-user', JSON.stringify(user));
+
       login(user, token); // Save in context and localStorage
       navigate('/dashboard');
     } catch (err: any) {
