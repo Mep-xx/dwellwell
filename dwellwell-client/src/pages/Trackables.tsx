@@ -21,14 +21,12 @@ export default function Trackables() {
     if (!selectedHomeId) return;
 
     const token = localStorage.getItem("dwellwell-token");
-    console.log("👤 Auth Token at time of fetch:", token);
 
     api.get('/api/trackables', {
       params: { homeId: selectedHomeId },
     })
       .then(res => {
         if (Array.isArray(res.data)) {
-          console.log('✅ Received trackables:', res.data);
           setTrackables(res.data);
         } else {
           console.warn('⚠️ Unexpected response shape:', res.data);
@@ -50,7 +48,6 @@ export default function Trackables() {
         homeId: selectedHomeId,
       });
 
-      console.log('Trackable POST response:', res.data);
       setTrackables(prev => [...prev, res.data.trackable]);
       setShowModal(false);
     } catch (err) {
@@ -69,7 +66,6 @@ export default function Trackables() {
         params: { trackableId }
       });
 
-      console.log('Fetched tasks for', trackableId, res.data);
       setTrackableTasks(res.data);
       setViewTasksFor(trackableId);
     } catch (err) {

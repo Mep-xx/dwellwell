@@ -22,8 +22,6 @@ export async function generateTasksFromTrackable(trackable: {
   userId?: string;
   trackableId?: string;
 }) {
-  console.log('🧠 Task gen input:', trackable);
-
   const templateTasks: TaskTemplate[] =
     (trackable.model && taskTemplates[trackable.model]) ||
     (trackable.type && taskTemplates[trackable.type]) ||

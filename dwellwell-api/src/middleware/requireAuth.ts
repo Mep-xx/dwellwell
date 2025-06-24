@@ -8,7 +8,6 @@ const JWT_SECRET = process.env.JWT_SECRET || 'supersecret';
 
 export const requireAuth = (req: Request, res: Response, next: NextFunction) => {
   const authHeader = req.headers.authorization;
-  console.log('🛡️ Auth header:', authHeader);
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     console.warn('⛔ Missing or malformed Authorization header');

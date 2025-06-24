@@ -33,26 +33,20 @@ export default function HomesPage() {
   const fetchHomes = async () => {
     const token = localStorage.getItem('dwellwell-token');
     if (!token) {
-      console.warn('⛔ fetchHomes aborted: token not available yet');
-      return;
+      console.warn('⚠️ Tried to make API request with missing token');
+      return Promise.reject({ message: 'Missing token' });
     }
 
     try {
-      console.log('📡 [FETCH] GET /api/homes');
       const res = await api.get('/api/homes');
       const fetchedHomes: Home[] = res.data;
-      console.log('✅ [FETCHED] Homes:', fetchedHomes);
 
       const enrichedHomes = await Promise.all(
         fetchedHomes.map(async (home) => {
           try {
-            console.log(`📡 [FETCH] GET /api/homes/${home.id}/task-summary`);
             const summaryRes = await api.get(`/api/homes/${home.id}/task-summary`);
-            console.log(`✅ [FETCHED] Task Summary for ${home.id}:`, summaryRes.data);
 
-            console.log(`📡 [FETCH] GET /api/rooms/home/${home.id}`);
             const roomsRes = await api.get(`/api/rooms/home/${home.id}`);
-            console.log(`✅ [FETCHED] Rooms for ${home.id}:`, roomsRes.data);
 
             return {
               ...home,
@@ -74,9 +68,9 @@ export default function HomesPage() {
 
   useEffect(() => {
     setTimeout(() => {
-    fetchHomes();
+      fetchHomes();
     }, 1000);
-    
+
     const waitForToken = async () => {
       const maxAttempts = 10;
       let attempt = 0;
@@ -87,10 +81,7 @@ export default function HomesPage() {
       }
 
       if (localStorage.getItem('dwellwell-token')) {
-        console.log('✅ Token detected. Proceeding with fetchHomes...');
         fetchHomes();
-      } else {
-        console.warn('⛔ Token never loaded. Skipping fetchHomes.');
       }
     };
 
