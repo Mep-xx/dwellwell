@@ -1,45 +1,12 @@
 import express, { Request, Response } from 'express';
 import { prisma } from '../db/prisma';
 import { requireAuth } from '../middleware/requireAuth';
+import { assignTasksToRooms } from '../utils/taskAssignment';
 
 const router = express.Router();
 
-// Utility: Map room type to task template category
-const mapRoomTypeToCategory = (roomType: string): string => {
-  return roomType.trim().toLowerCase();
-};
-
-// Utility: Generate tasks for a room
-const generateTasksForRoom = async (roomId: string, roomType: string) => {
-  const category = mapRoomTypeToCategory(roomType);
-  console.log(`🧩 Mapping room type "${roomType}" to category "${category}"`);
-
-  const templates = await prisma.taskTemplate.findMany({
-    where: { category },
-  });
-
-  console.log(`🔍 Found ${templates.length} task templates for category "${category}"`);
-
-  if (templates.length === 0) {
-    console.warn(`⚠️ No task templates found for room type "${roomType}" (category "${category}")`);
-    return;
-  }
-
-  const tasks = templates.map((template) => ({
-    title: template.title,
-    sourceType: 'room',
-    sourceId: roomId,
-    roomId,
-  }));
-
-  console.log(`🛠️ Creating ${tasks.length} tasks for room ID ${roomId}`);
-  await prisma.task.createMany({ data: tasks });
-};
-
-
-
-// PATCH /api/rooms/:id
-export const updateRoom = async (req: Request, res: Response) => {
+// PATCH /api/rooms/:id — Update Room Details
+router.patch('/:id', requireAuth, async (req: Request, res: Response) => {
   const userId = (req as any).user?.userId;
   const { id } = req.params;
 
@@ -48,35 +15,17 @@ export const updateRoom = async (req: Request, res: Response) => {
     if (!room) return res.status(404).json({ message: 'Room not found' });
 
     const home = await prisma.home.findUnique({ where: { id: room.homeId } });
-    if (home?.userId !== userId) {
-      return res.status(403).json({ message: 'Forbidden' });
-    }
-
-    const {
-      name,
-      type,
-      floor,
-      hasFireplace,
-      hasBoiler,
-      hasSmokeDetector,
-    }: {
-      name: string;
-      type: string;
-      floor?: number;
-      hasFireplace?: boolean;
-      hasBoiler?: boolean;
-      hasSmokeDetector?: boolean;
-    } = req.body;
+    if (home?.userId !== userId) return res.status(403).json({ message: 'Forbidden' });
 
     const updatedRoom = await prisma.room.update({
       where: { id },
       data: {
-        name,
-        type,
-        floor,
-        hasFireplace,
-        hasBoiler,
-        hasSmokeDetector,
+        name: req.body.name,
+        type: req.body.type,
+        floor: req.body.floor,
+        hasFireplace: req.body.hasFireplace ?? false,
+        hasBoiler: req.body.hasBoiler ?? false,
+        hasSmokeDetector: req.body.hasSmokeDetector ?? false,
       },
     });
 
@@ -85,39 +34,28 @@ export const updateRoom = async (req: Request, res: Response) => {
     console.error('Failed to update room:', err);
     res.status(500).json({ error: 'Failed to update room' });
   }
-};
+});
 
-// Get all rooms for a home (with tasks included)
+// GET /api/rooms/home/:homeId — Get All Rooms for a Home
 router.get('/home/:homeId', requireAuth, async (req: Request, res: Response) => {
   const userId = (req as any).user.userId;
   const { homeId } = req.params;
 
   try {
-    const home = await prisma.home.findFirst({
-      where: { id: homeId, userId },
-      include: {
-        rooms: {
-          include: {
-            tasks: true, // ✅ include the room's tasks
-          },
-        },
-      },
+    const rooms = await prisma.room.findMany({
+      where: { homeId, home: { userId } },
     });
 
-    if (!home) return res.status(404).json({ error: 'Home not found' });
-
-    res.json(home.rooms);
+    res.json(rooms);
   } catch (err) {
     console.error('Failed to fetch rooms:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-
-// Add a room to a home (with automatic task creation)
+// POST /api/rooms — Add Room and Assign Tasks
 router.post('/', requireAuth, async (req: Request, res: Response) => {
   const userId = (req as any).user.userId;
-
   const {
     homeId,
     name,
@@ -126,14 +64,6 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
     hasFireplace = false,
     hasBoiler = false,
     hasSmokeDetector = false,
-  }: {
-    homeId: string;
-    name: string;
-    type: string;
-    floor?: number;
-    hasFireplace?: boolean;
-    hasBoiler?: boolean;
-    hasSmokeDetector?: boolean;
   } = req.body;
 
   if (!homeId || !name || !type) {
@@ -156,13 +86,7 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
       },
     });
 
-    console.log(`🏠 Creating tasks for new room "${type}" (${room.id})...`);
-
-    // Automatically create tasks for this room type
-    console.log(`⚙️ Generating tasks for room: ${room.id} of type: ${type}`);
-    await generateTasksForRoom(room.id, type);
-    console.log(`✅ Finished task generation for room: ${room.id}`);
-
+    await assignTasksToRooms(homeId, userId);
 
     res.status(201).json(room);
   } catch (err) {
@@ -171,10 +95,7 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
   }
 });
 
-// PATCH route for updateRoom
-router.patch('/:id', requireAuth, updateRoom);
-
-// Delete a room
+// DELETE /api/rooms/:id — Delete Room
 router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
   const { id } = req.params;
   const userId = (req as any).user.userId;
@@ -190,7 +111,6 @@ router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
     }
 
     await prisma.room.delete({ where: { id } });
-
     res.status(204).send();
   } catch (err) {
     console.error('Failed to delete room:', err);
@@ -198,86 +118,28 @@ router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
   }
 });
 
-// Get tasks assigned to a room
+// GET /api/rooms/:id/tasks — Get Tasks for Room
 router.get('/:id/tasks', requireAuth, async (req: Request, res: Response) => {
   const userId = (req as any).user.userId;
   const { id } = req.params;
 
   try {
-    const room = await prisma.room.findUnique({
-      where: { id },
-      include: {
-        home: true,
-        tasks: true,
-      },
-    });
-
-    if (!room || room.home.userId !== userId) {
-      return res.status(404).json({ message: 'Room not found or unauthorized' });
-    }
-
-    const disabledTasks = await prisma.disabledTask.findMany({
-      where: {
-        userId,
-        taskId: { in: room.tasks.map((t) => t.id) },
-      },
-    });
-
-    const disabledMap = new Set(disabledTasks.map((dt) => dt.taskId));
-
-    const result = room.tasks.map((task) => ({
-      id: task.id,
-      title: task.title,
-      disabled: disabledMap.has(task.id),
-    }));
-
-    res.json(result);
-  } catch (err) {
-    console.error('Failed to fetch room tasks:', err);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// Update disabled tasks for a room
-router.patch('/:id/tasks', requireAuth, async (req: Request, res: Response) => {
-  const userId = (req as any).user.userId;
-  const { id } = req.params;
-  const { disabledTaskIds } = req.body;
-
-  try {
-    const room = await prisma.room.findUnique({
-      where: { id },
-      include: {
-        home: true,
-        tasks: true,
-      },
-    });
-
+    const room = await prisma.room.findUnique({ where: { id }, include: { home: true } });
     if (!room || room.home.userId !== userId) {
       return res.status(403).json({ message: 'Forbidden' });
     }
 
-    await prisma.disabledTask.deleteMany({
+    const tasks = await prisma.userTask.findMany({
       where: {
         userId,
-        taskId: {
-          in: room.tasks.map((t) => t.id),
-        },
+        trackable: { roomId: id },
       },
     });
 
-    if (Array.isArray(disabledTaskIds) && disabledTaskIds.length > 0) {
-      const inserts = disabledTaskIds.map((taskId: string) => ({
-        userId,
-        taskId,
-      }));
-      await prisma.disabledTask.createMany({ data: inserts });
-    }
-
-    res.json({ message: 'Room tasks updated' });
+    res.json(tasks);
   } catch (err) {
-    console.error('Failed to update room tasks:', err);
-    res.status(500).json({ error: 'Failed to update tasks' });
+    console.error('Failed to fetch room tasks:', err);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 

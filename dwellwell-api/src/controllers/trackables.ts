@@ -81,30 +81,36 @@ export const createTrackable = async (req: Request, res: Response) => {
 
     if (generatedTasks.length > 0) {
       const tasksToInsert = generatedTasks.map((t) => ({
+        userId,
+        sourceType: 'trackable' as const, // ✅ Enforce enum
+        trackableId: newTrackable.id,
+
         title: t.title,
         description: t.description,
+        dueDate: t.dueDate ?? new Date(),
         status: t.status ?? 'PENDING',
+
         itemName: t.itemName,
+        category: t.category,
+
         estimatedTimeMinutes: t.estimatedTimeMinutes,
         estimatedCost: t.estimatedCost,
-        canBeOutsourced: t.canBeOutsourced,
-        canDefer: t.canBeOutsourced,
+        criticality: t.criticality,
         deferLimitDays: t.deferLimitDays,
-        category: t.category,
-        icon: t.icon,
-        imageUrl: t.imageUrl ?? null,
-        taskType: typeof t.taskType === 'string' && validTaskTypes.includes(t.taskType as TaskType)
-          ? (t.taskType as TaskType)
-          : 'GENERAL',
+        canBeOutsourced: t.canBeOutsourced,
+        canDefer: t.canDefer,
 
         recurrenceInterval: t.recurrenceInterval,
-        criticality: t.criticality,
-        dueDate: t.dueDate.toISOString(),
-        userId,
-        trackableId: newTrackable.id,
+        taskType:
+          typeof t.taskType === 'string' && validTaskTypes.includes(t.taskType as TaskType)
+            ? (t.taskType as TaskType)
+            : 'GENERAL',
+
         steps: t.steps ?? [],
         equipmentNeeded: t.equipmentNeeded ?? [],
         resources: t.resources ?? [],
+        icon: t.icon ?? null,
+        imageUrl: t.imageUrl ?? null,
       }));
 
       try {

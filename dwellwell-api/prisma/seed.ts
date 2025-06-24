@@ -23,6 +23,7 @@ async function seedApplianceCatalog() {
       },
     });
   }
+
   console.log('✅ Seeded ApplianceCatalog');
 }
 
@@ -115,7 +116,11 @@ async function seedTaskTemplates() {
   ];
 
   for (const template of templates) {
-    await prisma.taskTemplate.create({ data: template });
+    await prisma.taskTemplate.upsert({
+      where: { title: template.title },
+      update: {},
+      create: template,
+    });
   }
 
   console.log('✅ Seeded TaskTemplates');
@@ -127,7 +132,7 @@ async function main() {
 }
 
 main()
-  .catch(e => {
+  .catch((e) => {
     console.error(e);
     process.exit(1);
   })

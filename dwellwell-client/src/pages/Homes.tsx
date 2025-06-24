@@ -30,42 +30,6 @@ export default function HomesPage() {
 
   const { toast } = useToast();
 
-  const fetchHomes = async () => {
-    const token = localStorage.getItem('dwellwell-token');
-    if (!token) {
-      console.warn('⚠️ Tried to make API request with missing token');
-      return Promise.reject({ message: 'Missing token' });
-    }
-
-    try {
-      const res = await api.get('/api/homes');
-      const fetchedHomes: Home[] = res.data;
-
-      const enrichedHomes = await Promise.all(
-        fetchedHomes.map(async (home) => {
-          try {
-            const summaryRes = await api.get(`/api/homes/${home.id}/task-summary`);
-
-            const roomsRes = await api.get(`/api/rooms/home/${home.id}`);
-
-            return {
-              ...home,
-              taskSummary: summaryRes.data as TaskSummary,
-              rooms: roomsRes.data as Room[],
-            };
-          } catch (err) {
-            console.error(`❌ [ERROR] Enriching home ${home.address}`, err);
-            return home;
-          }
-        })
-      );
-
-      setHomes(enrichedHomes);
-    } catch (err) {
-      console.error('❌ [ERROR] Failed to fetch homes:', err);
-    }
-  };
-
   useEffect(() => {
     setTimeout(() => {
       fetchHomes();
@@ -87,6 +51,42 @@ export default function HomesPage() {
 
     waitForToken();
   }, []);
+
+  const fetchHomes = async () => {
+    const token = localStorage.getItem('dwellwell-token');
+    if (!token) {
+      console.warn('⚠️ Tried to make API request with missing token');
+      return Promise.reject({ message: 'Missing token' });
+    }
+
+    try {
+      const res = await api.get('/api/homes');
+      const fetchedHomes: Home[] = res.data;
+
+      const enrichedHomes = await Promise.all(
+        fetchedHomes.map(async (home) => {
+          try {
+            const taskSummary = await api.get(`/api/homes/${home.id}/task-summary`);
+
+            const roomsRes = await api.get(`/api/rooms/home/${home.id}`);
+
+            return {
+              ...home,
+              taskSummary: taskSummary.data as TaskSummary,
+              rooms: roomsRes.data as Room[],
+            };
+          } catch (err) {
+            console.error(`❌ [ERROR] Enriching home ${home.address}`, err);
+            return home;
+          }
+        })
+      );
+
+      setHomes(enrichedHomes);
+    } catch (err) {
+      console.error('❌ [ERROR] Failed to fetch homes:', err);
+    }
+  };
 
 
   const toggleHomeChecked = async (homeId: string, newValue: boolean) => {
@@ -215,14 +215,6 @@ export default function HomesPage() {
         onClose={() => setShowAddModal(false)}
         onComplete={fetchHomes}
       />
-
-      {/* <AddHomeModal
-        isOpen={showAddModal}
-        onClose={() => {
-          setShowAddModal(false);
-          fetchHomes();
-        }}
-      /> */}
 
       <DeleteHomeModal
         isOpen={!!deleteTargetId}

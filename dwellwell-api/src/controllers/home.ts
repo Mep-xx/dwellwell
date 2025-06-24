@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { prisma } from '../db/prisma';
+import { assignTasksToRooms } from 'src/utils/taskAssignment';
 
 // GET /api/homes
 export const getHomes = async (req: Request, res: Response) => {
@@ -103,6 +104,8 @@ export const createHome = async (req: Request, res: Response) => {
       },
     });
 
+    await assignTasksToRooms(newHome.id, userId);
+    
     res.status(201).json(newHome);
   } catch (err) {
     console.error('Failed to create home:', err);
