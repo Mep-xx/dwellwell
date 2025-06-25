@@ -51,7 +51,7 @@ export function HomeCard({ home, summary, onToggle, onEdit, onDelete }: Props) {
   };
 
   return (
-    <div className="rounded-xl border shadow bg-white overflow-hidden">
+    <div className={`relative rounded-xl border shadow overflow-hidden transition-all ${home.isChecked ? 'bg-white' : 'bg-gray-100 opacity-70'}`} >
       {/* Image */}
       <img
         src={
@@ -61,8 +61,14 @@ export function HomeCard({ home, summary, onToggle, onEdit, onDelete }: Props) {
         }
         alt={home.nickname || home.address}
         title={home.nickname || home.address}
-        className="w-full h-40 object-cover"
+        className={`w-full h-40 object-cover transition-all ${home.isChecked ? '' : 'grayscale'}`}
       />
+
+      {!home.isChecked && (
+        <div className="absolute top-2 left-2 bg-gray-800 text-white text-xs px-2 py-1 rounded">
+          Not in To-Do
+        </div>
+      )}
 
       {/* Info */}
       <div className="p-4 space-y-2 text-sm text-gray-700">

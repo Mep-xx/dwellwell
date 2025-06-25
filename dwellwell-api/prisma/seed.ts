@@ -64,6 +64,93 @@ async function seedTaskTemplates() {
       equipmentNeeded: ['Vacuum'],
       resources: [],
     },
+    {
+      title: 'Inspect Caulking and Grout',
+      description: 'Check for cracks or mold in caulking and grout in the bathroom.',
+      recurrenceInterval: '3 months',
+      criticality: TaskCriticality.medium,
+      canDefer: true,
+      deferLimitDays: 14,
+      estimatedTimeMinutes: 10,
+      estimatedCost: 0,
+      canBeOutsourced: true,
+      category: 'bathroom',
+      icon: '🧴',
+      taskType: TaskType.GENERAL,
+      steps: [
+        'Visually inspect shower, tub, and sink areas',
+        'Note any cracking or mold',
+        'Clean small areas or schedule re-caulking if needed'
+      ],
+      equipmentNeeded: ['Flashlight', 'Cleaning cloth'],
+      resources: [],
+    },
+    {
+      title: 'Wipe Down Bathroom Walls',
+      description: 'Clean humidity residue and potential mold buildup on bathroom walls.',
+      recurrenceInterval: 'monthly',
+      criticality: TaskCriticality.low,
+      canDefer: true,
+      deferLimitDays: 14,
+      estimatedTimeMinutes: 15,
+      estimatedCost: 0,
+      canBeOutsourced: true,
+      category: 'bathroom',
+      icon: '🧼',
+      taskType: TaskType.GENERAL,
+      steps: [
+        'Mix water and mild detergent',
+        'Wipe down tiled and painted wall surfaces',
+        'Dry with a clean towel'
+      ],
+      equipmentNeeded: ['Bucket', 'Sponge', 'Mild cleaner'],
+      resources: [],
+    },
+    {
+      title: 'Clean Bathroom Vent',
+      description: 'Dust and clean the exhaust fan grill to maintain airflow.',
+      recurrenceInterval: '3 months',
+      criticality: TaskCriticality.medium,
+      canDefer: true,
+      deferLimitDays: 30,
+      estimatedTimeMinutes: 10,
+      estimatedCost: 0,
+      canBeOutsourced: false,
+      category: 'bathroom',
+      icon: '🌀',
+      taskType: TaskType.GENERAL,
+      steps: [
+        'Turn off the fan',
+        'Remove the vent cover',
+        'Wipe or vacuum dust buildup',
+        'Reattach the cover'
+      ],
+      equipmentNeeded: ['Screwdriver', 'Vacuum', 'Cloth'],
+      resources: [],
+    },
+    {
+      title: 'Dust Ceiling Fan or Light Fixture',
+      description: 'Remove dust buildup from bedroom ceiling fixtures.',
+      recurrenceInterval: 'monthly',
+      criticality: TaskCriticality.low,
+      canDefer: true,
+      deferLimitDays: 7,
+      estimatedTimeMinutes: 10,
+      estimatedCost: 0,
+      canBeOutsourced: true,
+      category: 'bedroom',
+      icon: '💡',
+      taskType: TaskType.GENERAL,
+      steps: [
+        'Use duster or microfiber cloth to remove dust from fan blades or lights',
+        'Vacuum fallen debris if needed'
+      ],
+      equipmentNeeded: ['Duster', 'Ladder', 'Vacuum'],
+      resources: [],
+    },
+
+
+
 
     // Trackable-Based Tasks
     {
