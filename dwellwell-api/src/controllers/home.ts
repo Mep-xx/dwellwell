@@ -6,26 +6,45 @@ import { assignTasksToRooms } from 'src/utils/taskAssignment';
 export const getHomes = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user?.userId;
+
+    // Step 1: Get basic homes with rooms
     const homes = await prisma.home.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
       include: {
         rooms: {
           include: {
-            userTasks: {
-              where: { sourceType: 'room' },
-            },
+            userTasks: true,
           },
         },
-      },
+      }
     });
-    
+
+    // Step 2: Attach tasks to each room
+    for (const home of homes) {
+      for (const room of home.rooms) {
+        const tasks = await prisma.userTask.findMany({
+          where: {
+            userId,
+            isTracking: true, // Only if using this flag
+            OR: [
+              { roomId: room.id },
+              { trackable: { roomId: room.id } },
+            ],
+          },
+        });
+        // @ts-ignore: allow dynamic property on room
+        room.userTasks = tasks;
+      }
+    }
+
     res.json(homes);
   } catch (err) {
     console.error('Failed to fetch homes:', err);
     res.status(500).json({ error: 'Failed to load homes' });
   }
 };
+
 
 // POST /api/homes
 export const createHome = async (req: Request, res: Response) => {
@@ -127,7 +146,7 @@ export const createHome = async (req: Request, res: Response) => {
         },
       },
     });
-    
+
     res.status(201).json(fullHome);
   } catch (err) {
     console.error('Failed to create home:', err);

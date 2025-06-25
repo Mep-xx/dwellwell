@@ -67,13 +67,11 @@ export default function HomesPage() {
         fetchedHomes.map(async (home) => {
           try {
             const taskSummary = await api.get(`/api/homes/${home.id}/task-summary`);
-
-            const roomsRes = await api.get(`/api/rooms/home/${home.id}`);
-
             return {
               ...home,
               taskSummary: taskSummary.data as TaskSummary,
-              rooms: roomsRes.data as Room[],
+              // ✅ KEEP original rooms with userTasks
+              rooms: home.rooms || [],
             };
           } catch (err) {
             console.error(`❌ [ERROR] Enriching home ${home.address}`, err);

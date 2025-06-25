@@ -11,4 +11,3 @@ import { Task } from './task';
     homeId: string;
     userTasks?: Task[];
   };
-  

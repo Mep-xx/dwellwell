@@ -143,7 +143,7 @@ export function HomeCard({ home, summary, onToggle, onEdit, onDelete }: Props) {
                   </Button>
                 </div>
                 <p className="text-sm text-gray-600">
-                  ✅ {stats.complete} done • 🕒 {stats.dueSoon} due soon • ⚠️ {stats.overdue} overdue
+                  📋 {stats.total} total • ✅ {stats.complete} done • 🕒 {stats.dueSoon} due soon • ⚠️ {stats.overdue} overdue
                 </p>
                 <div className="w-full bg-gray-200 h-2 rounded mt-1 overflow-hidden">
                   <div
@@ -151,17 +151,25 @@ export function HomeCard({ home, summary, onToggle, onEdit, onDelete }: Props) {
                     style={{ width: `${stats.percent}%` }}
                   />
                 </div>
-                {room.userTasks?.length ? (
-                  <ul className="mt-2 pl-4 text-sm list-disc text-gray-700 space-y-1">
-                    {room.userTasks
-                      .filter((t) => t.status !== 'COMPLETED')
-                      .slice(0, 5)
-                      .map((userTask) => (
-                        <li key={userTask.id}>{userTask.title}</li>
-                      ))}
-                  </ul>
+                {room.userTasks && room.userTasks.length > 0 ? (
+                  room.userTasks.some((t) => t.status !== 'COMPLETED') ? (
+                    <ul className="mt-2 pl-4 text-sm list-disc text-gray-700 space-y-1">
+                      {room.userTasks
+                        .filter((t) => t.status !== 'COMPLETED')
+                        .slice(0, 5)
+                        .map((userTask) => (
+                          <li key={userTask.id}>{userTask.title}</li>
+                        ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm italic text-gray-400 mt-1">
+                      All tasks are complete!
+                    </p>
+                  )
                 ) : (
-                  <p className="text-sm italic text-gray-400 mt-1">No tasks for this room</p>
+                  <p className="text-sm italic text-gray-400 mt-1">
+                    No tasks assigned to this room.
+                  </p>
                 )}
               </div>
             );
