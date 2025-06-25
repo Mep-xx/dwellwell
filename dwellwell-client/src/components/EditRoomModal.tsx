@@ -54,7 +54,7 @@ export function EditRoomModal({ room, isOpen, onClose, onSave }: Props) {
   const [fireplace, setFireplace] = useState(false);
   const [boiler, setBoiler] = useState(false);
   const [smoke, setSmoke] = useState(false);
-  const [tasks, setTasks] = useState<RoomTask[]>([]);
+  const [userTasks, setUserTasks] = useState<RoomTask[]>([]);
 
   useEffect(() => {
     if (room) {
@@ -78,7 +78,7 @@ export function EditRoomModal({ room, isOpen, onClose, onSave }: Props) {
 
       api
         .get(`/api/rooms/${room.id}/tasks`)
-        .then((res) => setTasks(res.data))
+        .then((res) => setUserTasks(res.data))
         .catch((err) => {
           console.error('Failed to load room tasks', err);
           toast({ title: 'Failed to load tasks', variant: 'destructive' });
@@ -87,7 +87,7 @@ export function EditRoomModal({ room, isOpen, onClose, onSave }: Props) {
   }, [room]);
 
   const toggleTask = (taskId: string) => {
-    setTasks((prev) =>
+    setUserTasks((prev) =>
       prev.map((task) =>
         task.id === taskId ? { ...task, disabled: !task.disabled } : task
       )
@@ -106,7 +106,7 @@ export function EditRoomModal({ room, isOpen, onClose, onSave }: Props) {
       });
 
       await api.patch(`/api/rooms/${room?.id}/tasks`, {
-        disabledTaskIds: tasks.filter((t) => t.disabled).map((t) => t.id),
+        disabledTaskIds: userTasks.filter((t) => t.disabled).map((t) => t.id),
       });
 
       onSave();
@@ -204,7 +204,7 @@ export function EditRoomModal({ room, isOpen, onClose, onSave }: Props) {
           <div className="space-y-2 pt-4">
             <label className="block text-sm font-medium text-gray-700">Tracked Tasks</label>
             <div className="border rounded p-2 max-h-48 overflow-y-auto space-y-2">
-              {tasks.map((task) => (
+              {userTasks.map((task) => (
                 <label key={task.id} className="flex items-center gap-2 text-sm">
                   <input
                     type="checkbox"
@@ -214,7 +214,7 @@ export function EditRoomModal({ room, isOpen, onClose, onSave }: Props) {
                   {task.title}
                 </label>
               ))}
-              {tasks.length === 0 && (
+              {userTasks.length === 0 && (
                 <p className="text-xs text-gray-500 italic">No tasks assigned to this room.</p>
               )}
             </div>

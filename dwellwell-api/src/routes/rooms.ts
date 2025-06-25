@@ -118,13 +118,17 @@ router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/rooms/:id/tasks — Get Tasks for Room
+// GET /api/rooms/:id/tasks — Get Tasks for Room (direct + trackable)
 router.get('/:id/tasks', requireAuth, async (req: Request, res: Response) => {
   const userId = (req as any).user.userId;
-  const { id } = req.params;
+  const { id: roomId } = req.params;
 
   try {
-    const room = await prisma.room.findUnique({ where: { id }, include: { home: true } });
+    const room = await prisma.room.findUnique({
+      where: { id: roomId },
+      include: { home: true },
+    });
+
     if (!room || room.home.userId !== userId) {
       return res.status(403).json({ message: 'Forbidden' });
     }
@@ -132,15 +136,30 @@ router.get('/:id/tasks', requireAuth, async (req: Request, res: Response) => {
     const tasks = await prisma.userTask.findMany({
       where: {
         userId,
-        trackable: { roomId: id },
+        OR: [
+          { roomId },
+          { trackable: { roomId } },
+        ],
+      },
+      select: {
+        id: true,
+        title: true,
+        status: true,
       },
     });
 
-    res.json(tasks);
+    const response = tasks.map((task) => ({
+      id: task.id,
+      title: task.title,
+      disabled: false, // Default to false, can be modified via PATCH
+    }));
+
+    res.json(response);
   } catch (err) {
     console.error('Failed to fetch room tasks:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
+
 
 export default router;

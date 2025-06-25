@@ -9,8 +9,17 @@ export const getHomes = async (req: Request, res: Response) => {
     const homes = await prisma.home.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
-      include: { rooms: true },
+      include: {
+        rooms: {
+          include: {
+            userTasks: {
+              where: { sourceType: 'room' },
+            },
+          },
+        },
+      },
     });
+    
     res.json(homes);
   } catch (err) {
     console.error('Failed to fetch homes:', err);
@@ -105,8 +114,21 @@ export const createHome = async (req: Request, res: Response) => {
     });
 
     await assignTasksToRooms(newHome.id, userId);
+
+    const fullHome = await prisma.home.findUnique({
+      where: { id: newHome.id },
+      include: {
+        rooms: {
+          include: {
+            userTasks: {
+              where: { sourceType: 'room' },
+            },
+          },
+        },
+      },
+    });
     
-    res.status(201).json(newHome);
+    res.status(201).json(fullHome);
   } catch (err) {
     console.error('Failed to create home:', err);
     res.status(500).json({ error: 'Failed to create home' });

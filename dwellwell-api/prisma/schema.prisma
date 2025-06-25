@@ -74,7 +74,7 @@ model Room {
   home       Home        @relation("HomeRooms", fields: [homeId], references: [id], onDelete: Cascade)
   homeId     String
   trackables Trackable[] @relation("RoomTrackables")
-  tasks      UserTask[]  @relation("RoomTasks") // 👈 Add this line
+  userTasks  UserTask[]  @relation("RoomTasks")
 }
 
 model LawnProfile {
@@ -209,6 +209,7 @@ model UserTask {
   deferLimitDays       Int
   canBeOutsourced      Boolean
   canDefer             Boolean
+  isTracking           Boolean     @default(true)
 
   recurrenceInterval String
   taskType           TaskType

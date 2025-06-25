@@ -17,7 +17,7 @@ type TaskSummary = {
 };
 
 type Props = {
-  home: Home & { rooms?: (Room & { tasks?: Task[] })[] };
+  home: Home & { rooms?: (Room & { userTasks?: Task[] })[] };
   summary?: TaskSummary;
   onToggle: (homeId: string, newValue: boolean) => void;
   onEdit: (home: Home) => void;
@@ -123,7 +123,7 @@ export function HomeCard({ home, summary, onToggle, onEdit, onDelete }: Props) {
       {expanded && (
         <div className="px-4 pb-4 space-y-6">
           {home.rooms?.map((room) => {
-            const stats = getRoomStats(room.tasks || []);
+            const stats = getRoomStats(room.userTasks || []);
             return (
               <div key={room.id} className="border-t pt-4">
                 <div className="flex justify-between items-center">
@@ -151,13 +151,13 @@ export function HomeCard({ home, summary, onToggle, onEdit, onDelete }: Props) {
                     style={{ width: `${stats.percent}%` }}
                   />
                 </div>
-                {room.tasks?.length ? (
+                {room.userTasks?.length ? (
                   <ul className="mt-2 pl-4 text-sm list-disc text-gray-700 space-y-1">
-                    {room.tasks
+                    {room.userTasks
                       .filter((t) => t.status !== 'COMPLETED')
                       .slice(0, 5)
-                      .map((task) => (
-                        <li key={task.id}>{task.title}</li>
+                      .map((userTask) => (
+                        <li key={userTask.id}>{userTask.title}</li>
                       ))}
                   </ul>
                 ) : (
