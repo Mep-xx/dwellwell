@@ -15,6 +15,11 @@ import Settings from '../pages/Settings';
 import Billing from '../pages/Billing';
 import NotFound from '../pages/NotFound';
 
+//Admin Logic
+import { RequireAdmin } from '@/components/RequireAdmin';
+import AdminLayout from '@/components/layout/AdminLayout';
+import AdminTaskTemplates from '@/pages/admin/AdminTaskTemplates';
+
 export default function AppRoutes() {
   const { user, loading } = useAuth();
 
@@ -34,6 +39,19 @@ export default function AppRoutes() {
         <Route path="/vehicles" element={<ProtectedRoute><Vehicles /></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
         <Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
+      </Route>
+
+      <Route
+        path="/admin/*"
+        element={
+          <RequireAdmin>
+            <AdminLayout />
+          </RequireAdmin>
+        }
+      >
+        <Route path="admintasktemplates" element={<AdminTaskTemplates />} />
+        <Route path="users" element={<div>User Management Placeholder</div>} />
+        <Route path="homes" element={<div>Homes Management Placeholder</div>} />
       </Route>
 
       <Route path="*" element={<NotFound />} />

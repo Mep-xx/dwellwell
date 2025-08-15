@@ -18,6 +18,7 @@ model User {
   userTasks       UserTask[]
   aiQueries       AIQueryHistory[]
   dismissedTasks  DismissedUserTask[]
+  role            String              @default("user")
 }
 
 model LoginActivity {

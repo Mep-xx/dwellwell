@@ -20,11 +20,19 @@ export const signup = async (req: Request, res: Response) => {
       data: {
         email,
         password: hashed,
+        role: 'user',
       },
     });
 
-    const token = generateToken(user.id);
-    res.status(201).json({ token, user: { id: user.id, email: user.email } });
+    const token = generateToken({ id: user.id, role: user.role });
+    res.status(201).json({
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+      },
+    });
   } catch (err) {
     console.error('Signup error:', err);
     res.status(500).json({ message: 'Server error' });
@@ -36,16 +44,23 @@ export const login = async (req: Request, res: Response) => {
 
   try {
     const user = await prisma.user.findUnique({ where: { email } });
+    console.log('User fetched from DB:', user);
+
 
     if (!user || !(await bcrypt.compare(password, user.password))) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    const accessToken = jwt.sign({ userId: user.id }, process.env.JWT_SECRET!, {
-      expiresIn: '15m',
-    });
+    const accessToken = jwt.sign(
+      { userId: user.id, role: user.role },
+      process.env.JWT_SECRET!,
+      { expiresIn: '15m' }
+    );
 
-    const refreshToken = jwt.sign({ userId: user.id }, process.env.REFRESH_TOKEN_SECRET!, {
+
+    const refreshToken = jwt.sign(
+      { userId: user.id, role: user.role },
+      process.env.REFRESH_TOKEN_SECRET!, {
       expiresIn: '7d',
     });
 
@@ -61,6 +76,7 @@ export const login = async (req: Request, res: Response) => {
       user: {
         id: user.id,
         email: user.email,
+        role: user.role,
       },
     });
   } catch (err) {

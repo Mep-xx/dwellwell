@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 type User = {
   id: string;
   email: string;
+  role: 'user' | 'admin';
 };
 
 type AuthContextType = {
@@ -12,6 +13,7 @@ type AuthContextType = {
   loading: boolean;
   login: (user: User, token: string) => void;
   logout: () => void;
+  isAdmin: boolean;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -47,8 +49,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setToken(null);
   };
 
+  const isAdmin = user?.role === 'admin';
+
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, token, loading, login, logout, isAdmin }}>
       {!loading ? children : <div>Loading...</div>}
     </AuthContext.Provider>
   );

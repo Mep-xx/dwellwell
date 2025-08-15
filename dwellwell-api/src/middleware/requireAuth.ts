@@ -17,8 +17,11 @@ export const requireAuth = (req: Request, res: Response, next: NextFunction) => 
   const token = authHeader.split(' ')[1];
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload & { userId: string };
-    (req as any).user = decoded;
+    const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload & { userId: string; role?: string };
+    (req as any).user = {
+      userId: decoded.userId,
+      role: decoded.role || 'user' // fallback if role is missing
+    };
     next();
   } catch (err: any) {
     console.error('JWT verification failed:', err);

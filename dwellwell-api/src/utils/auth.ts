@@ -3,9 +3,13 @@ import bcrypt from 'bcryptjs';
 
 const JWT_SECRET = process.env.JWT_SECRET!;
 
-export function generateToken(userId: string) {
-  return jwt.sign({ userId }, JWT_SECRET, { expiresIn: '7d' });
-}
+export const generateToken = (user: { id: string; role: string }) => {
+  return jwt.sign(
+    { userId: user.id, role: user.role },
+    process.env.JWT_SECRET!,
+    { expiresIn: '15m' }
+  );
+};
 
 export function verifyToken(token: string) {
   return jwt.verify(token, JWT_SECRET);
