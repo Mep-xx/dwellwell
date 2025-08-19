@@ -11,7 +11,7 @@ import authRouter from './routes/auth';
 import mapboxRoutes from './routes/mapbox';
 import taskSummaryRoute from './routes/homes/summary';
 import roomRoutes from './routes/rooms';
-import adminTaskTemplateRoutes from './routes/admin/taskTemplates';
+import adminTaskTemplateRoutes from './routes/admin/task-templates';
 import cookieParser from 'cookie-parser';
 
 dotenv.config();
@@ -48,7 +48,7 @@ app.use('/api/homes', taskSummaryRoute);
 app.use('/api/mapbox', mapboxRoutes);
 app.use('/api/rooms', roomRoutes);
 app.patch('/api/rooms/:id', roomRoutes);
-app.use('/api/admin/taskTemplates', adminTaskTemplateRoutes);
+app.use('/api/admin/task-templates', adminTaskTemplateRoutes);
 
 // Serve Static Files (Home Images)
 import uploadHomeImageRoute from './routes/homes/upload-image';

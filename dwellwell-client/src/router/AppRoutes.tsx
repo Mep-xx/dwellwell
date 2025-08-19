@@ -2,8 +2,8 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import ProtectedRoute from '../components/ProtectedRoute';
-import Layout from '../components/layout/Layout';
 
+import Layout from '../components/layout/Layout';
 import LandingPage from '../pages/LandingPage';
 import Login from '../pages/Login';
 import Signup from '../pages/Signup';
