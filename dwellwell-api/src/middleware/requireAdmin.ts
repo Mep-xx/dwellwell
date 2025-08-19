@@ -1,14 +1,16 @@
-import { Request, Response, NextFunction } from 'express';
+// src/middleware/requireAdmin.ts
+import { RequestHandler } from 'express';
 
-export const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
+export const requireAdmin: RequestHandler = (req, res, next) => {
   const user = (req as any).user;
-  console.log('Authenticated user:', user);
-  console.log(user);
+  const id = user?.userId;
+  const role = user?.role;
 
-  if (!user || user.role !== 'admin') {
-    console.log('user is not admin');
+  console.log('🔐 Checking admin access for user:', id);
+  if (role !== 'admin') {
+    console.warn(`⛔ User ${id ?? 'unknown'} does not have admin role (found: ${role})`);
     return res.status(403).json({ message: 'Admin access required' });
   }
 
-  next();
+  return next();
 };

@@ -1,42 +1,64 @@
-// src/utils/api.ts
+// dwellwell-client/src/utils/api.ts
 import axios from 'axios';
 import { toast } from '@/components/ui/use-toast';
 import { apiLogout } from '@/utils/logoutHelper';
 
+// Prefer a full URL in dev: VITE_API_BASE_URL=http://localhost:4000/api
 export const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
-  withCredentials: true, // important for refresh token cookies
+  withCredentials: true, // send refresh cookie
 });
 
-// Add access token to outgoing requests
+// --- Token helpers -----------------------------------------------------------
+function getStoredToken(): string | null {
+  const raw = localStorage.getItem('dwellwell-token');
+  if (!raw) return null;
+
+  // If someone accidentally stored JSON-quoted token, unquote it safely.
+  try {
+    const parsed = JSON.parse(raw);
+    if (typeof parsed === 'string') return parsed;
+  } catch {
+    /* not JSON, fall through */
+  }
+  return raw.replace(/^"+|"+$/g, '').trim();
+}
+
+function isLikelyJwt(token?: string | null) {
+  return !!token && token.split('.').length === 3;
+}
+
+// --- Request interceptor: attach Authorization -------------------------------
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('dwellwell-token');
-    if (token && config.headers) {
+    const token = getStoredToken();
+    if (isLikelyJwt(token) && config.headers) {
       config.headers['Authorization'] = `Bearer ${token}`;
+    } else if (config.headers && 'Authorization' in config.headers) {
+      // Avoid sending garbage/undefined header
+      delete (config.headers as any)['Authorization'];
     }
     return config;
   },
   (error) => Promise.reject(error)
 );
 
-// Prevent toast spam
+// --- Prevent toast spam ------------------------------------------------------
 let hasShownBackendError = false;
 
-// Token refresh management
+// --- Refresh management ------------------------------------------------------
 let isRefreshing = false;
-let refreshSubscribers: ((token: string) => void)[] = [];
+let refreshSubscribers: Array<(t: string) => void> = [];
 
 function subscribeTokenRefresh(cb: (token: string) => void) {
   refreshSubscribers.push(cb);
 }
-
 function onRefreshed(token: string) {
   refreshSubscribers.forEach((cb) => cb(token));
   refreshSubscribers = [];
 }
 
-// Handle 401 errors and retry with refreshed token
+// --- Response interceptor: handle 401 -> refresh -----------------------------
 api.interceptors.response.use(
   (response) => {
     hasShownBackendError = false;
@@ -44,12 +66,13 @@ api.interceptors.response.use(
   },
   async (error) => {
     const originalRequest = error.config;
-    const message = error.response?.data?.message || '';
+    const status = error.response?.status;
 
-    // Handle expired access token
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // Only handle 401 once per request
+    if (status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
+      // Queue requests while a refresh is in flight
       if (isRefreshing) {
         return new Promise((resolve) => {
           subscribeTokenRefresh((token) => {
@@ -62,8 +85,12 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        const res = await api.post('/api/auth/refresh-token'); // uses cookie
-        const newAccessToken = res.data.accessToken;
+        const res = await api.post('/auth/refresh');
+        const newAccessToken = res.data?.accessToken;
+
+        if (!isLikelyJwt(newAccessToken)) {
+          throw new Error('No/invalid accessToken in refresh response');
+        }
 
         localStorage.setItem('dwellwell-token', newAccessToken);
         onRefreshed(newAccessToken);
@@ -71,7 +98,8 @@ api.interceptors.response.use(
         originalRequest.headers['Authorization'] = `Bearer ${newAccessToken}`;
         return api(originalRequest);
       } catch (refreshError) {
-        apiLogout(); // your helper function
+        // Hard logout on refresh failure
+        apiLogout?.();
         localStorage.removeItem('dwellwell-token');
         localStorage.removeItem('dwellwell-user');
 
@@ -81,14 +109,14 @@ api.interceptors.response.use(
           variant: 'destructive',
         });
 
-        window.location.href = '/login'; // hard redirect to clear context
+        window.location.href = '/login';
         return;
       } finally {
         isRefreshing = false;
       }
     }
 
-    // Backend down
+    // Backend down / network error
     if (
       error.code === 'ERR_NETWORK' ||
       (error.message && error.message.toLowerCase().includes('network error'))
@@ -107,9 +135,9 @@ api.interceptors.response.use(
   }
 );
 
-// Auth functions
+// --- Auth functions: DO NOT double-prefix with /api --------------------------
 export const signup = (email: string, password: string) =>
-  api.post('/api/auth/signup', { email, password });
+  api.post('/auth/signup', { email, password });
 
 export const login = (email: string, password: string) =>
-  api.post('/api/auth/login', { email, password });
+  api.post('/auth/login', { email, password });

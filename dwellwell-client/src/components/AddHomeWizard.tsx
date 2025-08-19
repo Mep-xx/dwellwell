@@ -98,7 +98,7 @@ export function AddHomeWizard({
         floor: normalizeFloor(floorToLabel(room.floor)),
       }));
 
-      const res = await api.post('/api/homes', {
+      const res = await api.post('/homes', {
         address,
         apartment,
         city,
@@ -451,7 +451,7 @@ export function AddHomeWizard({
                   homeId={newHomeId}
                   onUploadComplete={(filename) => {
                     setImageUploadedUrl(filename);
-                    api.patch(`/api/homes/${newHomeId}`, { imageUrl: filename }).catch(console.error);
+                    api.patch(`/homes/${newHomeId}`, { imageUrl: filename }).catch(console.error);
                   }}
                 />
 

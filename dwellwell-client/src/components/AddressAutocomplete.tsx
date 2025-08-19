@@ -38,7 +38,7 @@ export function AddressAutocomplete({
     const delayDebounce = setTimeout(async () => {
       setLoading(true);
       try {
-        const res = await api.get('/api/mapbox/suggest', {
+        const res = await api.get('/mapbox/suggest', {
           params: { query: input },
         });
 

@@ -77,7 +77,7 @@ export function EditRoomModal({ room, isOpen, onClose, onSave }: Props) {
       setSmoke(room.hasSmokeDetector || false);
 
       api
-        .get(`/api/rooms/${room.id}/tasks`)
+        .get(`/rooms/${room.id}/tasks`)
         .then((res) => setUserTasks(res.data))
         .catch((err) => {
           console.error('Failed to load room tasks', err);
@@ -96,7 +96,7 @@ export function EditRoomModal({ room, isOpen, onClose, onSave }: Props) {
 
   const handleSubmit = async () => {
     try {
-      await api.patch(`/api/rooms/${room?.id}`, {
+      await api.patch(`/rooms/${room?.id}`, {
         name,
         type,
         floor: normalizeFloor(floor),
@@ -105,7 +105,7 @@ export function EditRoomModal({ room, isOpen, onClose, onSave }: Props) {
         hasSmokeDetector: smoke,
       });
 
-      await api.patch(`/api/rooms/${room?.id}/tasks`, {
+      await api.patch(`/rooms/${room?.id}/tasks`, {
         disabledTaskIds: userTasks.filter((t) => t.disabled).map((t) => t.id),
       });
 

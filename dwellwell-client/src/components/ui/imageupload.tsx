@@ -18,7 +18,7 @@ export function ImageUpload({ homeId, onUploadComplete, disabled = false }: Prop
     formData.append('image', file); // 🛠️ only the image, not the homeId
 
     try {
-      const res = await api.post(`/api/homes/upload-image?homeId=${homeId}`, formData, {
+      const res = await api.post(`/homes/upload-image?homeId=${homeId}`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       const { filename } = res.data;

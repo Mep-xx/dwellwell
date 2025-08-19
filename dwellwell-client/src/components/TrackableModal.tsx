@@ -90,14 +90,14 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
       if (lookupTimer) clearTimeout(lookupTimer);
       const timer = setTimeout(async () => {
         try {
-          const res = await api.get('/api/lookup/appliances', { params: { q: value } });
+          const res = await api.get('/lookup/appliances', { params: { q: value } });
   
           if (Array.isArray(res.data) && res.data.length > 0) {
             setSuggestions(res.data);
             setShowSuggestions(true);
           } else {
             // Fallback to AI suggestion if DB returned nothing
-            const aiRes = await api.get('/api/ai/lookup-appliance', { params: { q: value } });
+            const aiRes = await api.get('/ai/lookup-appliance', { params: { q: value } });
             if (Array.isArray(aiRes.data)) {
               setSuggestions(aiRes.data);
               setShowSuggestions(aiRes.data.length > 0);

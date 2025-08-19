@@ -83,7 +83,7 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
       if (saving) return;
       setSaving(true);
 
-      const res = await api.post('/api/homes', {
+      const res = await api.post('/homes', {
         address,
         city,
         state,
@@ -111,7 +111,7 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
     if (!newHomeId) return;
 
     try {
-      await api.patch(`/api/homes/${newHomeId}`, {
+      await api.patch('/homes/${newHomeId}', {
         imageUrl: filename,
       });
 
@@ -129,7 +129,7 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
 
     timeoutRef.current = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/mapbox/suggest?query=${encodeURIComponent(value)}`);
+        const res = await fetch('/mapbox/suggest?query=${encodeURIComponent(value)}');
         const data = await res.json();
         setSuggestionsRaw(data.features);
         setSuggestions(data.features.map((f: any) => f.place_name));
@@ -142,7 +142,7 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
   const handleSuggestionClick = (place: any) => {
     const number = place.address || '';
     const street = place.text || '';
-    const fullAddress = `${number} ${street}`.trim();
+    const fullAddress = '${number} ${street}'.trim();
 
     setAddress(fullAddress);
     setCity('');
@@ -159,7 +159,7 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
     if (!address) return;
     try {
       setLoadingAI(true);
-      const res = await api.post('/api/homes/enrich-home', { address, city, state });
+      const res = await api.post('/homes/enrich-home', { address, city, state });
       const data = res.data;
 
       if (data.squareFeet) setSquareFeet(data.squareFeet.toString());
@@ -369,7 +369,7 @@ export function AddHomeModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
             {imageUploadedUrl ? (
               <>
                 <img
-                  src={`${import.meta.env.VITE_API_BASE_URL}/uploads/${imageUploadedUrl}`}
+                  src={'${import.meta.env.VITE_API_BASE_URL}/uploads/${imageUploadedUrl}'}
                   alt="Preview"
                   className="mt-3 rounded w-full max-h-48 object-cover"
                 />

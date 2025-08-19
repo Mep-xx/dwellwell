@@ -60,13 +60,13 @@ export default function HomesPage() {
     }
 
     try {
-      const res = await api.get('/api/homes');
+      const res = await api.get('/homes');
       const fetchedHomes: Home[] = res.data;
 
       const enrichedHomes = await Promise.all(
         fetchedHomes.map(async (home) => {
           try {
-            const taskSummary = await api.get(`/api/homes/${home.id}/task-summary`);
+            const taskSummary = await api.get(`/homes/${home.id}/task-summary`);
             return {
               ...home,
               taskSummary: taskSummary.data as TaskSummary,
@@ -97,7 +97,7 @@ export default function HomesPage() {
         )
       );
 
-      await api.patch(`/api/homes/${homeId}/check`, { isChecked: newValue });
+      await api.patch(`/homes/${homeId}/check`, { isChecked: newValue });
 
       toast({
         title: newValue
@@ -127,7 +127,7 @@ export default function HomesPage() {
     if (!editTargetHome?.id) return;
 
     try {
-      await api.patch(`/api/homes/${editTargetHome.id}`, {
+      await api.patch(`/homes/${editTargetHome.id}`, {
         nickname: updatedFields.nickname,
         squareFeet: updatedFields.squareFeet,
         lotSize: updatedFields.lotSize,
@@ -162,7 +162,7 @@ export default function HomesPage() {
     if (!deleteTargetId) return;
 
     try {
-      await api.delete(`/api/homes/${deleteTargetId}`);
+      await api.delete(`/homes/${deleteTargetId}`);
 
       setHomes((prev) => prev.filter((home) => home.id !== deleteTargetId));
       setDeleteTargetId(null);

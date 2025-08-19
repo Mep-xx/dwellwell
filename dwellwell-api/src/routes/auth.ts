@@ -1,12 +1,13 @@
 import { Router } from 'express';
 import jwt, { JwtPayload } from 'jsonwebtoken';
-import { signup, login } from '../controllers/auth';
+import { signup, login, refresh } from '../controllers/auth';
 
 const router = Router();
 
 // User signup & login
 router.post('/signup', signup);
 router.post('/login', login);
+router.post('/refresh', refresh);
 
 // Refresh access token using HttpOnly refresh token cookie
 router.post('/refresh-token', (req, res) => {

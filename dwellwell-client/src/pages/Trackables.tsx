@@ -22,7 +22,7 @@ export default function Trackables() {
 
     const token = localStorage.getItem("dwellwell-token");
 
-    api.get('/api/trackables', {
+    api.get('/trackables', {
       params: { homeId: selectedHomeId },
     })
       .then(res => {
@@ -43,7 +43,7 @@ export default function Trackables() {
     if (!selectedHomeId) return;
 
     try {
-      const res = await api.post('/api/trackables', {
+      const res = await api.post('/trackables', {
         ...newTrackable,
         homeId: selectedHomeId,
       });
@@ -62,7 +62,7 @@ export default function Trackables() {
 
   const handleViewTasks = async (trackableId: string) => {
     try {
-      const res = await api.get('/api/tasks', {
+      const res = await api.get('/tasks', {
         params: { trackableId }
       });
 
@@ -77,7 +77,7 @@ export default function Trackables() {
     if (!confirm('Are you sure you want to delete this trackable?')) return;
 
     try {
-      await api.delete(`/api/trackables/${id}`);
+      await api.delete(`/trackables/${id}`);
       setTrackables(prev => prev.filter(t => t.id !== id));
       toast({
         title: "Trackable deleted",
