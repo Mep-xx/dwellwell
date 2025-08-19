@@ -64,17 +64,21 @@ api.interceptors.response.use(
     return response;
   },
   async (error) => {
-    const originalRequest = error.config;
+    const originalRequest = error.config || {};
     const status = error.response?.status;
+    const url: string = originalRequest.url || '';
 
-    // Only handle 401 once per request
+    if (status === 401 && (url.includes('/auth/login') || url.includes('/auth/signup'))) {
+      return Promise.resolve(error.response);
+    }
+    // Only handle 401 once per request (token refresh flow)
     if (status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
-      // Queue requests while a refresh is in flight
       if (isRefreshing) {
         return new Promise((resolve) => {
-          subscribeTokenRefresh((token) => {
+          subscribeTokenRefresh((token: string) => {
+            originalRequest.headers = originalRequest.headers || {};
             originalRequest.headers['Authorization'] = `Bearer ${token}`;
             resolve(api(originalRequest));
           });
@@ -94,22 +98,24 @@ api.interceptors.response.use(
         localStorage.setItem('dwellwell-token', newAccessToken);
         onRefreshed(newAccessToken);
 
+        originalRequest.headers = originalRequest.headers || {};
         originalRequest.headers['Authorization'] = `Bearer ${newAccessToken}`;
         return api(originalRequest);
-      } catch (refreshError) {
-        // Hard logout on refresh failure
+      } catch {
         apiLogout?.();
         localStorage.removeItem('dwellwell-token');
         localStorage.removeItem('dwellwell-user');
 
-        toast({
-          title: 'Session expired',
-          description: 'Please log in again.',
-          variant: 'destructive',
-        });
+        if (!window.location.pathname.includes('/login')) {
+          toast({
+            title: 'Session expired',
+            description: 'Please log in again.',
+            variant: 'destructive',
+          });
+        }
 
         window.location.href = '/login';
-        return;
+        return; // swallow
       } finally {
         isRefreshing = false;
       }
@@ -130,6 +136,7 @@ api.interceptors.response.use(
       }
     }
 
+    // For all other cases, reject normally
     return Promise.reject(error);
   }
 );

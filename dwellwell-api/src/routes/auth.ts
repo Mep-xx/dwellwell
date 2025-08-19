@@ -1,6 +1,6 @@
 // dwellwell-api/src/routes/auth.ts
 import { Router } from 'express';
-import jwt, { JwtPayload } from 'jsonwebtoken';
+import jwt, { JwtPayload, SignOptions, Secret } from 'jsonwebtoken';
 import { signup, login } from '../controllers/auth';
 import { prisma } from '../db/prisma';
 
@@ -10,9 +10,7 @@ const ACCESS_TOKEN_TTL = '15m';
 const REFRESH_COOKIE_NAME = 'refreshToken';
 const isProd = process.env.NODE_ENV === 'production';
 
-/**
- * Public auth endpoints
- */
+// Public auth endpoints
 router.post('/signup', signup);
 router.post('/login', login);
 
@@ -30,7 +28,7 @@ router.post('/refresh', async (req, res) => {
   try {
     const decoded = jwt.verify(
       token,
-      process.env.REFRESH_TOKEN_SECRET!
+      (process.env.REFRESH_TOKEN_SECRET as Secret)
     ) as JwtPayload & { userId: string; role?: string };
 
     // Prefer role from the refresh token; if missing, fetch from DB.
@@ -48,8 +46,8 @@ router.post('/refresh', async (req, res) => {
 
     const accessToken = jwt.sign(
       { userId: decoded.userId, role },
-      process.env.JWT_SECRET!,
-      { expiresIn: ACCESS_TOKEN_TTL }
+      (process.env.JWT_SECRET as Secret),
+      { expiresIn: ACCESS_TOKEN_TTL } as SignOptions
     );
 
     return res.json({ accessToken });
