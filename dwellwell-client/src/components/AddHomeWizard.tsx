@@ -458,7 +458,7 @@ export function AddHomeWizard({
                 {imageUploadedUrl && (
                   <>
                     <img
-                      src={`${import.meta.env.VITE_API_BASE_URL}/uploads/${imageUploadedUrl}`}
+                      src={imageUploadedUrl}
                       alt="Preview"
                       className="mt-3 rounded w-full max-h-48 object-cover"
                     />

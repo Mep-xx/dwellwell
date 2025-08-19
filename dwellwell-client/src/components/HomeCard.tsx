@@ -50,15 +50,23 @@ export function HomeCard({ home, summary, onToggle, onEdit, onDelete }: Props) {
     };
   };
 
+  const isAbsoluteUrl = (v?: string) => !!v && /^https?:\/\//i.test(v || '');
+
+  const imageSrc =
+    home.imageUrl
+      ? isAbsoluteUrl(home.imageUrl)
+        // already absolute URL (new format) -> use as is
+        ? home.imageUrl
+        // legacy relative value -> build a public URL without /api
+        : `${(import.meta.env.VITE_PUBLIC_BASE_URL || window.location.origin)}${home.imageUrl.startsWith('/uploads') ? '' : '/uploads/'
+        }${home.imageUrl.replace(/^\/+/, '')}`
+      : '/images/home_placeholder.png';
+
   return (
     <div className={`relative rounded-xl border shadow overflow-hidden transition-all ${home.isChecked ? 'bg-white' : 'bg-gray-100 opacity-70'}`} >
       {/* Image */}
       <img
-        src={
-          home.imageUrl
-            ? `${import.meta.env.VITE_API_BASE_URL}/uploads/${home.imageUrl}`
-            : '/images/home_placeholder.png'
-        }
+        src={imageSrc}
         alt={home.nickname || home.address}
         title={home.nickname || home.address}
         className={`w-full h-40 object-cover transition-all ${home.isChecked ? '' : 'grayscale'}`}

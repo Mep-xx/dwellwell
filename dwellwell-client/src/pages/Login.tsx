@@ -16,12 +16,11 @@ export default function Login() {
 
     try {
       const res = await api.post('/auth/login', { email, password });
-      const { token, user } = res.data;
-
-      localStorage.setItem('dwellwell-token', token);
+      const { accessToken, user } = res.data;
+      localStorage.setItem('dwellwell-token', accessToken);
       localStorage.setItem('dwellwell-user', JSON.stringify(user));
 
-      login(user, token); // Save in context and localStorage
+      login(user, accessToken); // Save in context and localStorage
       navigate('/dashboard');
     } catch (err: any) {
       console.error('Login error:', err);

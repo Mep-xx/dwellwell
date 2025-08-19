@@ -36,8 +36,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const login = (user: User, token: string) => {
-    localStorage.setItem('dwellwell-user', JSON.stringify(user));
     localStorage.setItem('dwellwell-token', token);
+    localStorage.setItem('dwellwell-user', JSON.stringify(user));
     setUser(user);
     setToken(token);
   };

@@ -1,31 +1,55 @@
-// src/controllers/auth.ts
 import { Request, Response } from 'express';
 import jwt, { JwtPayload } from 'jsonwebtoken';
-import { prisma } from '../db/prisma';
 import bcrypt from 'bcrypt';
-import { hashPassword } from '../utils/auth'; // keep your helper if you want
+import { prisma } from '../db/prisma';
+
+const ACCESS_TOKEN_TTL = '15m';
+const REFRESH_COOKIE_NAME = 'refreshToken';
+const isProd = process.env.NODE_ENV === 'production';
 
 export const signup = async (req: Request, res: Response) => {
   const { email, password } = req.body;
 
-  if (!email || !password)
+  if (!email || !password) {
     return res.status(400).json({ message: 'Email and password are required' });
+  }
 
   try {
     const existingUser = await prisma.user.findUnique({ where: { email } });
-    if (existingUser)
+    if (existingUser) {
       return res.status(409).json({ message: 'Email is already in use' });
+    }
 
-    const hashed = await hashPassword(password);
+    const hashed = await bcrypt.hash(password, 10);
     const user = await prisma.user.create({
       data: { email, password: hashed, role: 'user' },
     });
 
-    // Usually you’d also log them in here; leaving as-is from your code
-    const token = jwt.sign({ userId: user.id, role: user.role }, process.env.JWT_SECRET!, { expiresIn: '15m' });
+    // Access token includes role
+    const accessToken = jwt.sign(
+      { userId: user.id, role: user.role },
+      process.env.JWT_SECRET!,
+      { expiresIn: ACCESS_TOKEN_TTL }
+    );
+
+    // Refresh token includes role so refresh can re-mint role-bearing access tokens
+    const refreshToken = jwt.sign(
+      { userId: user.id, role: user.role },
+      process.env.REFRESH_TOKEN_SECRET!,
+      { expiresIn: '7d' }
+    );
+
+    // Dev-friendly cookie options
+    res.cookie(REFRESH_COOKIE_NAME, refreshToken, {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: isProd ? 'strict' : 'lax',
+      path: '/api/auth/refresh',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
 
     res.status(201).json({
-      token,
+      accessToken,
       user: { id: user.id, email: user.email, role: user.role },
     });
   } catch (err) {
@@ -36,7 +60,6 @@ export const signup = async (req: Request, res: Response) => {
 
 export const login = async (req: Request, res: Response) => {
   const { email, password } = req.body;
-
   try {
     const user = await prisma.user.findUnique({ where: { email } });
     console.log('User fetched from DB:', user);
@@ -45,27 +68,30 @@ export const login = async (req: Request, res: Response) => {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
+    // Access token includes role
     const accessToken = jwt.sign(
-      { userId: user.id, role: user.role }, // ✅ include role
+      { userId: user.id, role: user.role },
       process.env.JWT_SECRET!,
-      { expiresIn: '15m' }
+      { expiresIn: ACCESS_TOKEN_TTL }
     );
-    console.log('Generated token payload:', jwt.decode(accessToken));
 
+    // Refresh token includes role
     const refreshToken = jwt.sign(
-      { userId: user.id }, // refresh can be minimal
+      { userId: user.id, role: user.role },
       process.env.REFRESH_TOKEN_SECRET!,
       { expiresIn: '7d' }
     );
 
-    // ✅ dev-friendly cookie options so it actually sets on http://localhost
-    res.cookie('refreshToken', refreshToken, {
+    // Dev-friendly cookie options
+    res.cookie(REFRESH_COOKIE_NAME, refreshToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+      secure: isProd,
+      sameSite: isProd ? 'strict' : 'lax',
+      path: '/api/auth/refresh',
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
+    console.log('Generated token payload:', jwt.decode(accessToken));
     return res.json({
       accessToken,
       user: { id: user.id, email: user.email, role: user.role },
@@ -78,25 +104,45 @@ export const login = async (req: Request, res: Response) => {
 
 export const refresh = async (req: Request, res: Response) => {
   try {
-    const token = req.cookies?.refreshToken;
-    if (!token) return res.status(401).json({ message: 'Missing refresh token' });
+    const token = req.cookies?.[REFRESH_COOKIE_NAME];
+    if (!token) {
+      return res.status(401).json({ message: 'No refresh token' });
+    }
 
-    const decoded = jwt.verify(token, process.env.REFRESH_TOKEN_SECRET!) as JwtPayload & { userId: string };
+    const decoded = jwt.verify(
+      token,
+      process.env.REFRESH_TOKEN_SECRET!
+    ) as JwtPayload & { userId: string; role?: string };
 
-    // fetch current role
-    const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
-    if (!user) return res.status(401).json({ message: 'User not found' });
+    // Prefer role from refresh token; if missing, read from DB
+    let role = decoded.role;
+    if (!role) {
+      const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
+      role = user?.role;
+    }
+    if (!role) {
+      return res.status(401).json({ message: 'Unable to resolve user role' });
+    }
 
-    // ✅ always include role in the new access token
     const accessToken = jwt.sign(
-      { userId: user.id, role: user.role },
+      { userId: decoded.userId, role },
       process.env.JWT_SECRET!,
-      { expiresIn: '15m' }
+      { expiresIn: ACCESS_TOKEN_TTL }
     );
 
     return res.json({ accessToken });
-  } catch (err) {
-    console.error('Refresh error:', err);
-    return res.status(401).json({ message: 'Invalid refresh token' });
+  } catch (err: any) {
+    console.error('Refresh token error:', err);
+    return res.status(401).json({ message: err.message || 'Invalid refresh token' });
   }
+};
+
+export const logout = (req: Request, res: Response) => {
+  res.clearCookie(REFRESH_COOKIE_NAME, {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? 'strict' : 'lax',
+    path: '/api/auth/refresh',
+  });
+  return res.json({ message: 'Logged out successfully' });
 };

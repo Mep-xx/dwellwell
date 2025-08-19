@@ -35,7 +35,6 @@ api.interceptors.request.use(
     if (isLikelyJwt(token) && config.headers) {
       config.headers['Authorization'] = `Bearer ${token}`;
     } else if (config.headers && 'Authorization' in config.headers) {
-      // Avoid sending garbage/undefined header
       delete (config.headers as any)['Authorization'];
     }
     return config;

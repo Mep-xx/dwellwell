@@ -16,11 +16,18 @@ const heatingCoolingOptions = [
   'Ductless Mini-Split',
   'Pellet Stove',
   'Space Heater',
-  'Solar Heating'
+  'Solar Heating',
 ];
 
 const suggestedFeatures = [
-  'Fireplace', 'Skylight', 'Patio', 'Deck', 'Generator', 'Chimney', 'Crawlspace', 'Security System'
+  'Fireplace',
+  'Skylight',
+  'Patio',
+  'Deck',
+  'Generator',
+  'Chimney',
+  'Crawlspace',
+  'Security System',
 ];
 
 type Props = {
@@ -29,6 +36,16 @@ type Props = {
   onSave: (updatedFields: Partial<Home>) => void;
   onCancel: () => void;
 };
+
+const isAbsoluteUrl = (s?: string | null) => !!s && /^https?:\/\//i.test(s);
+
+function buildUploadsUrlFromRelative(p: string) {
+  // Build an absolute uploads URL from a legacy relative path like "homes/<id>/main.jpg"
+  const apiBase: string = (import.meta.env.VITE_API_BASE_URL || '').toString();
+  const origin = apiBase.replace(/\/api\/?$/i, '') || window.location.origin;
+  const trimmed = p.replace(/^\/?uploads\/?/i, ''); // avoid double /uploads
+  return `${origin}/uploads/${trimmed}`;
+}
 
 export function EditHomeModal({ isOpen, home, onSave, onCancel }: Props) {
   const [nickname, setNickname] = useState('');
@@ -54,7 +71,7 @@ export function EditHomeModal({ isOpen, home, onSave, onCancel }: Props) {
       setBoilerType(home.boilerType ?? '');
       setHeatingCoolingTypes(home.heatingCoolingTypes ?? []);
       setFeatures(home.features ?? []);
-      setImageUrl(home.imageUrl ?? null);
+      setImageUrl(home.imageUrl ?? null); // can be absolute (new) or relative (legacy)
     }
   }, [isOpen, home]);
 
@@ -70,9 +87,14 @@ export function EditHomeModal({ isOpen, home, onSave, onCancel }: Props) {
       boilerType,
       heatingCoolingTypes,
       features,
-      imageUrl,
+      imageUrl, // store whatever we have (absolute preferred)
     });
   };
+
+  const previewSrc =
+    imageUrl
+      ? (isAbsoluteUrl(imageUrl) ? imageUrl : buildUploadsUrlFromRelative(imageUrl))
+      : '/images/home_placeholder.png';
 
   return (
     <Dialog open={isOpen} onOpenChange={onCancel}>
@@ -85,9 +107,24 @@ export function EditHomeModal({ isOpen, home, onSave, onCancel }: Props) {
           <Input placeholder="Nickname" value={nickname} onChange={(e) => setNickname(e.target.value)} />
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            <Input type="number" placeholder="Square Feet" value={squareFeet} onChange={(e) => setSquareFeet(e.target.value)} />
-            <Input type="number" placeholder="Lot Size (acres)" value={lotSize} onChange={(e) => setLotSize(e.target.value)} />
-            <Input type="number" placeholder="Year Built" value={yearBuilt} onChange={(e) => setYearBuilt(e.target.value)} />
+            <Input
+              type="number"
+              placeholder="Square Feet"
+              value={squareFeet}
+              onChange={(e) => setSquareFeet(e.target.value)}
+            />
+            <Input
+              type="number"
+              placeholder="Lot Size (acres)"
+              value={lotSize}
+              onChange={(e) => setLotSize(e.target.value)}
+            />
+            <Input
+              type="number"
+              placeholder="Year Built"
+              value={yearBuilt}
+              onChange={(e) => setYearBuilt(e.target.value)}
+            />
           </div>
 
           <div className="pt-2">
@@ -101,9 +138,7 @@ export function EditHomeModal({ isOpen, home, onSave, onCancel }: Props) {
                     checked={heatingCoolingTypes.includes(option)}
                     onChange={() => {
                       setHeatingCoolingTypes((prev) =>
-                        prev.includes(option)
-                          ? prev.filter((item) => item !== option)
-                          : [...prev, option]
+                        prev.includes(option) ? prev.filter((i) => i !== option) : [...prev, option]
                       );
                     }}
                   />
@@ -111,12 +146,25 @@ export function EditHomeModal({ isOpen, home, onSave, onCancel }: Props) {
                 </label>
               ))}
             </div>
-            <Input placeholder="Boiler Type (optional)" value={boilerType} onChange={(e) => setBoilerType(e.target.value)} className="mt-2" />
+            <Input
+              placeholder="Boiler Type (optional)"
+              value={boilerType}
+              onChange={(e) => setBoilerType(e.target.value)}
+              className="mt-2"
+            />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <Input placeholder="Roof Type (e.g. Asphalt Shingle)" value={roofType} onChange={(e) => setRoofType(e.target.value)} />
-            <Input placeholder="Siding Type (e.g. Vinyl, Wood)" value={sidingType} onChange={(e) => setSidingType(e.target.value)} />
+            <Input
+              placeholder="Roof Type (e.g. Asphalt Shingle)"
+              value={roofType}
+              onChange={(e) => setRoofType(e.target.value)}
+            />
+            <Input
+              placeholder="Siding Type (e.g. Vinyl, Wood)"
+              value={sidingType}
+              onChange={(e) => setSidingType(e.target.value)}
+            />
           </div>
 
           <div>
@@ -126,14 +174,19 @@ export function EditHomeModal({ isOpen, home, onSave, onCancel }: Props) {
                 <button
                   key={feature}
                   type="button"
-                  className={`px-3 py-1 text-sm rounded border ${features.includes(feature) ? 'bg-brand-primary text-white' : 'bg-gray-100 hover:bg-gray-200'}`}
+                  className={`px-3 py-1 text-sm rounded border ${
+                    features.includes(feature)
+                      ? 'bg-brand-primary text-white'
+                      : 'bg-gray-100 hover:bg-gray-200'
+                  }`}
                   onClick={() => {
                     setFeatures((prev) =>
                       prev.includes(feature) ? prev.filter((f) => f !== feature) : [...prev, feature]
                     );
                   }}
                 >
-                  {features.includes(feature) ? '✓ ' : ''}{feature}
+                  {features.includes(feature) ? '✓ ' : ''}
+                  {feature}
                 </button>
               ))}
             </div>
@@ -159,7 +212,7 @@ export function EditHomeModal({ isOpen, home, onSave, onCancel }: Props) {
             {imageUrl && (
               <div className="mb-3">
                 <img
-                  src={`${import.meta.env.VITE_API_BASE_URL}/uploads/${imageUrl}`}
+                  src={previewSrc}
                   alt="Current Home"
                   className="rounded w-full max-h-40 object-cover"
                 />
@@ -167,14 +220,19 @@ export function EditHomeModal({ isOpen, home, onSave, onCancel }: Props) {
             )}
             <ImageUpload
               homeId={home.id}
-              onUploadComplete={(relativePath) => setImageUrl(`${relativePath}?t=${Date.now()}`)}
+              onUploadComplete={(absoluteUrl) => {
+                // server returns absolute URL; add cache-buster
+                setImageUrl(`${absoluteUrl}?t=${Date.now()}`);
+              }}
             />
           </div>
         </div>
 
         {/* Footer */}
         <div className="sticky bottom-0 bg-white border-t p-4 flex justify-end gap-3">
-          <Button variant="outline" onClick={onCancel}>Cancel</Button>
+          <Button variant="outline" onClick={onCancel}>
+            Cancel
+          </Button>
           <Button onClick={handleSave}>Save</Button>
         </div>
       </DialogContent>
