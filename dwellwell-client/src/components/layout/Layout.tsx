@@ -52,10 +52,10 @@ export default function Layout() {
             <NavLink to="/admin/AdminTaskTemplates" className={({ isActive }) => navLinkClasses(isActive)}>
               🗂 Task Templates
             </NavLink>
-            <NavLink to="/admin/users" className={({ isActive }) => navLinkClasses(isActive)}>
+            <NavLink to="/admin/AdminUsers" className={({ isActive }) => navLinkClasses(isActive)}>
               👥 Users
             </NavLink>
-            <NavLink to="/admin/homes" className={({ isActive }) => navLinkClasses(isActive)}>
+            <NavLink to="/admin/AdminHomes" className={({ isActive }) => navLinkClasses(isActive)}>
               🏘 Homes
             </NavLink>
           </div>

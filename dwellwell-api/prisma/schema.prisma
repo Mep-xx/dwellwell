@@ -7,18 +7,42 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum Units {
+  imperial
+  metric
+}
+
+enum HouseholdRole {
+  owner
+  renter
+  property_manager
+}
+
+enum DiySkill {
+  none
+  beginner
+  intermediate
+  pro
+}
+
 model User {
   id              String              @id @default(uuid())
   email           String              @unique
   password        String
   createdAt       DateTime            @default(now())
-  homes           Home[]
+  homes           Home[]              @relation("UserHomes")
   loginActivities LoginActivity[]
   billingAccount  BillingAccount?
   userTasks       UserTask[]
   aiQueries       AIQueryHistory[]
   dismissedTasks  DismissedUserTask[]
   role            String              @default("user")
+
+  defaultHomeId String?
+  defaultHome   Home?   @relation("UserDefaultHome", fields: [defaultHomeId], references: [id], onDelete: SetNull)
+
+  profile UserProfile?
+  comms   CommunicationPreferences?
 }
 
 model LoginActivity {
@@ -54,11 +78,14 @@ model Home {
   roofType      String?
   sidingType    String?
 
-  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User         @relation("UserHomes", fields: [userId], references: [id], onDelete: Cascade)
   rooms       Room[]       @relation("HomeRooms")
   trackables  Trackable[]  @relation("HomeTrackables")
   lawnProfile LawnProfile?
   vehicles    Vehicle[]    @relation("HomeVehicles")
+
+  // back-relation for User.defaultHome (named)
+  defaultForUsers User[] @relation("UserDefaultHome")
 
   @@unique([userId, address, city, state, apartment])
 }
@@ -164,12 +191,11 @@ model TaskTemplate {
   resources       Json?
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt 
+  updatedAt DateTime @updatedAt
 
   userTasks             UserTask[]
   ApplianceTaskTemplate ApplianceTaskTemplate[]
 }
-
 
 model ApplianceTaskTemplate {
   id                 String  @id @default(uuid())
@@ -212,7 +238,7 @@ model UserTask {
   deferLimitDays       Int
   canBeOutsourced      Boolean
   canDefer             Boolean
-  isTracking           Boolean     @default(true)
+  isTracking           Boolean         @default(true)
 
   recurrenceInterval String
   taskType           TaskType
@@ -284,4 +310,41 @@ enum TaskType {
   GENERAL
   AI_GENERATED
   USER_DEFINED
+}
+
+model UserProfile {
+  userId String @id
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  firstName String?
+  lastName  String?
+  avatarUrl String?
+
+  timezone String?
+  locale   String?
+  units    Units?
+
+  householdRole HouseholdRole?
+  diySkill      DiySkill?
+
+  tosAcceptedAt     DateTime?
+  privacyAcceptedAt DateTime?
+  marketingOptInAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CommunicationPreferences {
+  userId String @id
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  emailEnabled     Boolean @default(true)
+  pushEnabled      Boolean @default(false)
+  reminderLeadDays Int     @default(3)
+  quietHoursStart  Int     @default(22)
+  quietHoursEnd    Int     @default(7)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

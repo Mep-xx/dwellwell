@@ -19,6 +19,8 @@ import NotFound from '../pages/NotFound';
 // Admin
 import { RequireAdmin } from '@/components/RequireAdmin';
 import AdminTaskTemplates from '@/pages/admin/AdminTaskTemplates';
+import AdminUsers from '@/pages/admin/AdminUsers';
+//import AdminHomes from '@/pages/admin/AdminHomes';
 
 export default function AppRoutes() {
   const { user, loading } = useAuth();
@@ -118,17 +120,17 @@ export default function AppRoutes() {
           }
         />
         <Route
-          path="/admin/users"
+          path="/admin/AdminUsers"
           element={
             <ProtectedRoute>
               <RequireAdmin>
-                <div>User Management Placeholder</div>
+                <AdminUsers />
               </RequireAdmin>
             </ProtectedRoute>
           }
         />
         <Route
-          path="/admin/homes"
+          path="/admin/AdminHomes"
           element={
             <ProtectedRoute>
               <RequireAdmin>

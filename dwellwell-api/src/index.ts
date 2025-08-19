@@ -12,6 +12,7 @@ import mapboxRoutes from './routes/mapbox';
 import taskSummaryRoute from './routes/homes/summary';
 import roomRoutes from './routes/rooms';
 import adminTaskTemplateRoutes from './routes/admin/task-templates';
+import usersAdminRoutes from './routes/admin/users';
 import cookieParser from 'cookie-parser';
 
 dotenv.config();
@@ -49,6 +50,7 @@ app.use('/api/mapbox', mapboxRoutes);
 app.use('/api/rooms', roomRoutes);
 app.patch('/api/rooms/:id', roomRoutes);
 app.use('/api/admin/task-templates', adminTaskTemplateRoutes);
+app.use('/api/admin/users', usersAdminRoutes);
 
 // Serve Static Files (Home Images)
 import uploadHomeImageRoute from './routes/homes/upload-image';
