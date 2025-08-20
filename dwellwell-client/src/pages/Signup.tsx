@@ -1,7 +1,8 @@
+// src/pages/Signup.tsx
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
-import { signup as signupApi } from '../utils/api';
+import { api } from '@/utils/api'; // use the same api instance as Login
 import { useAuth } from '../context/AuthContext';
 
 export default function Signup() {
@@ -13,14 +14,27 @@ export default function Signup() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+
     try {
-      const response = await signupApi(email, password);
-      const { token, user } = response.data;
-      login(user, token); // use context to store token + user
+      const res = await api.post('/auth/signup', { email, password });
+      const data = res.data;
+
+      if (!data.ok) {
+        // backend will never throw 401/500 here — it responds with ok:false
+        setError(data.message || 'Signup failed. Please try again.');
+        return;
+      }
+
+      const { accessToken, user } = data;
+      localStorage.setItem('dwellwell-token', accessToken);
+      localStorage.setItem('dwellwell-user', JSON.stringify(user));
+
+      login(user, accessToken);
       navigate('/dashboard');
-    } catch (err) {
+    } catch (err: any) {
       console.error('Signup failed:', err);
-      setError('Signup failed, please try again.');
+      setError('Signup failed. Please try again.');
     }
   };
 
@@ -33,8 +47,12 @@ export default function Signup() {
         onSubmit={handleSubmit}
         className="bg-white p-8 rounded-xl shadow-md w-full max-w-md space-y-6"
       >
-        <h2 className="text-2xl font-bold text-center text-brand-primary">Create your DwellWell account</h2>
+        <h2 className="text-2xl font-bold text-center text-brand-primary">
+          Create your DwellWell account
+        </h2>
+
         {error && <p className="text-red-500 text-sm text-center">{error}</p>}
+
         <input
           type="email"
           placeholder="Email"
@@ -43,6 +61,7 @@ export default function Signup() {
           onChange={(e) => setEmail(e.target.value)}
           required
         />
+
         <input
           type="password"
           placeholder="Password"
@@ -51,12 +70,14 @@ export default function Signup() {
           onChange={(e) => setPassword(e.target.value)}
           required
         />
+
         <button
           type="submit"
           className="w-full bg-brand-primary text-white py-2 rounded hover:bg-blue-600 transition"
         >
           Sign Up
         </button>
+
         <p className="text-center text-sm text-gray-600">
           Already have an account?{' '}
           <Link to="/login" className="text-brand-primary hover:underline">
