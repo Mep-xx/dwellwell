@@ -166,7 +166,8 @@ model Trackable {
   room             Room?             @relation("RoomTrackables", fields: [roomId], references: [id], onDelete: Cascade)
   applianceCatalog ApplianceCatalog? @relation(fields: [applianceCatalogId], references: [id])
 
-  tasks UserTask[] @relation("TrackableTasks")
+  tasks             UserTask[]          @relation("TrackableTasks")
+  TrackableResource TrackableResource[]
 }
 
 model TaskTemplate {
@@ -347,4 +348,32 @@ model CommunicationPreferences {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model WhatsNew {
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  createdAt   DateTime @default(now())
+  published   Boolean  @default(true)
+  // Optional: audience targeting later (e.g., admins only, all users, etc.)
+}
+
+enum TrackableResourceType {
+  pdf
+  video // (store URL or file path)
+}
+
+model TrackableResource {
+  id          String                @id @default(uuid())
+  trackable   Trackable             @relation(fields: [trackableId], references: [id], onDelete: Cascade)
+  trackableId String
+  type        TrackableResourceType
+  name        String
+  // Store one of: a file path (pdf) or a URL (video) — you can use both, but one is required
+  filePath    String? // e.g., "uploads/trackables/{id}/manuals/whatever.pdf"
+  url         String? // e.g., "https://youtube.com/…"
+  createdAt   DateTime              @default(now())
+
+  @@index([trackableId])
 }
