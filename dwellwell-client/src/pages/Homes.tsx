@@ -66,7 +66,7 @@ export default function HomesPage() {
       const enrichedHomes = await Promise.all(
         fetchedHomes.map(async (home) => {
           try {
-            const taskSummary = await api.get(`/homes/${home.id}/task-summary`);
+            const taskSummary = await api.get(`/homes/${home.id}/summary`);
             return {
               ...home,
               taskSummary: taskSummary.data as TaskSummary,

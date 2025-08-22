@@ -1,12 +1,7 @@
 // src/context/AuthContext.tsx
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 
-type User = {
-  id: string;
-  email: string;
-  role: 'user' | 'admin';
-};
-
+type User = { id: string; email: string; role: 'user' | 'admin' };
 type AuthContextType = {
   user: User | null;
   token: string | null;
@@ -16,50 +11,55 @@ type AuthContextType = {
   isAdmin: boolean;
 };
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const ACCESS_TOKEN_KEY = 'dwellwell-token';
+const USER_KEY = 'dwellwell-user';
 
-export const AuthProvider = ({ children }: { children: ReactNode }) => {
+const AuthContext = createContext<AuthContextType | null>(null);
+
+export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const storedUser = localStorage.getItem('dwellwell-user');
-    const storedToken = localStorage.getItem('dwellwell-token');
-
-    if (storedUser && storedToken) {
-      setUser(JSON.parse(storedUser));
-      setToken(storedToken);
+    const t = localStorage.getItem(ACCESS_TOKEN_KEY);
+    const u = localStorage.getItem(USER_KEY);
+    if (t && u) {
+      setToken(t);
+      try {
+        setUser(JSON.parse(u));
+      } catch {
+        localStorage.removeItem(USER_KEY);
+      }
     }
-
     setLoading(false);
   }, []);
 
-  const login = (user: User, token: string) => {
-    localStorage.setItem('dwellwell-token', token);
-    localStorage.setItem('dwellwell-user', JSON.stringify(user));
-    setUser(user);
-    setToken(token);
+  const login = (u: User, t: string) => {
+    setUser(u);
+    setToken(t);
+    localStorage.setItem(ACCESS_TOKEN_KEY, t);
+    localStorage.setItem(USER_KEY, JSON.stringify(u));
   };
 
   const logout = () => {
-    localStorage.removeItem('dwellwell-user');
-    localStorage.removeItem('dwellwell-token');
     setUser(null);
     setToken(null);
+    localStorage.removeItem(ACCESS_TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
   };
 
   const isAdmin = user?.role === 'admin';
 
   return (
     <AuthContext.Provider value={{ user, token, loading, login, logout, isAdmin }}>
-      {!loading ? children : <div>Loading...</div>}
+      {!loading ? children : <div className="p-8 text-center text-gray-500">Loading…</div>}
     </AuthContext.Provider>
   );
-};
+}
 
 export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) throw new Error('useAuth must be used within AuthProvider');
-  return context;
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
+  return ctx;
 };

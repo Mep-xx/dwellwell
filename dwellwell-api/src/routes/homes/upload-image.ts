@@ -17,7 +17,6 @@ router.post(
   requireAuth,
   upload.single('image'),
   async (req, res) => {
-    const userId = (req as any).user?.id as string;
     const homeId = (req.body?.homeId as string) || (req.query?.homeId as string);
     if (!homeId) return res.status(400).json({ error: 'HOME_ID_REQUIRED' });
     if (!req.file) return res.status(400).json({ error: 'IMAGE_REQUIRED' });

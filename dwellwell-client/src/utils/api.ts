@@ -28,7 +28,7 @@ function clearToken() {
 }
 
 // ----------------------------------------------------------------------------
-// Light client-side session helpers
+/* Light client-side session helpers */
 // ----------------------------------------------------------------------------
 function redirectToLoginWithQuery(reason: 'expired' | 'unauth') {
   const url = new URL(window.location.href);
@@ -63,7 +63,7 @@ api.interceptors.request.use((config) => {
   const t = getToken();
   if (t) {
     config.headers = config.headers || {};
-    config.headers.Authorization = `Bearer ${t}`;
+    (config.headers as any).Authorization = `Bearer ${t}`;
   }
   return config;
 });
@@ -105,8 +105,20 @@ api.interceptors.response.use(
     const code = (error.response?.data as any)?.error;
     const original = error.config as (AxiosRequestConfig & { _retry?: boolean }) | undefined;
 
-    // Only try to refresh on explicit token expiration
-    const shouldTryRefresh = status === 401 && code === 'TOKEN_EXPIRED' && original && !original._retry;
+    // Identify auth endpoints to avoid refresh/redirect loops
+    const originalUrl = (original?.url || '').toString();
+    const isAuthPath =
+      originalUrl.includes('/auth/login') ||
+      originalUrl.includes('/auth/signup') ||
+      originalUrl.includes('/auth/refresh');
+
+    // Only try to refresh on explicit token expiration, and NEVER for auth endpoints
+    const shouldTryRefresh =
+      !isAuthPath &&
+      status === 401 &&
+      code === 'TOKEN_EXPIRED' &&
+      !!original &&
+      !original._retry;
 
     if (shouldTryRefresh) {
       // If a refresh is already in flight, enqueue this request to retry when done
@@ -114,7 +126,7 @@ api.interceptors.response.use(
         return new Promise((resolve) => {
           enqueue((newToken) => {
             if (!original.headers) original.headers = {};
-            original.headers.Authorization = `Bearer ${newToken}`;
+            (original.headers as any).Authorization = `Bearer ${newToken}`;
             original._retry = true;
             resolve(api(original));
           });
@@ -128,7 +140,7 @@ api.interceptors.response.use(
         flushQueue(newToken);
 
         if (!original.headers) original.headers = {};
-        original.headers.Authorization = `Bearer ${newToken}`;
+        (original.headers as any).Authorization = `Bearer ${newToken}`;
         original._retry = true;
         return api(original);
       } catch (e) {
@@ -142,8 +154,8 @@ api.interceptors.response.use(
       }
     }
 
-    // All other 401/403 → treat as unauth
-    if (status === 401 || status === 403) {
+    // All other 401/403 → treat as unauth (but don't redirect for the auth endpoints themselves)
+    if (!isAuthPath && (status === 401 || status === 403)) {
       safeClientClear();
       apiLogout();
       redirectToLoginWithQuery('unauth');

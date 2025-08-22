@@ -1,73 +1,77 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
-import ProtectedRoute from '@/components/ProtectedRoute';
-import Layout from '@/components/layout/Layout';
+import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
+import { useAuth } from '@/context/AuthContext';
 
-// Public pages
+// pages
 import LandingPage from '@/pages/LandingPage';
 import Login from '@/pages/Login';
 import Signup from '@/pages/Signup';
-
-// App pages (authed)
 import Dashboard from '@/pages/Dashboard';
-import Trackables from '@/pages/Trackables';
 import Homes from '@/pages/Homes';
+import Trackables from '@/pages/Trackables';
 import Lawn from '@/pages/Lawn';
 import Vehicles from '@/pages/Vehicles';
-import Settings from '@/pages/Settings';
-import Billing from '@/pages/Billing';
-
-// Admin pages
-import AdminTaskTemplates from '@/pages/admin/AdminTaskTemplates';
 import AdminUsers from '@/pages/admin/AdminUsers';
-import AdminHomes from '@/pages/admin/AdminHomes';
-import AdminDashboard from '@/pages/admin/AdminDashboard';
-import AdminTrackables from '@/pages/admin/AdminTrackables';
 
-// If you use an admin guard, import and wrap routes:
-// import { RequireAdmin } from '@/components/RequireAdmin';
+// layouts
+import Layout from '@/components/layout/Layout';
+import ProtectedLayout from '@/components/layout/ProtectedLayout';
+import AdminDashboard from '@/pages/admin/AdminDashboard';
+import AdminTaskTemplates from '@/pages/admin/AdminTaskTemplates';
+import AdminHomes from '@/pages/admin/AdminHomes';
+import AdminTrackables from '@/pages/admin/AdminTrackables';
+import Billing from '@/pages/Billing';
+import Settings from '@/pages/Settings';
+
+/** Blocks authed users from seeing public routes (/, /login, /signup) */
+function RequireGuest() {
+  const { user, loading } = useAuth();
+  const loc = useLocation();
+  if (loading) return <div className="p-8 text-center">Loading…</div>;
+  if (user) return <Navigate to="/app" replace state={{ from: loc }} />;
+  return <Outlet />;
+}
+
+/** Blocks guests from protected routes (/app, /admin, …) */
+function RequireAuth() {
+  const { user, loading } = useAuth();
+  const loc = useLocation();
+  if (loading) return <div className="p-8 text-center">Loading…</div>;
+  if (!user) return <Navigate to="/login" replace state={{ from: loc }} />;
+  return <Outlet />;
+}
 
 export default function AppRoutes() {
   return (
     <Routes>
-      {/* Public shell */}
+      {/* Public routes use the public Layout (no sidebar) */}
       <Route element={<Layout />}>
-        <Route index element={<LandingPage />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<Signup />} />
+        <Route element={<RequireGuest />}>
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
+        </Route>
       </Route>
 
-      {/* Authed app */}
-      <Route
-        element={
-          <ProtectedRoute>
-            <Layout />
-          </ProtectedRoute>
-        }
-      >
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/trackables" element={<Trackables />} />
-        <Route path="/homes" element={<Homes />} />
-        <Route path="/lawn" element={<Lawn />} />
-        <Route path="/vehicles" element={<Vehicles />} />
-        <Route path="/settings" element={<Settings />} />
-        <Route path="/billing" element={<Billing />} />
+      {/* Private routes require auth and render the protected layout (with sidebar) */}
+      <Route element={<RequireAuth />}>
+        <Route element={<ProtectedLayout />}>
+          <Route path="/app" element={<Dashboard />} />
+          <Route path="/app/homes" element={<Homes />} />
+          <Route path="/app/trackables" element={<Trackables />} />
+          <Route path="/app/lawn" element={<Lawn />} />
+          <Route path="/app/vehicles" element={<Vehicles />} />
 
-        {/* Admin paths (kept EXACTLY as your sidebar links) */}
-        {/* Optional: wrap with RequireAdmin if you have it */}
-        {/* <Route element={<RequireAdmin />}> */}
-          <Route path="/admin" element={<Navigate to="/admin/AdminDashboard" replace />} />
+          {/* Admin */}
           <Route path="/admin/AdminDashboard" element={<AdminDashboard />} />
           <Route path="/admin/AdminTaskTemplates" element={<AdminTaskTemplates />} />
           <Route path="/admin/AdminUsers" element={<AdminUsers />} />
           <Route path="/admin/AdminHomes" element={<AdminHomes />} />
           <Route path="/admin/AdminTrackables" element={<AdminTrackables />} />
-          {/* Future:
-          <Route path="/admin/AdminFeedback" element={<AdminFeedback />} />
-          <Route path="/admin/AdminAIQueries" element={<AdminAIQueries />} />
-          <Route path="/admin/AdminDismissed" element={<AdminDismissed />} />
-          <Route path="/admin/AdminWhatsNew" element={<AdminWhatsNew />} />
-          */}
-        {/* </Route> */}
+
+          {/* Account */}
+          <Route path="/app/Settings" element={<Settings />} />
+          <Route path="/app/Billing" element={<Billing />} />
+        </Route>
       </Route>
 
       {/* Fallback */}

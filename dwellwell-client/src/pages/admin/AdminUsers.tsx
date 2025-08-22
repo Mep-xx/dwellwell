@@ -21,8 +21,16 @@ type AdminUser = {
   profile?: Profile | null;
 };
 
+type AdminUsersResponse = {
+  items: AdminUser[];
+  total: number;
+  take?: number;
+  skip?: number;
+};
+
 export default function AdminUsers() {
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [total, setTotal] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -32,8 +40,16 @@ export default function AdminUsers() {
     try {
       setLoading(true);
       const params = query.trim() ? { params: { q: query.trim() } } : undefined;
-      const res = await api.get<AdminUser[]>('/admin/users', params);
-      setUsers(res.data);
+
+      // API returns { items, total }. Older builds may return an array.
+      const res = await api.get<AdminUsersResponse | AdminUser[]>('/admin/users', params);
+      const data = res.data as any;
+
+      const items: AdminUser[] = Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : [];
+      const t: number = Array.isArray(data) ? items.length : Number(data?.total ?? items.length);
+
+      setUsers(items);
+      setTotal(t);
     } catch (e: any) {
       alert(`Failed to load users: ${e?.response?.data?.message ?? e.message}`);
     } finally {
@@ -42,11 +58,6 @@ export default function AdminUsers() {
   }
 
   useEffect(() => {
-    const hasToken = !!localStorage.getItem('dwellwell-token');
-    if (!hasToken) {
-      window.location.href = '/login';
-      return;
-    }
     fetchUsers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -70,9 +81,10 @@ export default function AdminUsers() {
   }
 
   const filtered = useMemo(() => {
+    const list = Array.isArray(users) ? users : [];
     const q = query.trim().toLowerCase();
-    if (!q) return users;
-    return users.filter((u) => {
+    if (!q) return list;
+    return list.filter((u) => {
       const name = [u.profile?.firstName ?? '', u.profile?.lastName ?? ''].join(' ').trim();
       return (u.email ?? '').toLowerCase().includes(q) || name.toLowerCase().includes(q);
     });
@@ -81,7 +93,7 @@ export default function AdminUsers() {
   return (
     <div className="p-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
-        <h2 className="text-2xl font-semibold">Users</h2>
+        <h2 className="text-2xl font-semibold">Users {total ? <span className="text-gray-400">({total})</span> : null}</h2>
         <div className="flex gap-2">
           <input
             className="border rounded px-3 py-2 w-64"
@@ -176,11 +188,13 @@ function UserModal(props: {
   const { user, onClose, onSaved } = props;
   const [saving, setSaving] = useState(false);
 
-  const [form, setForm] = useState<AdminUser & { profile: Profile }>(() => ({
+  const [form, setForm] = useState<
+    AdminUser & { profile: Profile; password?: string }
+  >(() => ({
     id: user ? user.id : '',
     email: user ? user.email : '',
-    role: user ? (user.role ?? 'user') : 'user',
-    createdAt: user ? (user.createdAt ?? null) : null,
+    role: user ? user.role ?? 'user' : 'user',
+    createdAt: user ? user.createdAt ?? null : null,
     defaultHomeId: user?.defaultHomeId ?? null,
     defaultHome: user?.defaultHome ?? null,
     profile: {
@@ -191,9 +205,10 @@ function UserModal(props: {
       householdRole: (user?.profile?.householdRole as any) ?? 'owner',
       diySkill: (user?.profile?.diySkill as any) ?? 'beginner',
     },
+    password: '',
   }));
 
-  function setField<K extends keyof (AdminUser & { profile: Profile })>(k: K, v: any) {
+  function setField<K extends keyof (AdminUser & { profile: Profile; password?: string })>(k: K, v: any) {
     setForm((prev) => ({ ...prev, [k]: v }));
   }
   function setProfile<K extends keyof Profile>(k: K, v: any) {
@@ -203,25 +218,22 @@ function UserModal(props: {
   async function save() {
     setSaving(true);
     try {
-      const body: any = {
-        role: form.role ?? 'user',
-        firstName: form.profile.firstName ?? undefined,
-        lastName: form.profile.lastName ?? undefined,
-        timezone: form.profile.timezone ?? undefined,
-        units: form.profile.units ?? undefined,
-        householdRole: form.profile.householdRole ?? undefined,
-        diySkill: form.profile.diySkill ?? undefined,
-      };
-
       if (user && user.id) {
+        // Update: send only fields the API accepts (email? role?), ignore others server-side
+        const body: any = { role: form.role ?? 'user' };
         await api.put(`/admin/users/${user.id}`, body);
       } else {
+        // Create: API may require password; include if provided
         if (!form.email || !form.email.trim()) {
           alert('Email is required to create a user.');
           setSaving(false);
           return;
         }
-        await api.post('/admin/users', { email: form.email.trim(), role: body.role });
+        const payload: any = { email: form.email.trim(), role: form.role ?? 'user' };
+        if (form.password && form.password.length >= 6) {
+          payload.password = form.password;
+        }
+        await api.post('/admin/users', payload);
       }
 
       onSaved();
@@ -253,20 +265,15 @@ function UserModal(props: {
             disabled={!!user}
           />
 
-          <input
-            type="text"
-            placeholder="First name"
-            value={form.profile.firstName ?? ''}
-            onChange={(e) => setProfile('firstName', e.target.value)}
-            className="border p-2 rounded"
-          />
-          <input
-            type="text"
-            placeholder="Last name"
-            value={form.profile.lastName ?? ''}
-            onChange={(e) => setProfile('lastName', e.target.value)}
-            className="border p-2 rounded"
-          />
+          {!user && (
+            <input
+              type="password"
+              placeholder="Password (min 6 chars)"
+              value={form.password ?? ''}
+              onChange={(e) => setField('password', e.target.value)}
+              className="border p-2 rounded md:col-span-2"
+            />
+          )}
 
           <select
             value={form.role ?? 'user'}
@@ -279,41 +286,22 @@ function UserModal(props: {
 
           <input
             type="text"
-            placeholder="Timezone (e.g., America/New_York)"
-            value={form.profile.timezone ?? ''}
-            onChange={(e) => setProfile('timezone', e.target.value)}
+            placeholder="First name"
+            value={form.profile.firstName ?? ''}
+            onChange={(e) => setProfile('firstName', e.target.value)}
             className="border p-2 rounded"
+            disabled
+            title="Profile editing not wired on the API yet"
           />
-
-          <select
-            value={form.profile.units ?? 'imperial'}
-            onChange={(e) => setProfile('units', e.target.value as any)}
+          <input
+            type="text"
+            placeholder="Last name"
+            value={form.profile.lastName ?? ''}
+            onChange={(e) => setProfile('lastName', e.target.value)}
             className="border p-2 rounded"
-          >
-            <option value="imperial">imperial</option>
-            <option value="metric">metric</option>
-          </select>
-
-          <select
-            value={form.profile.householdRole ?? 'owner'}
-            onChange={(e) => setProfile('householdRole', e.target.value as any)}
-            className="border p-2 rounded"
-          >
-            <option value="owner">owner</option>
-            <option value="renter">renter</option>
-            <option value="property_manager">property manager</option>
-          </select>
-
-          <select
-            value={form.profile.diySkill ?? 'beginner'}
-            onChange={(e) => setProfile('diySkill', e.target.value as any)}
-            className="border p-2 rounded"
-          >
-            <option value="none">none</option>
-            <option value="beginner">beginner</option>
-            <option value="intermediate">intermediate</option>
-            <option value="pro">pro</option>
-          </select>
+            disabled
+            title="Profile editing not wired on the API yet"
+          />
         </div>
 
         <div className="flex justify-end gap-2 mt-5">

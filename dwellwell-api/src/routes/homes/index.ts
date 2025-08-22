@@ -14,5 +14,5 @@ router.post('/', create);
 router.put('/:homeId', update);
 router.delete('/:homeId', remove);
 router.post('/upload-image', uploadImage);
-router.get('/:homeId/summary', summary); // optional
+router.get('/:homeId/summary', summary);
 export default router;

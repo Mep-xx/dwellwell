@@ -8,7 +8,7 @@ const router = express.Router();
 
 async function handleSummary(req: express.Request, res: express.Response) {
   const userId = (req as any).user.userId;
-  // path can be /homes/:id/task-summary or /:id/task-summary — pick whichever exists
+  // path can be /homes/:id/summary or /:id/summary — pick whichever exists
   const homeId = (req.params as any).id;
 
   if (!homeId) {
@@ -56,10 +56,10 @@ async function handleSummary(req: express.Request, res: express.Response) {
   }
 }
 
-// Original path (when mounted at '/api' this is '/api/:id/task-summary')
-router.get('/:id/task-summary', requireAuth, handleSummary);
+// Original path (when mounted at '/api' this is '/api/:id/summary')
+router.get('/:id/summary', requireAuth, handleSummary);
 
-// Alias that matches your client call (when mounted at '/api' this is '/api/homes/:id/task-summary')
-router.get('/homes/:id/task-summary', requireAuth, handleSummary);
+// Alias that matches your client call (when mounted at '/api' this is '/api/homes/:id/summary')
+router.get('/homes/:id/summary', requireAuth, handleSummary);
 
 export default router;
