@@ -1,210 +1,169 @@
 // dwellwell-client/src/utils/api.ts
-import axios from 'axios';
+import axios, { AxiosError, AxiosRequestConfig } from 'axios';
 import { toast } from '@/components/ui/use-toast';
 import { apiLogout } from '@/utils/logoutHelper';
 
-//
-// Prefer a full URL in dev: VITE_API_BASE_URL=http://localhost:4000/api
-//
+// ----------------------------------------------------------------------------
+// Axios instance
+// ----------------------------------------------------------------------------
 export const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
-  withCredentials: true, // allow refresh cookie
+  withCredentials: true, // needed for refresh cookie
   timeout: 30000,
 });
 
-// ------------------------ Token helpers -------------------------------------
+// ----------------------------------------------------------------------------
+// Token storage helpers
+// ----------------------------------------------------------------------------
+const ACCESS_TOKEN_KEY = 'dwellwell-token';
 
-function getStoredToken(): string | null {
-  const raw = localStorage.getItem('dwellwell-token');
-  if (!raw) return null;
+function getToken() {
+  return localStorage.getItem(ACCESS_TOKEN_KEY) || null;
+}
+function setToken(token: string) {
+  localStorage.setItem(ACCESS_TOKEN_KEY, token);
+}
+function clearToken() {
+  localStorage.removeItem(ACCESS_TOKEN_KEY);
+}
 
-  // If someone accidentally stored JSON-quoted token, unquote safely.
+// ----------------------------------------------------------------------------
+// Light client-side session helpers
+// ----------------------------------------------------------------------------
+function redirectToLoginWithQuery(reason: 'expired' | 'unauth') {
+  const url = new URL(window.location.href);
+  const isAlreadyOnLogin = url.pathname.startsWith('/login');
+  if (isAlreadyOnLogin) return;
+  const qs = new URLSearchParams({ reason }).toString();
+  window.location.assign(`/login?${qs}`);
+}
+
+function safeClientClear() {
   try {
-    const parsed = JSON.parse(raw);
-    if (typeof parsed === 'string') return parsed;
-  } catch {
-    /* not JSON, fall through */
-  }
-  return raw.replace(/^"+|"+$/g, '').trim();
+    clearToken();
+  } catch {}
 }
 
-function isLikelyJwt(token?: string | null) {
-  return !!token && token.split('.').length === 3;
+let hasShownBackendError = false;
+function backendDownToastOnce() {
+  if (hasShownBackendError) return;
+  hasShownBackendError = true;
+  toast({
+    title: 'Server unavailable',
+    description: 'The API did not respond. Please try again in a moment.',
+    variant: 'destructive',
+  });
+  setTimeout(() => (hasShownBackendError = false), 10_000);
 }
 
-// ------------------------ URL normalizer ------------------------------------
-//
-// If baseURL already ends with '/api' and the request URL *also* starts with '/api',
-// strip the leading '/api' from the request to avoid '/api/api/...'.
-function normalizeUrlForBase(config: any) {
-  const base = (config.baseURL || '') as string;
-  const url = (config.url || '') as string;
-
-  // Skip absolute URLs
-  if (/^https?:\/\//i.test(url)) return config;
-
-  const baseEndsWithApi = base.replace(/\/+$/, '').endsWith('/api');
-  if (baseEndsWithApi && url.startsWith('/api/')) {
-    config.url = url.slice(4); // remove leading "/api"
+// ----------------------------------------------------------------------------
+// Attach Authorization header
+// ----------------------------------------------------------------------------
+api.interceptors.request.use((config) => {
+  const t = getToken();
+  if (t) {
+    config.headers = config.headers || {};
+    config.headers.Authorization = `Bearer ${t}`;
   }
   return config;
-}
+});
 
-// ------------------------ Prevent toast spam --------------------------------
-let hasShownBackendError = false;
-
-// ------------------------ Refresh management --------------------------------
+// ----------------------------------------------------------------------------
+// Refresh management (fan-in concurrent 401→refresh)
+// ----------------------------------------------------------------------------
 let isRefreshing = false;
-let refreshSubscribers: Array<(t: string) => void> = [];
+let pendingQueue: Array<(t: string) => void> = [];
 
-function subscribeTokenRefresh(cb: (token: string) => void) {
-  refreshSubscribers.push(cb);
+function enqueue(cb: (t: string) => void) {
+  pendingQueue.push(cb);
 }
-function onRefreshed(token: string) {
-  refreshSubscribers.forEach((cb) => cb(token));
-  refreshSubscribers = [];
+function flushQueue(newToken: string) {
+  pendingQueue.forEach((fn) => fn(newToken));
+  pendingQueue = [];
 }
 
-// ------------------------ Request interceptor --------------------------------
-api.interceptors.request.use(
-  (config) => {
-    config = normalizeUrlForBase(config);
+async function performRefresh(): Promise<string> {
+  const { data } = await api.post('/auth/refresh'); // cookie-based
+  const newToken = data?.accessToken as string | undefined;
+  if (!newToken) throw new Error('No accessToken returned by refresh');
+  setToken(newToken);
+  return newToken;
+}
 
-    const token = getStoredToken();
-    if (isLikelyJwt(token) && config.headers) {
-      config.headers['Authorization'] = `Bearer ${token}`;
-    } else if (config.headers && 'Authorization' in config.headers) {
-      delete (config.headers as any)['Authorization'];
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
-
-// ------------------------ Response interceptor -------------------------------
+// ----------------------------------------------------------------------------
+// Response handling
+// ----------------------------------------------------------------------------
 api.interceptors.response.use(
-  (response) => {
-    hasShownBackendError = false;
-    return response;
-  },
-  async (error) => {
-    const originalRequest: any = error.config || {};
+  (res) => res,
+  async (error: AxiosError<any>) => {
+    // Network-level issue?
+    if (error.code === 'ECONNABORTED' || error.message?.includes('Network Error')) {
+      backendDownToastOnce();
+    }
+
     const status = error.response?.status;
-    const url: string = originalRequest.url || '';
-    const errorCode = error.response?.data?.error;
+    const code = (error.response?.data as any)?.error;
+    const original = error.config as (AxiosRequestConfig & { _retry?: boolean }) | undefined;
 
-    // Never try to refresh for login/signup calls
-    if (status === 401 && (url.includes('/auth/login') || url.includes('/auth/signup'))) {
-      return Promise.resolve(error.response);
-    }
+    // Only try to refresh on explicit token expiration
+    const shouldTryRefresh = status === 401 && code === 'TOKEN_EXPIRED' && original && !original._retry;
 
-    // If backend explicitly marks the token as expired, logout right away.
-    if (status === 401 && errorCode === 'TOKEN_EXPIRED') {
-      hardLogoutToLogin('expired');
-      return;
-    }
-
-    // Refresh flow on 401 (once per request)
-    if (status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
-
+    if (shouldTryRefresh) {
+      // If a refresh is already in flight, enqueue this request to retry when done
       if (isRefreshing) {
-        // Queue until the current refresh is done
         return new Promise((resolve) => {
-          subscribeTokenRefresh((token: string) => {
-            originalRequest.headers = originalRequest.headers || {};
-            originalRequest.headers['Authorization'] = `Bearer ${token}`;
-            resolve(api(originalRequest));
+          enqueue((newToken) => {
+            if (!original.headers) original.headers = {};
+            original.headers.Authorization = `Bearer ${newToken}`;
+            original._retry = true;
+            resolve(api(original));
           });
         });
       }
 
+      // Start refresh
       isRefreshing = true;
-
       try {
-        // Note: *no* extra '/api' prefix here; baseURL already has it.
-        const res = await api.post('/auth/refresh');
-        const newAccessToken = res.data?.accessToken;
+        const newToken = await performRefresh();
+        flushQueue(newToken);
 
-        if (!isLikelyJwt(newAccessToken)) {
-          throw new Error('No/invalid accessToken in refresh response');
-        }
-
-        localStorage.setItem('dwellwell-token', newAccessToken);
-        onRefreshed(newAccessToken);
-
-        originalRequest.headers = originalRequest.headers || {};
-        originalRequest.headers['Authorization'] = `Bearer ${newAccessToken}`;
-        return api(originalRequest);
-      } catch {
-        // Refresh failed -> full logout + redirect
+        if (!original.headers) original.headers = {};
+        original.headers.Authorization = `Bearer ${newToken}`;
+        original._retry = true;
+        return api(original);
+      } catch (e) {
+        // Refresh failed – log out and send to login
         safeClientClear();
-        notifySessionExpiredOnce();
+        apiLogout(); // your helper may clear user context and route
         redirectToLoginWithQuery('expired');
-        return;
+        return Promise.reject(error);
       } finally {
         isRefreshing = false;
       }
     }
 
-    // Backend down / network error toast (rate-limited)
-    if (
-      error.code === 'ERR_NETWORK' ||
-      (error.message && error.message.toLowerCase().includes('network error'))
-    ) {
-      if (!hasShownBackendError) {
-        toast({
-          title: 'Backend Error',
-          description: '🚨 The backend is not running.',
-          variant: 'destructive',
-        });
-        hasShownBackendError = true;
-      }
+    // All other 401/403 → treat as unauth
+    if (status === 401 || status === 403) {
+      safeClientClear();
+      apiLogout();
+      redirectToLoginWithQuery('unauth');
     }
 
     return Promise.reject(error);
   }
 );
 
-// ------------------------ Helpers: logout/redirect ---------------------------
+// ----------------------------------------------------------------------------
+// Convenience auth endpoints (optional)
+// ----------------------------------------------------------------------------
+export const signup = (email: string, password: string) => api.post('/auth/signup', { email, password });
+export const login = (email: string, password: string) => api.post('/auth/login', { email, password });
+export const logout = () => api.post('/auth/logout').finally(() => safeClientClear());
 
-function safeClientClear() {
-  try {
-    apiLogout?.();
-  } catch {}
-  try {
-    localStorage.removeItem('dwellwell-token');
-    localStorage.removeItem('dwellwell-user');
-  } catch {}
+// ----------------------------------------------------------------------------
+// Optional: a small helper for GET with typed params (ergonomics)
+// ----------------------------------------------------------------------------
+export async function getJson<T>(url: string, params?: Record<string, any>) {
+  const { data } = await api.get<T>(url, { params });
+  return data;
 }
-
-function notifySessionExpiredOnce() {
-  if (!window.location.pathname.includes('/login')) {
-    toast({
-      title: 'Session expired',
-      description: 'Please log in again.',
-      variant: 'destructive',
-    });
-  }
-}
-
-function redirectToLoginWithQuery(reason: 'expired' | 'unauth' = 'unauth') {
-  const qp = reason === 'expired' ? '?expired=1' : '?unauth=1';
-  if (window.location.pathname !== '/login') {
-    window.location.assign(`/login${qp}`);
-  }
-}
-
-function hardLogoutToLogin(reason: 'expired' | 'unauth') {
-  safeClientClear();
-  notifySessionExpiredOnce();
-  redirectToLoginWithQuery(reason);
-}
-
-// ------------------------ Auth helpers ---------------------------------------
-
-export const signup = (email: string, password: string) =>
-  api.post('/auth/signup', { email, password });
-
-export const login = (email: string, password: string) =>
-  api.post('/auth/login', { email, password });

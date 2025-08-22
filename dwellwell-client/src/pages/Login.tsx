@@ -19,29 +19,33 @@ export default function Login() {
 
     try {
       const res = await api.post('/auth/login', { email, password });
-      const { ok, code, message, accessToken, user } = res.data || {};
-
-      if (!ok) {
-        if (code === 'INVALID_CREDENTIALS') {
-          setError('Invalid email or password.');
-        } else if (code === 'BAD_REQUEST') {
-          setError(message || 'Please provide email and password.');
-        } else {
-          setError('Could not sign in. Please try again.');
-        }
-        return;
-      }
+      // Backend shape: { data: { user, accessToken } }
+      const payload = res.data?.data;
+      const accessToken: string | undefined = payload?.accessToken;
+      const user: any = payload?.user;
 
       if (!accessToken || !user) {
         setError('Unexpected response. Please try again.');
         return;
       }
 
+      // Persist and update context
       localStorage.setItem('dwellwell-token', accessToken);
       localStorage.setItem('dwellwell-user', JSON.stringify(user));
-
       login(user, accessToken);
+
       navigate('/dashboard');
+    } catch (err: any) {
+      const status = err?.response?.status;
+      const code = err?.response?.data?.error;
+
+      if (status === 401 || code === 'INVALID_CREDENTIALS') {
+        setError('Invalid email or password.');
+      } else if (status === 400 || code === 'EMAIL_PASSWORD_REQUIRED') {
+        setError('Please provide both email and password.');
+      } else {
+        setError('Could not sign in. Please try again.');
+      }
     } finally {
       setSubmitting(false);
     }

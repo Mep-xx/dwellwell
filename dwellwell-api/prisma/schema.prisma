@@ -60,6 +60,7 @@ model Home {
   address            String
   city               String
   state              String
+  zip                String?
   apartment          String?
   nickname           String?
   squareFeet         Int?
@@ -98,6 +99,7 @@ model Room {
   hasFireplace     Boolean @default(false)
   hasBoiler        Boolean @default(false)
   hasSmokeDetector Boolean @default(false)
+  createdAt DateTime @default(now())
 
   home       Home        @relation("HomeRooms", fields: [homeId], references: [id], onDelete: Cascade)
   homeId     String
@@ -216,49 +218,59 @@ enum UserTaskSourceType {
 }
 
 model UserTask {
-  id             String             @id @default(uuid())
-  userId         String
-  roomId         String?
-  trackableId    String?
-  taskTemplateId String?
-  sourceType     UserTaskSourceType
+  id                   String             @id @default(uuid())
+  userId               String
+  roomId               String?
+  trackableId          String?
+  taskTemplateId       String?
+  sourceType           UserTaskSourceType
 
-  title         String
-  description   String
-  dueDate       DateTime
-  completedDate DateTime?
-  status        TaskStatus
+  title                String
+  description          String
+  dueDate              DateTime
+  completedDate        DateTime?
+  status               TaskStatus
 
-  itemName String
-  category String
-  location String?
+  itemName             String
+  category             String
+  location             String?
 
-  estimatedTimeMinutes Int
-  estimatedCost        Int
-  criticality          TaskCriticality
-  deferLimitDays       Int
-  canBeOutsourced      Boolean
-  canDefer             Boolean
-  isTracking           Boolean         @default(true)
+  estimatedTimeMinutes Int                @default(0)
+  estimatedCost        Int                @default(0)
+  criticality          TaskCriticality    @default(medium)
 
-  recurrenceInterval String
-  taskType           TaskType
+  deferLimitDays       Int                @default(0)
+  canBeOutsourced      Boolean            @default(false)
+  canDefer             Boolean            @default(true)
+  isTracking           Boolean            @default(true)
 
-  steps           Json?
-  equipmentNeeded Json?
-  resources       Json?
+  recurrenceInterval   String             @default("")
 
-  imageUrl String?
-  icon     String?
+  taskType             TaskType           @default(GENERAL)
 
-  createdAt DateTime @default(now())
+  dedupeKey            String             @unique
 
-  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  room         Room?               @relation("RoomTasks", fields: [roomId], references: [id], onDelete: Cascade)
-  trackable    Trackable?          @relation("TrackableTasks", fields: [trackableId], references: [id], onDelete: Cascade)
-  taskTemplate TaskTemplate?       @relation(fields: [taskTemplateId], references: [id])
-  dismissals   DismissedUserTask[]
+  steps                Json?
+  equipmentNeeded      Json?
+  resources            Json?
+
+  imageUrl             String?
+  icon                 String?
+
+  createdAt            DateTime           @default(now())
+
+  user                 User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  room                 Room?              @relation("RoomTasks", fields: [roomId], references: [id], onDelete: Cascade)
+  trackable            Trackable?         @relation("TrackableTasks", fields: [trackableId], references: [id], onDelete: Cascade)
+  taskTemplate         TaskTemplate?      @relation(fields: [taskTemplateId], references: [id])
+  dismissals           DismissedUserTask[]
+
+  @@index([userId, status, dueDate], name: "idx_usertask_user_status_due")
+  @@index([roomId], name: "idx_usertask_room")
+  @@index([trackableId], name: "idx_usertask_trackable")
+  @@index([taskTemplateId], name: "idx_usertask_template")
 }
+
 
 model DismissedUserTask {
   id         String   @id @default(cuid())

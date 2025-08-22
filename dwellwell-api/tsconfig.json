@@ -11,22 +11,14 @@
     "baseUrl": "./",
     "rootDir": "./",
     "composite": true,
-    "typeRoots": [
-      "./node_modules/@types",
-      "./src/types"
-    ],
-    "types": [
-      "node"
-    ],
+    "typeRoots": ["./node_modules/@types", "./src/types"],
+    "types": ["node"],
     "paths": {
-      "@shared/*": [
-        "../shared/*"
-      ]
+      "@shared/*": ["../shared/*"]
     }
   },
   "include": [
     "src",
-    "src/types/mapbox-sdk.d.ts", // 👈 explicitly add it
     "../shared/**/*"
   ]
 }

@@ -33,7 +33,10 @@ export default function Signup() {
       login(user, accessToken);
       navigate('/dashboard');
     } catch (err: any) {
-      console.error('Signup failed:', err);
+      if (err.response?.status === 409) {
+        setError('An account with that email already exists. Try logging in instead.');
+        return;
+      }
       setError('Signup failed. Please try again.');
     }
   };

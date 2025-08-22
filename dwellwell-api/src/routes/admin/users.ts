@@ -1,211 +1,108 @@
+// dwellwell-api/src/routes/admin/users.ts
 import { Router } from 'express';
 import { prisma } from '../../db/prisma';
-import bcrypt from 'bcryptjs';
-import crypto from 'crypto';
-import { Prisma } from '@prisma/client';
+import { hashPassword } from '../../utils/auth';
 
 const router = Router();
 
-// If you have auth/role guards, enable them here
-// import { requireAuth } from '../../middleware/requireAuth';
-// import { requireAdmin } from '../../middleware/requireAdmin';
-// router.use(requireAuth, requireAdmin);
-
-/**
- * Common SELECT shape used by list + read after update.
- * Sticks to `select` only (no `include`).
- */
-const userSelect = {
-  id: true,
-  email: true,
-  role: true,
-  createdAt: true,
-  defaultHomeId: true,
-  defaultHome: {
-    select: {
-      id: true,
-      address: true,
-      city: true,
-      state: true,
-    },
-  },
-  profile: {
-    select: {
-      firstName: true,
-      lastName: true,
-      timezone: true,
-      units: true,
-      householdRole: true,
-      diySkill: true,
-    },
-  },
-} as const;
-
 /**
  * GET /api/admin/users
- * ?q= (email/first/last)
+ * Optional query: ?q=<email contains>&take=50&skip=0
  */
 router.get('/', async (req, res) => {
-  try {
-    const q = (req.query.q as string | undefined)?.trim();
+  const q = (req.query.q as string) || '';
+  const take = Math.min(Number(req.query.take ?? 50), 200);
+  const skip = Math.max(Number(req.query.skip ?? 0), 0);
 
-    let where: Prisma.UserWhereInput | undefined;
-    if (q) {
-      const insensitive = Prisma.QueryMode.insensitive;
-      where = {
-        OR: [
-          { email: { contains: q, mode: insensitive } },
-          { profile: { is: { firstName: { contains: q, mode: insensitive } } } },
-          { profile: { is: { lastName: { contains: q, mode: insensitive } } } },
-        ],
-      };
-    }
+  const where = q
+    ? { email: { contains: q, mode: 'insensitive' as const } }
+    : {};
 
-    const users = await prisma.user.findMany({
+  const [items, total] = await Promise.all([
+    prisma.user.findMany({
       where,
       orderBy: { createdAt: 'desc' },
-      select: userSelect,
-    });
+      take,
+      skip,
+      select: { id: true, email: true, role: true, createdAt: true },
+    }),
+    prisma.user.count({ where }),
+  ]);
 
-    res.json(users);
-  } catch (e) {
-    console.error('GET /api/admin/users failed:', e);
-    res.status(500).json({ message: 'Failed to fetch users' });
-  }
+  res.json({ items, total, take, skip });
 });
 
 /**
  * POST /api/admin/users
- * body: { email: string, role?: 'user'|'admin', password?: string }
- * - Satisfies required `password` with a secure random if one isn’t provided.
- * - Also creates an empty profile via nested write.
+ * body: { email: string, password: string, role?: 'user'|'admin' }
  */
 router.post('/', async (req, res) => {
-  try {
-    const { email, role, password } = req.body as {
-      email?: string;
-      role?: string;
-      password?: string;
-    };
-
-    if (!email || !email.trim()) {
-      return res.status(400).json({ message: 'Email is required' });
-    }
-
-    const rawPassword =
-      (typeof password === 'string' && password.length >= 8 ? password : null) ??
-      crypto.randomBytes(24).toString('base64url'); // strong random
-
-    const passwordHash = await bcrypt.hash(rawPassword, 10);
-
-    const created = await prisma.user.create({
-      data: {
-        email: email.trim(),
-        role: role === 'admin' ? 'admin' : 'user',
-        password: passwordHash,
-        profile: { create: {} },
-      },
-      select: userSelect,
-    });
-
-    res.status(201).json(created);
-  } catch (e: any) {
-    if (e?.code === 'P2002') {
-      return res.status(409).json({ message: 'User with this email already exists' });
-    }
-    console.error('POST /api/admin/users failed:', e);
-    res.status(500).json({ message: 'Failed to create user' });
+  const { email, password, role = 'user' } = req.body ?? {};
+  if (!email || !password) {
+    return res.status(400).json({ error: 'VALIDATION_FAILED' });
   }
+
+  const exists = await prisma.user.findUnique({ where: { email } });
+  if (exists) return res.status(409).json({ error: 'EMAIL_IN_USE' });
+
+  const pwd = await hashPassword(password);
+  const user = await prisma.user.create({
+    data: { email, password: pwd, role },
+    select: { id: true, email: true, role: true, createdAt: true },
+  });
+
+  res.status(201).json(user);
 });
 
 /**
- * PUT /api/admin/users/:id
- * body: {
- *   role?: 'user'|'admin',
- *   firstName?, lastName?, timezone?, units?, householdRole?, diySkill?
- * }
- * - Uses nested upsert on user.profile (no prisma.profile accessor needed).
+ * PUT /api/admin/users/:userId
+ * body: { email?: string, role?: string }
  */
-router.put('/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
+router.put('/:userId', async (req, res) => {
+  const { userId } = req.params as any;
+  const { email, role } = req.body ?? {};
+  const data: any = {};
+  if (email !== undefined) data.email = email;
+  if (role !== undefined) data.role = role;
 
-    const {
-      role,
-      firstName,
-      lastName,
-      timezone,
-      units,
-      householdRole,
-      diySkill,
-    } = req.body as {
-      role?: 'user' | 'admin' | string;
-      firstName?: string;
-      lastName?: string;
-      timezone?: string;
-      units?: 'imperial' | 'metric';
-      householdRole?: 'owner' | 'renter' | 'property_manager';
-      diySkill?: 'none' | 'beginner' | 'intermediate' | 'pro';
-    };
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data,
+    select: { id: true, email: true, role: true, createdAt: true },
+  });
 
-    const data: Prisma.UserUpdateInput = {};
-
-    if (role) {
-      data.role = role === 'admin' ? 'admin' : 'user';
-    }
-
-    data.profile = {
-      upsert: {
-        update: {
-          firstName: firstName ?? undefined,
-          lastName: lastName ?? undefined,
-          timezone: timezone ?? undefined,
-          // casts tolerate enum typing differences in your schema
-          units: (units as any) ?? undefined,
-          householdRole: (householdRole as any) ?? undefined,
-          diySkill: (diySkill as any) ?? undefined,
-        },
-        create: {
-          firstName: firstName ?? null,
-          lastName: lastName ?? null,
-          timezone: timezone ?? null,
-          units: (units as any) ?? null,
-          householdRole: (householdRole as any) ?? null,
-          diySkill: (diySkill as any) ?? null,
-        },
-      },
-    };
-
-    await prisma.user.update({
-      where: { id },
-      data,
-      select: { id: true },
-    });
-
-    const updated = await prisma.user.findUnique({
-      where: { id },
-      select: userSelect,
-    });
-
-    res.json(updated);
-  } catch (e) {
-    console.error('PUT /api/admin/users/:id failed:', e);
-    res.status(500).json({ message: 'Failed to update user' });
-  }
+  res.json(user);
 });
 
 /**
- * DELETE /api/admin/users/:id
+ * POST /api/admin/users/:userId/password
+ * body: { password: string }
  */
-router.delete('/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    await prisma.user.delete({ where: { id } });
-    res.json({ ok: true });
-  } catch (e) {
-    console.error('DELETE /api/admin/users/:id failed:', e);
-    res.status(500).json({ message: 'Failed to delete user' });
-  }
+router.post('/:userId/password', async (req, res) => {
+  const { userId } = req.params as any;
+  const { password } = req.body ?? {};
+  if (!password) return res.status(400).json({ error: 'VALIDATION_FAILED' });
+
+  const pwd = await hashPassword(password);
+  await prisma.user.update({
+    where: { id: userId },
+    data: { password: pwd },
+  });
+
+  res.json({ ok: true });
+});
+
+/**
+ * DELETE /api/admin/users/:userId
+ */
+router.delete('/:userId', async (req, res) => {
+  const { userId } = req.params as any;
+
+  // Optional: safety check to prevent self-delete or last admin delete
+  // Implement if needed.
+
+  await prisma.user.delete({ where: { id: userId } });
+  res.json({ ok: true });
 });
 
 export default router;

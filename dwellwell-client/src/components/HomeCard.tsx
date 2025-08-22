@@ -8,7 +8,6 @@ import { Pencil, Trash2, ChevronDown, ChevronUp, Settings2 } from 'lucide-react'
 import { Button } from '@/components/ui/button';
 import { EditRoomModal } from '@/components/EditRoomModal';
 
-
 type TaskSummary = {
   complete: number;
   dueSoon: number;
@@ -23,6 +22,14 @@ type Props = {
   onEdit: (home: Home) => void;
   onDelete: (homeId: string) => void;
 };
+
+function resolveHomeImageUrl(v?: string) {
+  if (!v) return '/images/home_placeholder.png';               // client/public
+  if (/^https?:\/\//i.test(v)) return v;                       // absolute URL already
+  if (v.startsWith('/uploads')) return v;                      // served by API; Vite proxies /uploads/*
+  if (v.startsWith('/images')) return v;                       // client/public
+  return '/images/home_placeholder.png';
+}
 
 export function HomeCard({ home, summary, onToggle, onEdit, onDelete }: Props) {
   const [expanded, setExpanded] = useState(false);
@@ -50,20 +57,10 @@ export function HomeCard({ home, summary, onToggle, onEdit, onDelete }: Props) {
     };
   };
 
-  const isAbsoluteUrl = (v?: string) => !!v && /^https?:\/\//i.test(v || '');
-
-  const imageSrc =
-    home.imageUrl
-      ? isAbsoluteUrl(home.imageUrl)
-        // already absolute URL (new format) -> use as is
-        ? home.imageUrl
-        // legacy relative value -> build a public URL without /api
-        : `${(import.meta.env.VITE_PUBLIC_BASE_URL || window.location.origin)}${home.imageUrl.startsWith('/uploads') ? '' : '/uploads/'
-        }${home.imageUrl.replace(/^\/+/, '')}`
-      : '/images/home_placeholder.png';
+  const imageSrc = resolveHomeImageUrl(home.imageUrl);
 
   return (
-    <div className={`relative rounded-xl border shadow overflow-hidden transition-all ${home.isChecked ? 'bg-white' : 'bg-gray-100 opacity-70'}`} >
+    <div className={`relative rounded-xl border shadow overflow-hidden transition-all ${home.isChecked ? 'bg-white' : 'bg-gray-100 opacity-70'}`}>
       {/* Image */}
       <img
         src={imageSrc}

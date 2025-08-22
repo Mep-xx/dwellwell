@@ -1,55 +1,38 @@
-// src/routes/homes/upload-image.ts
-import express from 'express';
+import { Router } from 'express';
+import { requireAuth } from '../../middleware/requireAuth';
 import multer from 'multer';
+import sharp from 'sharp';
 import path from 'path';
 import fs from 'fs/promises';
 
-const router = express.Router();
+const router = Router();
+
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  limits: { fileSize: 5 * 1024 * 1024 },
 });
 
-// Build the origin (configurable for prod/CDN via env)
-function publicBase(req: express.Request) {
-  return process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get('host')}`;
-}
+router.post(
+  '/upload-image',
+  requireAuth,
+  upload.single('image'),
+  async (req, res) => {
+    const userId = (req as any).user?.id as string;
+    const homeId = (req.body?.homeId as string) || (req.query?.homeId as string);
+    if (!homeId) return res.status(400).json({ error: 'HOME_ID_REQUIRED' });
+    if (!req.file) return res.status(400).json({ error: 'IMAGE_REQUIRED' });
 
-// Mounted in index.ts as: app.use('/api', uploadHomeImageRoute)
-// Final endpoint: POST /api/homes/upload-image?homeId=...
-router.post('/homes/upload-image', upload.single('image'), async (req, res) => {
-  const homeId = req.query.homeId as string;
+    const baseDir = path.join(process.cwd(), 'uploads', 'homes', homeId);
+    await fs.mkdir(baseDir, { recursive: true });
 
-  if (!homeId) {
-    return res.status(400).json({ error: 'Missing homeId in query' });
+    const filename = 'main.jpg';
+    const full = path.join(baseDir, filename);
+
+    await sharp(req.file.buffer).rotate().resize(1600, 1200, { fit: 'inside' }).jpeg({ quality: 82 }).toFile(full);
+
+    const publicPath = `/uploads/homes/${homeId}/${filename}`;
+    return res.json({ filename: publicPath });
   }
-  if (!req.file) {
-    return res.status(400).json({ error: 'No file uploaded' });
-  }
-
-  // Write to project-root/uploads/homes/<homeId>/main.jpg
-  const uploadsRoot = path.resolve(__dirname, '../../../uploads/homes');
-  const homeFolder = path.join(uploadsRoot, homeId);
-  const filePath = path.join(homeFolder, 'main.jpg');
-
-  try {
-    await fs.mkdir(homeFolder, { recursive: true });
-    await fs.writeFile(filePath, req.file.buffer);
-
-    // ✅ Return the correct public URL under /uploads (NOT /api/uploads)
-    const relativePath = `/uploads/homes/${homeId}/main.jpg`;
-    const url = `${publicBase(req)}${relativePath}`;
-
-    return res.status(200).json({
-      url,                           // absolute URL (useful if you want to show directly)
-      path: relativePath,            // '/uploads/homes/<id>/main.jpg'
-      filename: `homes/${homeId}/main.jpg`, // <-- compatibility with existing client
-    });
-
-  } catch (err) {
-    console.error('❌ Failed to save uploaded image:', err);
-    return res.status(500).json({ error: 'Failed to save uploaded image' });
-  }
-});
+);
 
 export default router;
