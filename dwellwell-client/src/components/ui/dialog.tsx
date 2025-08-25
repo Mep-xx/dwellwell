@@ -17,17 +17,25 @@ export function DialogContent({
 }: DialogPrimitive.DialogContentProps) {
   return (
     <DialogPrimitive.Portal>
-      <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/50" />
+      <DialogPrimitive.Overlay
+        className="fixed inset-0 z-50 bg-black/50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
+      />
       <DialogPrimitive.Content
+        role="dialog"
+        aria-modal="true"
         className={cn(
-          "fixed z-50 left-1/2 top-1/2 max-h-[90vh] w-full -translate-x-1/2 -translate-y-1/2 rounded-xl bg-white p-6 shadow-lg focus:outline-none",
+          // Centered, capped width, nice spacing
+          'fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2',
+          'w-[calc(100vw-2rem)] sm:w-full sm:max-w-2xl max-h-[90vh]',
+          'rounded-xl bg-white p-6 shadow-lg focus:outline-none',
+          'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
           className
         )}
         {...props}
       >
         {children}
         <DialogPrimitive.Close
-          className="absolute top-4 right-4 text-gray-500 hover:text-black focus:outline-none"
+          className="absolute right-4 top-4 text-gray-500 hover:text-black focus:outline-none"
           aria-label="Close"
         >
           <X className="h-5 w-5" />

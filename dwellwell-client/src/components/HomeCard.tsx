@@ -7,6 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { Pencil, Trash2, ChevronDown, ChevronUp, Settings2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { EditRoomModal } from '@/components/EditRoomModal';
+import { api } from "@/utils/api";
 
 type TaskSummary = {
   complete: number;
@@ -24,11 +25,24 @@ type Props = {
 };
 
 function resolveHomeImageUrl(v?: string) {
-  if (!v) return '/images/home_placeholder.png';               // client/public
-  if (/^https?:\/\//i.test(v)) return v;                       // absolute URL already
-  if (v.startsWith('/uploads')) return v;                      // served by API; Vite proxies /uploads/*
-  if (v.startsWith('/images')) return v;                       // client/public
-  return '/images/home_placeholder.png';
+  const PLACEHOLDER = "/images/home_placeholder.png";
+  if (!v) return PLACEHOLDER;
+
+  // Already an absolute URL
+  if (/^https?:\/\//i.test(v)) return v;
+
+  // App-provided placeholders
+  if (v.startsWith("/images/")) return v;
+
+  // Things like "/uploads/..." or "uploads/..."
+  const base = api.defaults.baseURL ?? window.location.origin; // e.g. http://localhost:4000/api
+  const apiOrigin = new URL("/", base).origin;                  // -> http://localhost:4000
+
+  const trimmed = v.replace(/^\/?api\/?/, "").replace(/^\/+/, ""); // drop leading api/ and slashes
+  if (trimmed.startsWith("uploads/")) return `${apiOrigin}/${trimmed}`;
+
+  // Last resort: if server returned a weird relative path, still try to make it absolute
+  return `${apiOrigin}/${trimmed}`;
 }
 
 export function HomeCard({ home, summary, onToggle, onEdit, onDelete }: Props) {
@@ -36,7 +50,7 @@ export function HomeCard({ home, summary, onToggle, onEdit, onDelete }: Props) {
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
 
   const getPercent = (complete: number, total: number) =>
-    total === 0 ? 0 : Math.round((complete / total) * 100);
+    total === 0 ? 100 : Math.round((complete / Math.max(total, 1)) * 100);
 
   const getRoomStats = (tasks: Task[] = []) => {
     const now = new Date();

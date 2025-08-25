@@ -220,14 +220,14 @@ export function EditHomeModal({ isOpen, home, onSave, onCancel }: Props) {
             )}
             <ImageUpload
               homeId={home.id}
-              onUploadComplete={async (absoluteUrl) => {
+              onUploadComplete={async (url) => {
                 // persist to API then update preview with cache-buster
                 try {
-                  await api.put(`/homes/${home.id}`, { imageUrl: absoluteUrl });
+                  await api.put(`/homes/${home.id}`, { imageUrl: url });
                 } catch (e) {
                   console.warn('Failed to save image URL on home; continuing:', e);
                 }
-                setImageUrl(`${absoluteUrl}${absoluteUrl.includes('?') ? '&' : '?'}t=${Date.now()}`);
+                setImageUrl(`${url}${url.includes('?') ? '&' : '?'}t=${Date.now()}`);
               }}
             />
           </div>

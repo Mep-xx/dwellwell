@@ -5,6 +5,7 @@ import cookieParser from 'cookie-parser';
 import routes from './routes';
 import authRoutes from './routes/auth';
 import homesRouter from './routes/homes';
+import path from 'path';
 
 const app = express();
 
@@ -21,6 +22,10 @@ app.use(morgan('combined'));
 // Healthcheck
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
+app.use("/uploads", express.static(path.join(__dirname, "..", "uploads"), {
+  maxAge: "1y",
+  index: false,
+}));
 /**
  * IMPORTANT:
  * - We mount ALL API routes under /api
@@ -46,11 +51,11 @@ app.get('/__routes', (_req, res) => {
     } else if (layer.name === 'router' && layer.handle.stack) {
       const path = layer.regexp && layer.regexp.source
         ? layer.regexp.source
-            .replace('^\\', '/')
-            .replace('\\/?(?=\\/|$)', '')
-            .replace('(?=\\/|$)', '')
-            .replace('^', '')
-            .replace('$', '')
+          .replace('^\\', '/')
+          .replace('\\/?(?=\\/|$)', '')
+          .replace('(?=\\/|$)', '')
+          .replace('^', '')
+          .replace('$', '')
         : '';
       const newPrefix = path && path !== '/' ? `${prefix}${path}` : prefix;
       layer.handle.stack.forEach((l: any) => out.push(...describeLayer(l, newPrefix)));

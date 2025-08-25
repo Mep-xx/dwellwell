@@ -1,7 +1,8 @@
 // src/components/AddressAutocomplete.tsx
-import * as React from "react";
-import { api } from "@/utils/api";
-import { cn } from "@/lib/utils";
+import * as React from 'react';
+import { api } from '@/utils/api';
+import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
 
 export type AddressSuggestion = {
   id: string;
@@ -13,155 +14,121 @@ export type AddressSuggestion = {
   apartment?: string;
 };
 
-type Props = {
-  displayValue?: string;
-  placeholder?: string;
-  disabled?: boolean;
-  className?: string;
-  onSelectSuggestion: (s: AddressSuggestion) => void;
-};
-
+// Props:
+// - displayValue: formatted text to show when an address is selected (locks the field)
+// - onSelectSuggestion: called with the chosen suggestion
+// - onClear?: optional; if provided, shows a "Change" button that clears the selection
 export function AddressAutocomplete({
-  displayValue = "",
-  placeholder = "Start typing your address…",
-  disabled,
-  className,
+  displayValue,
   onSelectSuggestion,
-}: Props) {
-  const [value, setValue] = React.useState(displayValue);
+  onClear,
+  placeholder = 'Start typing your address…',
+  className,
+}: {
+  displayValue?: string;
+  onSelectSuggestion: (s: AddressSuggestion) => void;
+  onClear?: () => void;
+  placeholder?: string;
+  className?: string;
+}) {
+  const [term, setTerm] = React.useState('');
+  const [list, setList] = React.useState<AddressSuggestion[]>([]);
   const [open, setOpen] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
-  const [items, setItems] = React.useState<AddressSuggestion[]>([]);
-  const [activeIdx, setActiveIdx] = React.useState<number>(-1);
-  const boxRef = React.useRef<HTMLDivElement>(null);
 
-  // keep input in sync if parent changes displayValue
+  // If we have a displayValue (i.e., selected), lock the field and hide suggestions
+  const locked = !!displayValue;
+
+  // Debounced fetch
   React.useEffect(() => {
-    setValue(displayValue || "");
-  }, [displayValue]);
-
-  // click outside to close
-  React.useEffect(() => {
-    function handler(e: MouseEvent) {
-      if (boxRef.current && !boxRef.current.contains(e.target as Node)) {
-        setOpen(false);
-        setActiveIdx(-1);
-      }
-    }
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
-  // debounced fetch
-  React.useEffect(() => {
-    let ignore = false;
-    let t: number | undefined;
-
-    if (!value || value.trim().length < 3) {
-      setItems([]);
+    if (locked) return;                 // do nothing while locked
+    if (!term || term.length < 3) {
+      setList([]);
       setOpen(false);
-      setActiveIdx(-1);
       return;
     }
 
-    setLoading(true);
-    t = window.setTimeout(async () => {
+    let ignore = false;
+    const t = setTimeout(async () => {
+      setLoading(true);
       try {
-        const res = await api.get<AddressSuggestion[]>("/mapbox/suggest", {
-          params: { q: value.trim() },
-        });
+        // Our API expects ?q=term
+        const res = await api.get('/mapbox/suggest', { params: { q: term } });
         if (!ignore) {
-          setItems(res.data || []);
-          setOpen((res.data?.length ?? 0) > 0);
-          setActiveIdx(-1);
+          setList(res.data?.features ?? res.data ?? []); // tolerate raw features or mapped array
+          setOpen(true);
         }
       } catch {
         if (!ignore) {
-          setItems([]);
+          setList([]);
           setOpen(false);
-          setActiveIdx(-1);
         }
       } finally {
         if (!ignore) setLoading(false);
       }
-    }, 250);
+    }, 200);
 
     return () => {
       ignore = true;
-      if (t) window.clearTimeout(t);
+      clearTimeout(t);
     };
-  }, [value]);
-
-  function choose(idx: number) {
-    const chosen = items[idx];
-    if (!chosen) return;
-    setValue(chosen.place_name);
-    setOpen(false);
-    setActiveIdx(-1);
-    onSelectSuggestion(chosen);
-  }
+  }, [term, locked]);
 
   return (
-    <div ref={boxRef} className={cn("relative w-full", className)}>
-      <input
-        value={value}
-        onChange={(e) => {
-          setValue(e.target.value);
-          setOpen(false);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "ArrowDown") {
-            e.preventDefault();
-            setActiveIdx((i) => Math.min(i + 1, items.length - 1));
-          } else if (e.key === "ArrowUp") {
-            e.preventDefault();
-            setActiveIdx((i) => Math.max(i - 1, 0));
-          } else if (e.key === "Enter") {
-            if (open && activeIdx >= 0) {
-              e.preventDefault();
-              choose(activeIdx);
-            }
-          } else if (e.key === "Escape") {
-            setOpen(false);
-            setActiveIdx(-1);
-          }
-        }}
-        disabled={disabled}
-        placeholder={placeholder}
-        className={cn(
-          "w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm",
-          "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500",
-          disabled && "opacity-50 cursor-not-allowed"
+    <div className={cn('relative', className)}>
+      <div className="flex gap-2">
+        <Input
+          value={locked ? (displayValue ?? '') : term}
+          onChange={(e) => setTerm(e.target.value)}
+          placeholder={placeholder}
+          disabled={locked}
+          onFocus={() => {
+            if (!locked && list.length > 0) setOpen(true);
+          }}
+          onBlur={() => {
+            // small delay so click can register
+            setTimeout(() => setOpen(false), 120);
+          }}
+        />
+        {locked && (
+          <button
+            type="button"
+            className="text-sm px-3 rounded border hover:bg-accent"
+            onClick={() => {
+              onClear?.();      // clear selection in parent
+              setTerm('');      // clear local input
+              setList([]);      // close list
+              setOpen(false);
+            }}
+          >
+            Change
+          </button>
         )}
-        aria-autocomplete="list"
-        aria-expanded={open}
-        aria-controls="address-autocomplete-listbox"
-        role="combobox"
-      />
-      {loading && (
-        <div className="absolute right-2 top-2 text-xs text-gray-500">…</div>
-      )}
-      {open && items.length > 0 && (
-        <div
-          id="address-autocomplete-listbox"
-          role="listbox"
-          className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border bg-white shadow-md"
-        >
-          {items.map((s, idx) => (
-            <div
-              key={s.id}
-              role="option"
-              aria-selected={idx === activeIdx}
-              onMouseDown={(e) => e.preventDefault()} // don’t blur input
-              onClick={() => choose(idx)}
-              className={cn(
-                "cursor-pointer px-3 py-2 text-sm hover:bg-gray-100",
-                idx === activeIdx && "bg-gray-100"
-              )}
-            >
-              {s.place_name}
-            </div>
-          ))}
+      </div>
+
+      {!locked && open && (list.length > 0 || loading) && (
+        <div className="absolute z-50 mt-2 w-full max-h-56 overflow-auto rounded-md border bg-white shadow">
+          {loading && (
+            <div className="px-3 py-2 text-sm text-muted-foreground">Searching…</div>
+          )}
+          {!loading &&
+            list.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                className="w-full text-left px-3 py-2 hover:bg-accent"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  onSelectSuggestion(s);
+                  setOpen(false);
+                }}
+              >
+                {s.place_name}
+              </button>
+            ))}
+          {!loading && list.length === 0 && (
+            <div className="px-3 py-2 text-sm text-muted-foreground">No matches</div>
+          )}
         </div>
       )}
     </div>

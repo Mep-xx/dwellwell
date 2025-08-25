@@ -1,75 +1,52 @@
 // dwellwell-api/src/routes/mapbox/index.ts
-import express from "express";
+import express from 'express';
 // @ts-ignore
-import mbxGeocoding from "@mapbox/mapbox-sdk/services/geocoding";
+import mbxGeocoding from '@mapbox/mapbox-sdk/services/geocoding';
 
 const router = express.Router();
-const accessToken = process.env.MAPBOX_TOKEN || "";
-
-if (!accessToken) {
-  console.warn("[mapbox] MAPBOX_TOKEN is not set. Requests will fail.");
-}
-
+const accessToken = process.env.MAPBOX_TOKEN || '';
 const geocodingClient = mbxGeocoding({ accessToken });
 
-// helper to pluck a context item by id prefix (e.g., 'place', 'region', 'postcode')
-function pickCtx(ctx: any[] | undefined, prefix: string) {
-  return ctx?.find((c) => typeof c.id === "string" && c.id.startsWith(prefix));
-}
-
-router.get("/suggest", async (req, res) => {
-  // accept either ?q= or ?query=
-  const q =
-    (req.query.q as string) ??
-    (req.query.query as string) ??
-    "";
-
-  if (typeof q !== "string" || q.trim().length < 3) {
-    return res.status(400).json({ error: "INVALID_QUERY" });
+router.get('/suggest', async (req, res) => {
+  const q = (req.query.q ?? req.query.query) as string;
+  if (!q || typeof q !== 'string') {
+    return res.status(400).json({ error: 'INVALID_QUERY' });
   }
 
   try {
     const response = await geocodingClient
       .forwardGeocode({
-        query: q.trim(),
+        query: q,
         autocomplete: true,
-        types: ["address"],
+        types: ['address'],
         limit: 5,
-        countries: ["us"],
+        countries: ['us'],
       })
       .send();
 
-    const features: any[] = response.body?.features ?? [];
-
-    // Flatten to what the client expects
-    const suggestions = features.map((f) => {
-      const place = pickCtx(f.context, "place");     // city
-      const region = pickCtx(f.context, "region");   // state
-      const zip = pickCtx(f.context, "postcode");    // zip
-
-      // For addresses, Mapbox gives number in f.address and street name in f.text
-      const streetAddress =
-        f.address && f.text ? `${f.address} ${f.text}` : f.place_name;
-
-      // state as 2-letter if available (region.short_code is usually 'US-MA')
-      const state =
-        (region?.short_code && String(region.short_code).split("-")[1]) ||
-        region?.text;
-
+    // Map to a compact array the client AddressAutocomplete can consume directly
+    const features = (response.body?.features ?? []).map((f: any) => {
+      // naive parse of context for city/state/zip
+      const parts: Record<string, string> = {};
+      for (const c of f.context ?? []) {
+        if (c.id?.startsWith('place')) parts.city = c.text;
+        if (c.id?.startsWith('region')) parts.state = c.short_code?.split('-')?.[1] ?? c.text;
+        if (c.id?.startsWith('postcode')) parts.zip = c.text;
+      }
       return {
-        id: f.id as string,
-        place_name: f.place_name as string,
-        address: streetAddress as string,
-        city: place?.text as string | undefined,
-        state: state as string | undefined,
-        zip: zip?.text as string | undefined,
+        id: f.id,
+        place_name: f.place_name,
+        address: f.address ? `${f.address} ${f.text}` : f.text,
+        city: parts.city,
+        state: parts.state,
+        zip: parts.zip,
       };
     });
 
-    return res.json(suggestions);
+    return res.json(features);
   } catch (e) {
-    console.error("Mapbox error", e);
-    return res.status(500).json({ error: "MAPBOX_ERROR" });
+    console.error('Mapbox error', e);
+    return res.status(500).json({ error: 'MAPBOX_ERROR' });
   }
 });
 

@@ -17,6 +17,9 @@ import { ProgressBar } from "@/components/ui/progressbar";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { AddressAutocomplete, AddressSuggestion } from "@/components/AddressAutocomplete";
+import { architecturalStyleLabels } from '@shared/architecturalStyleLabels';
+import { houseRoomTemplates } from '@shared/houseRoomTemplates';
+import { ImageUpload } from '@/components/ui/imageupload';
 
 type Suggestion = AddressSuggestion;
 
@@ -39,6 +42,7 @@ const steps = [
   { id: 0, name: "Address" },
   { id: 1, name: "Basics" },
   { id: 2, name: "Comfort & Exterior" },
+  { id: 3, name: "Photo (optional)" },
 ];
 
 export default function AddHomeWizard({ open, onOpenChange, onCreated }: Props) {
@@ -202,6 +206,32 @@ export default function AddHomeWizard({ open, onOpenChange, onCreated }: Props) 
     }
   }, [home, nickname, yearBuilt, squareFeet, lotSize, architecturalStyle, numberOfRooms, apartment]);
 
+  const saveComfortAndNext = React.useCallback(async () => {
+    if (!home) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const payload: any = {
+        hasCentralAir,
+        hasBaseboard,
+        boilerType: boilerType || undefined,
+        roofType: roofType || undefined,
+        sidingType: sidingType || undefined,
+        features:
+          features.trim().length > 0
+            ? features.split(",").map((s) => s.trim()).filter(Boolean)
+            : undefined,
+      };
+      const res = await api.put(`/homes/${home.id}`, payload);
+      setHome(res.data);
+      setStep(3); // 👈 go to Photo step
+    } catch (e: any) {
+      setError(e?.response?.data?.message || "Could not save details.");
+    } finally {
+      setLoading(false);
+    }
+  }, [home, hasCentralAir, hasBaseboard, boilerType, roofType, sidingType, features]);
+
   const finish = React.useCallback(async () => {
     if (!home) return;
     setLoading(true);
@@ -269,40 +299,65 @@ export default function AddHomeWizard({ open, onOpenChange, onCreated }: Props) 
               <AddressAutocomplete
                 displayValue={formatSelectedDisplay(selected)}
                 onSelectSuggestion={(s) => setSelected(s)}
+                onClear={() => setSelected(null)}
               />
 
               <div className="flex items-center justify-between pt-2">
-                <Button variant="secondary" onClick={close}>
-                  Cancel
+                <Button variant="secondary" onClick={close}>Cancel</Button>
+                <Button onClick={createMinimal} disabled={loading || !selected}>
+                  {loading ? 'Creating…' : 'Use this address'}
                 </Button>
-                <div className="flex gap-2">
-                  {/* Optional: allow enrichment early once an address is chosen (prefills next steps).
-                      This doesn't require the home to exist, but most enrichment wants an ID.
-                      We'll keep the main enrich button on step 1 after creation. */}
-                  <Button onClick={createMinimal} disabled={loading || !selected}>
-                    {loading ? "Creating…" : "Use this address"}
-                  </Button>
-                </div>
               </div>
             </div>
           )}
+
 
           {/* STEP 1: BASICS */}
           {step === 1 && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <div className="text-sm text-muted-foreground">
-                  Add optional details (you can edit later).
-                </div>
+                <div />
                 <Button
                   variant="outline"
-                  onClick={handleEnhance}
-                  disabled={enhancing || !home}
-                  title="Use AI to prefill common details"
+                  onClick={async () => {
+                    if (!home) return;
+                    setLoading(true); setError(null);
+                    try {
+                      const res = await api.post(`/homes/${home.id}/enrich`, {
+                        address: home.address, city: home.city, state: home.state, zip: home.zip,
+                        current: {
+                          yearBuilt: yearBuilt ? Number(yearBuilt) : undefined,
+                          squareFeet: squareFeet ? Number(squareFeet) : undefined,
+                          lotSize: lotSize ? Number(lotSize) : undefined,
+                          numberOfRooms: numberOfRooms ? Number(numberOfRooms) : undefined,
+                          hasCentralAir, hasBaseboard, boilerType, roofType, sidingType,
+                          architecturalStyle: architecturalStyle || undefined,
+                          features: features ? features.split(',').map(s => s.trim()).filter(Boolean) : undefined,
+                        },
+                      });
+                      const d = res.data?.data || {};
+                      if (d.yearBuilt) setYearBuilt(String(d.yearBuilt));
+                      if (d.squareFeet) setSquareFeet(String(d.squareFeet));
+                      if (d.lotSize) setLotSize(String(d.lotSize));
+                      if (d.numberOfRooms) setNumberOfRooms(String(d.numberOfRooms));
+                      if (typeof d.hasCentralAir === 'boolean') setHasCentralAir(d.hasCentralAir);
+                      if (typeof d.hasBaseboard === 'boolean') setHasBaseboard(d.hasBaseboard);
+                      if (d.boilerType) setBoilerType(d.boilerType);
+                      if (d.roofType) setRoofType(d.roofType);
+                      if (d.sidingType) setSidingType(d.sidingType);
+                      if (d.architecturalStyle) setArchitecturalStyle(d.architecturalStyle);
+                      if (Array.isArray(d.features)) setFeatures(d.features.join(', '));
+                    } catch (e: any) {
+                      setError(e?.response?.data?.error || 'Enhance failed.');
+                    } finally {
+                      setLoading(false);
+                    }
+                  }}
                 >
-                  {enhancing ? "Enhancing…" : "Enhance with AI (beta)"}
+                  Enhance with AI (beta)
                 </Button>
               </div>
+
 
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <div>
@@ -365,12 +420,23 @@ export default function AddHomeWizard({ open, onOpenChange, onCreated }: Props) 
                 </div>
                 <div className="md:col-span-2">
                   <Label htmlFor="style">Architectural style (optional)</Label>
-                  <Input
+                  <select
                     id="style"
+                    className="border rounded px-3 py-2 text-sm w-full"
                     value={architecturalStyle}
-                    onChange={(e) => setArchitecturalStyle(e.target.value)}
-                    placeholder="e.g., Colonial, Ranch, Craftsman…"
-                  />
+                    onChange={(e) => {
+                      const key = e.target.value;
+                      setArchitecturalStyle(key);
+                      // (optional) pre-seed a “roomsDraft” state for preview later:
+                      // setRoomsDraft(houseRoomTemplates[key] ?? []);
+                    }}
+                  >
+                    <option value="">Select a style</option>
+                    {Object.entries(architecturalStyleLabels).map(([key, label]) => (
+                      <option key={key} value={key}>{label}</option>
+                    ))}
+                    <option value="Other">Other</option>
+                  </select>
                 </div>
               </div>
 
@@ -475,16 +541,44 @@ export default function AddHomeWizard({ open, onOpenChange, onCreated }: Props) 
                   Back
                 </Button>
                 <div className="flex gap-2">
-                  <Button variant="ghost" onClick={close}>
+                  <Button variant="ghost" onClick={() => setStep(3)}>
                     Skip
                   </Button>
-                  <Button onClick={finish} disabled={loading}>
-                    {loading ? "Saving…" : "Finish"}
+                  <Button onClick={saveComfortAndNext} disabled={loading}>
+                    {loading ? "Saving…" : "Next"}
                   </Button>
                 </div>
               </div>
             </div>
           )}
+
+          {/* STEP 3: IMAGE UPLOAD */}
+          {step === 3 && (
+            <div className="space-y-4">
+              {!home ? (
+                <p className="text-sm text-red-600">Create the home first.</p>
+              ) : (
+                <>
+                  <Label>Upload a photo</Label>
+                  <ImageUpload
+                    homeId={home.id}
+                    onUploadComplete={(absoluteUrl) => {
+                      // No extra PUT/PATCH needed because server already saved the imageUrl
+                      setHome((h) => (h ? { ...h, imageUrl: absoluteUrl } : h));
+                    }}
+                  />
+                </>
+              )}
+              <div className="flex items-center justify-between pt-2">
+                <Button variant="secondary" onClick={() => setStep(2)}>Back</Button>
+                <div className="flex gap-2">
+                  <Button variant="ghost" onClick={close}>Skip</Button>
+                  <Button onClick={close}>Finish</Button>
+                </div>
+              </div>
+            </div>
+          )}
+
         </div>
       </DialogContent>
     </Dialog>

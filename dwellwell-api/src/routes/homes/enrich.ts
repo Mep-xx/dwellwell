@@ -1,71 +1,87 @@
-// dwellwell-api/src/routes/homes/enrich.ts
-import { Router } from "express";
+// src/routes/homes/enrich.ts
+import express from 'express';
+import { z } from 'zod';
+import OpenAI from 'openai';
 
-// If you have auth, uncomment the next line and apply to the route:
-// import { requireAuth } from "../../middlewares/auth";
+const router = express.Router();
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-const router = Router();
+const EnrichReq = z.object({
+  address: z.string().optional(),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  zip: z.string().optional(),
+  // send any current values so the model can leave them alone
+  current: z.object({
+    yearBuilt: z.number().optional(),
+    squareFeet: z.number().optional(),
+    lotSize: z.number().optional(),
+    numberOfRooms: z.number().optional(),
+    hasCentralAir: z.boolean().optional(),
+    hasBaseboard: z.boolean().optional(),
+    boilerType: z.string().optional(),
+    roofType: z.string().optional(),
+    sidingType: z.string().optional(),
+    architecturalStyle: z.string().optional(),
+    features: z.array(z.string()).optional(),
+  }).optional(),
+});
 
-/**
- * POST /homes/:id/enrich
- * Returns partial fields to prefill the client’s AddHomeWizard.
- * Start with a stub for working UX; later, plug in your AI logic where marked.
- */
-router.post("/homes/:id/enrich", /* requireAuth, */ async (req, res) => {
+const EnrichOut = z.object({
+  yearBuilt: z.number().optional(),
+  squareFeet: z.number().optional(),
+  lotSize: z.number().optional(),
+  numberOfRooms: z.number().optional(),
+  hasCentralAir: z.boolean().optional(),
+  hasBaseboard: z.boolean().optional(),
+  boilerType: z.string().optional(),
+  roofType: z.string().optional(),
+  sidingType: z.string().optional(),
+  architecturalStyle: z.string().optional(),
+  features: z.array(z.string()).optional(),
+});
+
+router.post('/homes/:id/enrich', async (req, res) => {
+  const parse = EnrichReq.safeParse(req.body);
+  if (!parse.success) return res.status(400).json({ error: 'INVALID_BODY' });
+
+  const { address, city, state, zip, current } = parse.data;
+
+  const system = `You infer home basics. If unsure, leave a field out. Reply ONLY with JSON.`;
+  const user = {
+    address: [address, city, state, zip].filter(Boolean).join(', '),
+    current,
+    want: Object.keys(EnrichOut.shape),
+    notes: [
+      "If the style can be inferred (e.g., 'Colonial', 'Ranch', etc.), return it.",
+      "Boiler/furnace types can be 'Gas-Fired', 'Oil-Fired', 'Electric', etc.",
+      "Only include fields you feel reasonably confident about."
+    ]
+  };
+
   try {
-    const { id } = req.params;
-
-    // TODO (recommended): load the home from your DB using `id`
-    // Example (Prisma): const home = await prisma.home.findUnique({ where: { id } });
-    // If not found, return 404. For now we'll assume it exists.
-
-    // ----- STUB OUTPUT (works today) -----
-    // Give the wizard good-looking defaults so the UX feels "enhanced".
-    // You can tweak heuristics based on address/state if you like.
-    const stub = {
-      nickname: "My Home",
-      yearBuilt: 1998,
-      squareFeet: 2200,
-      lotSize: 0.25,
-      architecturalStyle: "Colonial",
-      rooms: [
-        { type: "Bedroom" },
-        { type: "Bedroom" },
-        { type: "Bathroom" },
-        { type: "Kitchen" },
-        { type: "Living Room" },
+    const completion = await openai.chat.completions.create({
+      model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: JSON.stringify(user) },
       ],
-      hasCentralAir: true,
-      hasBaseboard: false,
-      boilerType: "Gas-Fired",
-      roofType: "Asphalt Shingle",
-      sidingType: "Vinyl",
-      features: ["Fireplace", "Deck", "Attached Garage"],
-      apartment: "",
-    };
+      response_format: { type: 'json_object' },
+      temperature: 0.2,
+    });
 
-    // ----- REAL AI (optional; add later) -----
-    // If you want to power this with an LLM, replace `stub` with your AI result.
-    // Pseudocode outline:
-    //
-    // const detailsForModel = {
-    //   address: home.address,
-    //   city: home.city,
-    //   state: home.state,
-    //   zip: home.zip,
-    // };
-    //
-    // const result = await callYourAI(detailsForModel); // Returns the same shape as `stub`
-    // const enriched = validateAndClamp(result);        // Ensure numbers/ranges sane
-    //
-    // return res.json(enriched);
+    const raw = completion.choices?.[0]?.message?.content || '{}';
+    let data: unknown = {};
+    try { data = JSON.parse(raw); } catch { /* ignore */ }
 
-    return res.json(stub);
-  } catch (err: any) {
-    console.error("[enrich] failed:", err);
-    return res
-      .status(500)
-      .json({ message: "Enhanced lookup is unavailable. You can continue manually." });
+    const validated = EnrichOut.safeParse(data);
+    if (!validated.success) {
+      return res.json({ ok: true, data: {} });
+    }
+    return res.json({ ok: true, data: validated.data });
+  } catch (e) {
+    console.error('enrich error', e);
+    return res.status(500).json({ error: 'OPENAI_ERROR' });
   }
 });
 
