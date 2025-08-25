@@ -22,21 +22,14 @@ import AdminTrackables from '@/pages/admin/AdminTrackables';
 import Billing from '@/pages/Billing';
 import Settings from '@/pages/Settings';
 
+import RequireAuth from './RequireAuth';
+
 /** Blocks authed users from seeing public routes (/, /login, /signup) */
 function RequireGuest() {
   const { user, loading } = useAuth();
   const loc = useLocation();
   if (loading) return <div className="p-8 text-center">Loading…</div>;
   if (user) return <Navigate to="/app" replace state={{ from: loc }} />;
-  return <Outlet />;
-}
-
-/** Blocks guests from protected routes (/app, /admin, …) */
-function RequireAuth() {
-  const { user, loading } = useAuth();
-  const loc = useLocation();
-  if (loading) return <div className="p-8 text-center">Loading…</div>;
-  if (!user) return <Navigate to="/login" replace state={{ from: loc }} />;
   return <Outlet />;
 }
 

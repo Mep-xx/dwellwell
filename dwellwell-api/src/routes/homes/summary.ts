@@ -1,65 +1,44 @@
-// dwellwell-api/src/routes/homes/summary.ts
-import express from 'express';
+import { Router, Request, Response } from "express";
 import { prisma } from '../../db/prisma';
-import { requireAuth } from '../../middleware/requireAuth';
-import { isBefore, addDays } from 'date-fns';
+import { requireAuth } from "../../middleware/requireAuth";
+import { homeIdParam } from "./schema";
 
-const router = express.Router();
+const router = Router();
 
-async function handleSummary(req: express.Request, res: express.Response) {
-  const userId = (req as any).user.userId;
-  // path can be /homes/:id/summary or /:id/summary — pick whichever exists
-  const homeId = (req.params as any).id;
+router.get("/:id/summary", requireAuth, async (req: Request, res: Response) => {
+  const { id } = homeIdParam.parse(req.params);
+  const userId = req.user!.id;
 
-  if (!homeId) {
-    return res.status(400).json({ error: 'homeId is required' });
-  }
+  const home = await prisma.home.findFirst({
+    where: { id, userId },
+    include: {
+      rooms: true,
+      vehicles: true,
+      trackables: true,
+    },
+  });
 
-  try {
-    // NOTE: This matches your original schema usage:
-    // userTask -> trackable -> homeId
-    const tasks = await prisma.userTask.findMany({
-      where: {
-        userId,
-        trackable: {
-          homeId,
-        },
-      },
-      select: {
-        dueDate: true,
-        completedDate: true,
-      },
-    });
+  if (!home) return res.status(404).json({ error: "HOME_NOT_FOUND" });
 
-    const now = new Date();
-    const dueSoonThreshold = addDays(now, 7);
-
-    let complete = 0;
-    let dueSoon = 0;
-    let overdue = 0;
-
-    for (const task of tasks) {
-      const due = task.dueDate ? new Date(task.dueDate) : null;
-      if (task.completedDate) {
-        complete++;
-      } else if (due && isBefore(due, now)) {
-        overdue++;
-      } else if (due && isBefore(due, dueSoonThreshold)) {
-        dueSoon++;
-      }
-    }
-
-    res.json({ complete, dueSoon, overdue, total: tasks.length });
-  } catch (err) {
-    console.error('Failed to fetch task summary:', err);
-    res.status(500).json({ error: 'Internal Server Error' });
-  }
-}
-
-// Original path (when mounted at '/api' this is '/api/:id/summary')
-router.get('/:id/summary', requireAuth, handleSummary);
-
-// Alias that matches your client call (when mounted at '/api' this is '/api/homes/:id/summary')
-router.get('/homes/:id/summary', requireAuth, handleSummary);
+  // You can tailor this however you like:
+  res.json({
+    id: home.id,
+    nickname: home.nickname ?? home.address,
+    address: [home.address, home.apartment].filter(Boolean).join(", "),
+    city: home.city,
+    state: home.state,
+    zip: home.zip,
+    squareFeet: home.squareFeet ?? null,
+    yearBuilt: home.yearBuilt ?? null,
+    hasCentralAir: home.hasCentralAir ?? false,
+    hasBaseboard: home.hasBaseboard ?? false,
+    features: home.features ?? [],
+    counts: {
+      rooms: home.rooms.length,
+      vehicles: home.vehicles.length,
+      trackables: home.trackables.length,
+    },
+  });
+});
 
 export default router;

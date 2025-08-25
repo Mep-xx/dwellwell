@@ -9,7 +9,7 @@
     "moduleResolution": "node",
     "resolveJsonModule": true,
     "baseUrl": "./",
-    "rootDir": "./",
+    "rootDir": "../",
     "composite": true,
     "typeRoots": ["./node_modules/@types", "./src/types"],
     "types": ["node"],
@@ -17,8 +17,5 @@
       "@shared/*": ["../shared/*"]
     }
   },
-  "include": [
-    "src",
-    "../shared/**/*"
-  ]
+  "include": ["src", "../shared"]
 }

@@ -1,37 +1,33 @@
-import { Router } from 'express';
-import { requireAuth } from '../../middleware/requireAuth';
-import multer from 'multer';
-import sharp from 'sharp';
-import path from 'path';
-import fs from 'fs/promises';
+import { Router, Request, Response } from "express";
+import multer from "multer";
+import path from "path";
+import fs from "fs/promises";
+import { prisma } from '../../db/prisma';
+import { requireAuth } from "../../middleware/requireAuth";
+import { homeIdParam } from "./schema";
 
+const upload = multer({ dest: "uploads/tmp" });
 const router = Router();
 
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 },
+router.post("/:id/image", requireAuth, upload.single("image"), async (req: Request, res: Response) => {
+  const { id } = homeIdParam.parse(req.params);
+  const userId = req.user!.id;
+
+  const home = await prisma.home.findFirst({ where: { id, userId } });
+  if (!home) return res.status(404).json({ error: "HOME_NOT_FOUND" });
+
+  if (!req.file) return res.status(400).json({ error: "NO_FILE" });
+
+  const dir = path.join("uploads", "homes", id);
+  await fs.mkdir(dir, { recursive: true });
+
+  const finalPath = path.join(dir, `${Date.now()}_${req.file.originalname}`);
+  await fs.rename(req.file.path, finalPath);
+
+  const imageUrl = `/${finalPath.replace(/\\+/g, "/")}`;
+
+  const updated = await prisma.home.update({ where: { id }, data: { imageUrl } });
+  res.json(updated);
 });
-
-router.post(
-  '/upload-image',
-  requireAuth,
-  upload.single('image'),
-  async (req, res) => {
-    const homeId = (req.body?.homeId as string) || (req.query?.homeId as string);
-    if (!homeId) return res.status(400).json({ error: 'HOME_ID_REQUIRED' });
-    if (!req.file) return res.status(400).json({ error: 'IMAGE_REQUIRED' });
-
-    const baseDir = path.join(process.cwd(), 'uploads', 'homes', homeId);
-    await fs.mkdir(baseDir, { recursive: true });
-
-    const filename = 'main.jpg';
-    const full = path.join(baseDir, filename);
-
-    await sharp(req.file.buffer).rotate().resize(1600, 1200, { fit: 'inside' }).jpeg({ quality: 82 }).toFile(full);
-
-    const publicPath = `/uploads/homes/${homeId}/${filename}`;
-    return res.json({ filename: publicPath });
-  }
-);
 
 export default router;

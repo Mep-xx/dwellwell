@@ -1,18 +1,20 @@
-import { Router } from 'express';
-import { requireAuth } from '../../middleware/requireAuth';
-import list from './list';
-import create from './create';
-import update from './update';
-import remove from './remove';
-import uploadImage from './upload-image';
-import summary from './summary'; // keep if you use it
+import { Router } from "express";
+import listHomes from "./list";
+import createHome from "./create";
+import updateHome from "./update";
+import removeHome from "./remove";
+import uploadImage from "./upload-image";
+import summary from "./summary";
+import enrich from "./enrich";
 
 const router = Router();
-router.use(requireAuth);
-router.get('/', list);
-router.post('/', create);
-router.put('/:homeId', update);
-router.delete('/:homeId', remove);
-router.post('/upload-image', uploadImage);
-router.get('/:homeId/summary', summary);
+
+router.use("/", listHomes);
+router.use("/", createHome);
+router.use("/", updateHome);
+router.use("/", removeHome);
+router.use("/", uploadImage);
+router.use("/", summary);
+router.use("/", enrich);
+
 export default router;

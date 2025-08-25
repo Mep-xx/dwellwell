@@ -4,29 +4,6 @@ import { Prisma } from '@prisma/client';
 
 const router = Router();
 
-// If you have auth/role guards, enable them here
-// import { requireAuth } from '../../middleware/requireAuth';
-// import { requireAdmin } from '../../middleware/requireAdmin';
-// router.use(requireAuth, requireAdmin);
-
-/**
- * GET /api/admin/homes
- * Query:
- *  - q?: string (search across address/city/state and owner email)
- *  - page?: number (default 1)
- *  - pageSize?: number (default 25, max 100)
- *  - sort?: 'createdAt:desc' | 'createdAt:asc' (default: createdAt:desc)
- *
- * Response:
- * {
- *   page, pageSize, total, totalPages,
- *   items: [{
- *     id, address, city, state, createdAt,
- *     user: { id, email } | null,
- *     roomsCount, trackablesCount
- *   }]
- * }
- */
 router.get('/', async (req, res) => {
   try {
     const {

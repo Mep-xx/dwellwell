@@ -57,39 +57,34 @@ model LoginActivity {
 model Home {
   id                 String   @id @default(cuid())
   userId             String
+  user               User     @relation(fields: [userId], references: [id])
+
   address            String
+  apartment          String?
   city               String
   state              String
-  zip                String?
-  apartment          String?
+  zip                String
+
   nickname           String?
   squareFeet         Int?
   lotSize            Float?
   yearBuilt          Int?
-  numberOfRooms      Int?
+
+  hasCentralAir      Boolean  @default(false)
+  hasBaseboard       Boolean  @default(false)
+  hasHeatPump        Boolean  @default(false)
+
+  roofType           String?
+  sidingType         String?
   architecturalStyle String?
+  numberOfRooms      Int?
   features           String[]
   imageUrl           String?
-  isChecked          Boolean  @default(true)
+
   createdAt          DateTime @default(now())
-
-  boilerType    String?
-  hasCentralAir Boolean @default(false)
-  hasBaseboard  Boolean @default(false)
-  roofType      String?
-  sidingType    String?
-
-  user        User         @relation("UserHomes", fields: [userId], references: [id], onDelete: Cascade)
-  rooms       Room[]       @relation("HomeRooms")
-  trackables  Trackable[]  @relation("HomeTrackables")
-  lawnProfile LawnProfile?
-  vehicles    Vehicle[]    @relation("HomeVehicles")
-
-  // back-relation for User.defaultHome (named)
-  defaultForUsers User[] @relation("UserDefaultHome")
-
-  @@unique([userId, address, city, state, apartment])
+  updatedAt          DateTime @updatedAt
 }
+
 
 model Room {
   id               String  @id @default(cuid())

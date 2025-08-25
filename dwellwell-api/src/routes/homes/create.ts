@@ -1,24 +1,22 @@
-import { Router } from 'express';
-import { validate } from '../../middleware/validate';
-import { asyncHandler } from '../../middleware/asyncHandler';
+import { Router, Request, Response } from "express";
 import { prisma } from '../../db/prisma';
-import { Forbidden } from '../../utils/AppError';
-import { createHomeSchema } from './schema';
+import { requireAuth } from "../../middleware/requireAuth";
+import { createHomeSchema } from "./schema";
 
 const router = Router();
 
-router.post(
-  '/',
-  validate(createHomeSchema),
-  asyncHandler(async (req, res) => {
-    const userId = (req as any).user?.id;
-    if (!userId) throw Forbidden();
-    const { address, city, state, zip, nickname, squareFeet, lotSize, yearBuilt, features, architecturalStyle } = req.body;
-    const home = await prisma.home.create({
-      data: { userId, address, city, state, zip, nickname, squareFeet, lotSize, yearBuilt, features, architecturalStyle },
-    });
-    res.status(201).json(home);
-  })
-);
+router.post("/", requireAuth, async (req: Request, res: Response) => {
+  const userId = req.user!.id;
+  const data = createHomeSchema.parse(req.body);
+
+  const created = await prisma.home.create({
+    data: {
+      ...data,
+      userId,
+    },
+  });
+
+  res.status(201).json(created);
+});
 
 export default router;

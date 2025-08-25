@@ -1,24 +1,19 @@
-import { Router } from 'express';
-import { asyncHandler } from '../../middleware/asyncHandler';
+import { Router, Request, Response } from "express";
 import { prisma } from '../../db/prisma';
-import { Forbidden, NotFound } from '../../utils/AppError';
+import { requireAuth } from "../../middleware/requireAuth";
+import { homeIdParam } from "./schema";
 
 const router = Router();
 
-router.delete(
-  '/:homeId',
-  asyncHandler(async (req, res) => {
-    const userId = (req as any).user?.id;
-    if (!userId) throw Forbidden();
+router.delete("/:id", requireAuth, async (req: Request, res: Response) => {
+  const { id } = homeIdParam.parse(req.params);
+  const userId = req.user!.id;
 
-    const { homeId } = req.params as any;
-    const home = await prisma.home.findFirst({ where: { id: homeId, userId } });
-    if (!home) throw NotFound('HOME_NOT_FOUND');
+  const existing = await prisma.home.findFirst({ where: { id, userId } });
+  if (!existing) return res.status(404).json({ error: "HOME_NOT_FOUND" });
 
-    // Consider cascades in Prisma schema; if not set, you may need manual deletes
-    await prisma.home.delete({ where: { id: homeId } });
-    res.json({ ok: true });
-  })
-);
+  await prisma.home.delete({ where: { id } });
+  res.status(204).send();
+});
 
 export default router;

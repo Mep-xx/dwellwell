@@ -1,12 +1,16 @@
-import { Request, Response } from 'express';
-import { asyncHandler } from '../../middleware/asyncHandler';
+import { Router, Request, Response } from "express";
 import { prisma } from '../../db/prisma';
+import { requireAuth } from "../../middleware/requireAuth";
 
-export default asyncHandler(async (req: Request, res: Response) => {
-  const userId = (req as any).user?.id;
+const router = Router();
+
+router.get("/", requireAuth, async (req: Request, res: Response) => {
+  const userId = req.user!.id;
   const homes = await prisma.home.findMany({
     where: { userId },
-    orderBy: { createdAt: 'desc' },
+    orderBy: { createdAt: "desc" },
   });
   res.json(homes);
 });
+
+export default router;

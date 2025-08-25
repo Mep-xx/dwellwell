@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { ImageUpload } from '@/components/ui/imageupload';
 import { useState, useEffect } from 'react';
 import { Home } from '@shared/types/home';
+import { api } from '@/utils/api';
 
 const heatingCoolingOptions = [
   'Central Air',
@@ -40,7 +41,7 @@ type Props = {
 const isAbsoluteUrl = (s?: string | null) => !!s && /^https?:\/\//i.test(s);
 
 function buildUploadsUrlFromRelative(p: string) {
-  // Build an absolute uploads URL from a legacy relative path like "homes/<id>/main.jpg"
+  // Build absolute uploads URL from a legacy relative path like "homes/<id>/main.jpg"
   const apiBase: string = (import.meta.env.VITE_API_BASE_URL || '').toString();
   const origin = apiBase.replace(/\/api\/?$/i, '') || window.location.origin;
   const trimmed = p.replace(/^\/?uploads\/?/i, ''); // avoid double /uploads
@@ -61,18 +62,17 @@ export function EditHomeModal({ isOpen, home, onSave, onCancel }: Props) {
   const [customFeature, setCustomFeature] = useState('');
 
   useEffect(() => {
-    if (isOpen) {
-      setNickname(home.nickname ?? '');
-      setSquareFeet(home.squareFeet?.toString() ?? '');
-      setLotSize(home.lotSize?.toString() ?? '');
-      setYearBuilt(home.yearBuilt?.toString() ?? '');
-      setRoofType(home.roofType ?? '');
-      setSidingType(home.sidingType ?? '');
-      setBoilerType(home.boilerType ?? '');
-      setHeatingCoolingTypes(home.heatingCoolingTypes ?? []);
-      setFeatures(home.features ?? []);
-      setImageUrl(home.imageUrl ?? null); // can be absolute (new) or relative (legacy)
-    }
+    if (!isOpen) return;
+    setNickname(home.nickname ?? '');
+    setSquareFeet(home.squareFeet?.toString() ?? '');
+    setLotSize(home.lotSize?.toString() ?? '');
+    setYearBuilt(home.yearBuilt?.toString() ?? '');
+    setRoofType(home.roofType ?? '');
+    setSidingType(home.sidingType ?? '');
+    setBoilerType(home.boilerType ?? '');
+    setHeatingCoolingTypes(home.heatingCoolingTypes ?? []);
+    setFeatures(home.features ?? []);
+    setImageUrl(home.imageUrl ?? null);
   }, [isOpen, home]);
 
   const handleSave = () => {
@@ -87,7 +87,7 @@ export function EditHomeModal({ isOpen, home, onSave, onCancel }: Props) {
       boilerType,
       heatingCoolingTypes,
       features,
-      imageUrl, // store whatever we have (absolute preferred)
+      imageUrl, // absolute preferred, but keep whatever we have
     });
   };
 
@@ -220,9 +220,14 @@ export function EditHomeModal({ isOpen, home, onSave, onCancel }: Props) {
             )}
             <ImageUpload
               homeId={home.id}
-              onUploadComplete={(absoluteUrl) => {
-                // server returns absolute URL; add cache-buster
-                setImageUrl(`${absoluteUrl}?t=${Date.now()}`);
+              onUploadComplete={async (absoluteUrl) => {
+                // persist to API then update preview with cache-buster
+                try {
+                  await api.put(`/homes/${home.id}`, { imageUrl: absoluteUrl });
+                } catch (e) {
+                  console.warn('Failed to save image URL on home; continuing:', e);
+                }
+                setImageUrl(`${absoluteUrl}${absoluteUrl.includes('?') ? '&' : '?'}t=${Date.now()}`);
               }}
             />
           </div>

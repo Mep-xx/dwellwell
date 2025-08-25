@@ -1,108 +1,169 @@
+// src/components/AddressAutocomplete.tsx
+import * as React from "react";
+import { api } from "@/utils/api";
+import { cn } from "@/lib/utils";
 
-import { useState, useEffect, useRef } from 'react';
-import { Input } from '@/components/ui/input';
-import { api } from '@/utils/api';
+export type AddressSuggestion = {
+  id: string;
+  place_name: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zip?: string;
+  apartment?: string;
+};
 
-type AddressParts = {
-  displayName: string;
-  address: string;
-  city: string;
-  state: string;
-  zip: string;
+type Props = {
+  displayValue?: string;
+  placeholder?: string;
+  disabled?: boolean;
+  className?: string;
+  onSelectSuggestion: (s: AddressSuggestion) => void;
 };
 
 export function AddressAutocomplete({
-  displayValue,
+  displayValue = "",
+  placeholder = "Start typing your address…",
+  disabled,
+  className,
   onSelectSuggestion,
-}: {
-  displayValue: string;
-  onSelectSuggestion: (parts: AddressParts) => void;
-}) {
-  const [input, setInput] = useState(displayValue || '');
-  const [suggestions, setSuggestions] = useState<AddressParts[]>([]);
-  const [loading, setLoading] = useState(false);
-  const suppressRef = useRef(false);
-  const [dropdownVisible, setDropdownVisible] = useState(false);
+}: Props) {
+  const [value, setValue] = React.useState(displayValue);
+  const [open, setOpen] = React.useState(false);
+  const [loading, setLoading] = React.useState(false);
+  const [items, setItems] = React.useState<AddressSuggestion[]>([]);
+  const [activeIdx, setActiveIdx] = React.useState<number>(-1);
+  const boxRef = React.useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (suppressRef.current) {
-      suppressRef.current = false;
+  // keep input in sync if parent changes displayValue
+  React.useEffect(() => {
+    setValue(displayValue || "");
+  }, [displayValue]);
+
+  // click outside to close
+  React.useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (boxRef.current && !boxRef.current.contains(e.target as Node)) {
+        setOpen(false);
+        setActiveIdx(-1);
+      }
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  // debounced fetch
+  React.useEffect(() => {
+    let ignore = false;
+    let t: number | undefined;
+
+    if (!value || value.trim().length < 3) {
+      setItems([]);
+      setOpen(false);
+      setActiveIdx(-1);
       return;
     }
 
-    if (input.length < 5) {
-      setSuggestions([]);
-      return;
-    }
-
-    const delayDebounce = setTimeout(async () => {
-      setLoading(true);
+    setLoading(true);
+    t = window.setTimeout(async () => {
       try {
-        const res = await api.get('/mapbox/suggest', {
-          params: { query: input },
+        const res = await api.get<AddressSuggestion[]>("/mapbox/suggest", {
+          params: { q: value.trim() },
         });
-
-        const raw = res.data?.features || [];
-        const mapped = raw.map((f: any): AddressParts => {
-          const displayName = f.place_name;
-          const addressNumber = f.address || '';
-          const streetName = f.text || '';
-          const address = addressNumber && streetName ? `${addressNumber} ${streetName}` : streetName;
-          const city = f.context?.find((c: any) => c.id.startsWith('place'))?.text || '';
-          const state = f.context?.find((c: any) => c.id.startsWith('region'))?.text || '';
-          const zip = f.context?.find((c: any) => c.id.startsWith('postcode'))?.text || '';
-          return { displayName, address, city, state, zip };
-        });
-
-        setSuggestions(mapped);
-        setDropdownVisible(true);
-      } catch (err) {
-        console.error('Failed to get suggestions', err);
-        setSuggestions([]);
-        setDropdownVisible(false);
+        if (!ignore) {
+          setItems(res.data || []);
+          setOpen((res.data?.length ?? 0) > 0);
+          setActiveIdx(-1);
+        }
+      } catch {
+        if (!ignore) {
+          setItems([]);
+          setOpen(false);
+          setActiveIdx(-1);
+        }
       } finally {
-        setLoading(false);
+        if (!ignore) setLoading(false);
       }
     }, 250);
 
-    return () => clearTimeout(delayDebounce);
-  }, [input]);
+    return () => {
+      ignore = true;
+      if (t) window.clearTimeout(t);
+    };
+  }, [value]);
 
-  const handleSelect = (suggestion: AddressParts) => {
-    suppressRef.current = true;
-    setInput(suggestion.displayName);
-    onSelectSuggestion(suggestion);
-    setSuggestions([]);
-    setDropdownVisible(false);
-  };
+  function choose(idx: number) {
+    const chosen = items[idx];
+    if (!chosen) return;
+    setValue(chosen.place_name);
+    setOpen(false);
+    setActiveIdx(-1);
+    onSelectSuggestion(chosen);
+  }
 
   return (
-    <div className="relative">
-      <Input
-        value={input}
+    <div ref={boxRef} className={cn("relative w-full", className)}>
+      <input
+        value={value}
         onChange={(e) => {
-          setInput(e.target.value);
-          setDropdownVisible(false);
+          setValue(e.target.value);
+          setOpen(false);
         }}
-        autoComplete="new-password"
-        placeholder="Start typing your address..."
+        onKeyDown={(e) => {
+          if (e.key === "ArrowDown") {
+            e.preventDefault();
+            setActiveIdx((i) => Math.min(i + 1, items.length - 1));
+          } else if (e.key === "ArrowUp") {
+            e.preventDefault();
+            setActiveIdx((i) => Math.max(i - 1, 0));
+          } else if (e.key === "Enter") {
+            if (open && activeIdx >= 0) {
+              e.preventDefault();
+              choose(activeIdx);
+            }
+          } else if (e.key === "Escape") {
+            setOpen(false);
+            setActiveIdx(-1);
+          }
+        }}
+        disabled={disabled}
+        placeholder={placeholder}
+        className={cn(
+          "w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm",
+          "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500",
+          disabled && "opacity-50 cursor-not-allowed"
+        )}
+        aria-autocomplete="list"
+        aria-expanded={open}
+        aria-controls="address-autocomplete-listbox"
+        role="combobox"
       />
-
-      {dropdownVisible && suggestions.length > 0 && (
-        <ul className="absolute bg-white border border-gray-300 mt-1 w-full rounded z-10 max-h-60 overflow-auto shadow-lg">
-          {suggestions.map((s, i) => (
-            <li
-              key={i}
-              onClick={() => handleSelect(s)}
-              className="px-4 py-2 cursor-pointer hover:bg-gray-100"
-            >
-              {s.displayName}
-            </li>
-          ))}
-        </ul>
+      {loading && (
+        <div className="absolute right-2 top-2 text-xs text-gray-500">…</div>
       )}
-
-      {loading && <p className="text-sm text-gray-500 mt-1">Looking up suggestions...</p>}
+      {open && items.length > 0 && (
+        <div
+          id="address-autocomplete-listbox"
+          role="listbox"
+          className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border bg-white shadow-md"
+        >
+          {items.map((s, idx) => (
+            <div
+              key={s.id}
+              role="option"
+              aria-selected={idx === activeIdx}
+              onMouseDown={(e) => e.preventDefault()} // don’t blur input
+              onClick={() => choose(idx)}
+              className={cn(
+                "cursor-pointer px-3 py-2 text-sm hover:bg-gray-100",
+                idx === activeIdx && "bg-gray-100"
+              )}
+            >
+              {s.place_name}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

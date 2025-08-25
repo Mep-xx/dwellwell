@@ -1,64 +1,84 @@
-// dwellwell-api/src/index.ts
-import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
-import path from 'path';
-
 import routes from './routes';
-import { notFoundHandler, errorHandler } from './middleware/errorHandler';
+import authRoutes from './routes/auth';
+import homesRouter from './routes/homes';
 
 const app = express();
 
-// If behind a proxy (Render/Heroku/Nginx), set TRUST_PROXY=1
-if (process.env.TRUST_PROXY === '1') {
-  app.set('trust proxy', 1);
-}
+const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN ?? 'http://localhost:5173';
 
-app.use(express.json({ limit: '2mb' }));
-app.use(express.urlencoded({ extended: true }));
+// Core middleware
+app.use(cors({ origin: CLIENT_ORIGIN, credentials: true }));
+app.use(express.json());
 app.use(cookieParser());
 
-app.use(
-  cors({
-    origin: (origin, cb) => {
-      const allowed =
-        (process.env.WEB_ORIGIN || 'http://localhost:5173')
-          .split(',')
-          .map(s => s.trim());
-      if (!origin || allowed.includes(origin)) return cb(null, true);
-      return cb(new Error('Not allowed by CORS'));
-    },
-    credentials: true,
-  })
-);
+// Morgan (combined)
+app.use(morgan('combined'));
 
-// Serve uploads (images, etc.)
-app.use(
-  '/uploads',
-  express.static(path.join(process.cwd(), 'uploads'), {
-    etag: true,
-    lastModified: true,
-    maxAge: '7d',
-  })
-);
+// Healthcheck
+app.get('/health', (_req, res) => res.json({ ok: true }));
 
-// API routes
+/**
+ * IMPORTANT:
+ * - We mount ALL API routes under /api
+ * - The main API router mounts /homes
+ * - We ALSO expose a direct /api/homes mount as belt‑and‑suspenders
+ */
 app.use('/api', routes);
+app.use('/api', homesRouter);
 
-// 404 + centralized error handler
-app.use(notFoundHandler);
-app.use(errorHandler);
-
-const PORT = Number(process.env.PORT || 4000);
-
-if (require.main === module) {
-  app.listen(PORT, () => {
-    console.log(`API listening on http://localhost:${PORT}`);
-    if (process.env.WEB_ORIGIN) {
-      console.log(`CORS allowed origins: ${process.env.WEB_ORIGIN}`);
+/**
+ * Route introspection — see what Express has registered at runtime
+ * NOTE: do NOT expose this in production.
+ */
+app.get('/__routes', (_req, res) => {
+  function describeLayer(layer: any, prefix = ''): string[] {
+    const out: string[] = [];
+    if (layer.route && layer.route.path) {
+      const methods = Object.keys(layer.route.methods)
+        .filter((m) => layer.route.methods[m])
+        .map((m) => m.toUpperCase())
+        .join(',');
+      out.push(`${methods} ${prefix}${layer.route.path}`);
+    } else if (layer.name === 'router' && layer.handle.stack) {
+      const path = layer.regexp && layer.regexp.source
+        ? layer.regexp.source
+            .replace('^\\', '/')
+            .replace('\\/?(?=\\/|$)', '')
+            .replace('(?=\\/|$)', '')
+            .replace('^', '')
+            .replace('$', '')
+        : '';
+      const newPrefix = path && path !== '/' ? `${prefix}${path}` : prefix;
+      layer.handle.stack.forEach((l: any) => out.push(...describeLayer(l, newPrefix)));
     }
-  });
-}
+    return out;
+  }
 
-export default app;
+  const stack = (app as any)._router?.stack ?? [];
+  const lines = stack.flatMap((layer: any) => describeLayer(layer, ''));
+  res.json({ routes: lines.sort() });
+});
+
+// 404 fallthrough
+app.use((_req, res) => {
+  res.status(404).json({ error: 'NOT_FOUND', message: 'Route not found' });
+});
+
+// Error handler
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error('Unhandled error:', err);
+  res
+    .status(err?.status || 500)
+    .json({ error: 'SERVER_ERROR', message: process.env.NODE_ENV === 'production' ? 'Unexpected error' : err?.message ?? 'Unknown error' });
+});
+
+const PORT = Number(process.env.PORT ?? 4000);
+app.listen(PORT, () => {
+  console.log(`API listening on http://localhost:${PORT}`);
+  console.log(`CORS allowed origins: ${CLIENT_ORIGIN}`);
+});

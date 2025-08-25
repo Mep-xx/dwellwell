@@ -3,23 +3,7 @@ import { Router } from 'express';
 import { prisma } from '../../db/prisma';
 
 const router = Router();
-// NOTE: If you want to protect these with admin auth:
-// import { requireAuth } from '../../middleware/requireAdmin';
-// import { requireAuth } from '../../middleware/requireAuth';
-// router.use(requireAuth, requireAdmin);
 
-/**
- * GET /api/admin/trackables
- * Query params:
- *  - q: string           (search userDefinedName / brand / model)
- *  - type: string        (appliance type, from ApplianceCatalog.type)
- *  - category: string    (from ApplianceCatalog.category)
- *  - userId: string      (owner user id; via Trackable.home.userId)
- *  - homeId: string
- *  - page: number        (default 1)
- *  - pageSize: number    (default 25, max 100)
- *  - sort: 'createdAt:desc' | 'createdAt:asc'
- */
 router.get('/', async (req, res) => {
   try {
     const {

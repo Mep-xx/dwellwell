@@ -2,7 +2,7 @@ import { cn } from '@/lib/utils';
 import { ButtonHTMLAttributes, forwardRef } from 'react';
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'default' | 'outline' | 'destructive';  // 👈 Added destructive
+  variant?: 'default' | 'outline' | 'destructive' | "secondary" | "ghost";
   size?: 'sm' | 'md' | 'lg';
 }
 
@@ -10,7 +10,7 @@ const baseStyles = 'inline-flex items-center justify-center font-medium transiti
 const variantStyles = {
   default: 'bg-brand-primary text-white hover:bg-blue-700',
   outline: 'border border-gray-300 text-gray-800 hover:bg-gray-100',
-  destructive: 'bg-red-600 text-white hover:bg-red-700',  // 👈 Added destructive
+  destructive: 'bg-red-600 text-white hover:bg-red-700',
 };
 const sizeStyles = {
   sm: 'px-3 py-1 text-sm rounded-md',

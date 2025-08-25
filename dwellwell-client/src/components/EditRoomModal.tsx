@@ -96,7 +96,7 @@ export function EditRoomModal({ room, isOpen, onClose, onSave }: Props) {
 
   const handleSubmit = async () => {
     try {
-      await api.patch(`/rooms/${room?.id}`, {
+      await api.put(`/rooms/${room?.id}`, {
         name,
         type,
         floor: normalizeFloor(floor),
@@ -105,7 +105,7 @@ export function EditRoomModal({ room, isOpen, onClose, onSave }: Props) {
         hasSmokeDetector: smoke,
       });
 
-      await api.patch(`/rooms/${room?.id}/tasks`, {
+      await api.put(`/rooms/${room?.id}/tasks`, {
         disabledTaskIds: userTasks.filter((t) => t.disabled).map((t) => t.id),
       });
 

@@ -1,181 +1,129 @@
-// dwellwell-client/src/utils/api.ts
+// src/utils/api.ts
 import axios, { AxiosError, AxiosRequestConfig } from 'axios';
-import { toast } from '@/components/ui/use-toast';
-import { apiLogout } from '@/utils/logoutHelper';
 
-// ----------------------------------------------------------------------------
-// Axios instance
-// ----------------------------------------------------------------------------
+/**
+ * We ONLY read VITE_API_BASE_URL from .env and require it to end with /api.
+ * No defaults, no guessing.
+ */
+const RAW_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
+
+if (!RAW_BASE) {
+  throw new Error('[api] Missing VITE_API_BASE_URL in .env (it must include /api).');
+}
+
+// normalize: remove trailing slashes ONLY (no appending)
+const baseURL = RAW_BASE.replace(/\/+$/, '');
+if (!/\/api$/.test(baseURL)) {
+  throw new Error(`[api] VITE_API_BASE_URL must end with "/api". Got "${RAW_BASE}".`);
+}
+
+// ---- Token storage
+export const ACCESS_TOKEN_KEY = 'dwellwell-token';
+
+export function getAccessToken(): string | null {
+  try {
+    return localStorage.getItem(ACCESS_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setAccessToken(token: string | null) {
+  try {
+    if (token) localStorage.setItem(ACCESS_TOKEN_KEY, token);
+    else localStorage.removeItem(ACCESS_TOKEN_KEY);
+  } catch {
+    /* ignore storage errors (SSR or disabled storage) */
+  }
+}
+
+// ---- Axios instance (send cookies for refresh)
 export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
-  withCredentials: true, // needed for refresh cookie
-  timeout: 30000,
+  baseURL,
+  withCredentials: true, // needed so refresh cookie is sent
 });
 
-// ----------------------------------------------------------------------------
-// Token storage helpers
-// ----------------------------------------------------------------------------
-const ACCESS_TOKEN_KEY = 'dwellwell-token';
-
-function getToken() {
-  return localStorage.getItem(ACCESS_TOKEN_KEY) || null;
-}
-function setToken(token: string) {
-  localStorage.setItem(ACCESS_TOKEN_KEY, token);
-}
-function clearToken() {
-  localStorage.removeItem(ACCESS_TOKEN_KEY);
-}
-
-// ----------------------------------------------------------------------------
-/* Light client-side session helpers */
-// ----------------------------------------------------------------------------
-function redirectToLoginWithQuery(reason: 'expired' | 'unauth') {
-  const url = new URL(window.location.href);
-  const isAlreadyOnLogin = url.pathname.startsWith('/login');
-  if (isAlreadyOnLogin) return;
-  const qs = new URLSearchParams({ reason }).toString();
-  window.location.assign(`/login?${qs}`);
-}
-
-function safeClientClear() {
-  try {
-    clearToken();
-  } catch {}
-}
-
-let hasShownBackendError = false;
-function backendDownToastOnce() {
-  if (hasShownBackendError) return;
-  hasShownBackendError = true;
-  toast({
-    title: 'Server unavailable',
-    description: 'The API did not respond. Please try again in a moment.',
-    variant: 'destructive',
-  });
-  setTimeout(() => (hasShownBackendError = false), 10_000);
-}
-
-// ----------------------------------------------------------------------------
-// Attach Authorization header
-// ----------------------------------------------------------------------------
+// Attach Authorization on every request (skip auth endpoints)
 api.interceptors.request.use((config) => {
-  const t = getToken();
-  if (t) {
-    config.headers = config.headers || {};
-    (config.headers as any).Authorization = `Bearer ${t}`;
+  const url = `${config.baseURL ?? ''}${config.url ?? ''}`;
+  const token = getAccessToken();
+  const isAuthEndpoint = url.includes('/auth/login') || url.includes('/auth/refresh');
+
+  if (!isAuthEndpoint && token) {
+    config.headers = config.headers ?? {};
+    (config.headers as any).Authorization = `Bearer ${token}`;
   }
+
+  // DEBUG:
+  console.log('[api->]', (config.method || 'GET').toUpperCase(), url, {
+    hasAuth: !isAuthEndpoint && !!token,
+    tokenPrefix: token ? token.slice(0, 12) : null
+  });
+
   return config;
 });
 
-// ----------------------------------------------------------------------------
-// Refresh management (fan-in concurrent 401→refresh)
-// ----------------------------------------------------------------------------
+
+// ---- 401 handler: refresh once, then retry original
 let isRefreshing = false;
-let pendingQueue: Array<(t: string) => void> = [];
+let queue: Array<{ resolve: (t: string) => void; reject: (e: any) => void }> = [];
 
-function enqueue(cb: (t: string) => void) {
-  pendingQueue.push(cb);
-}
-function flushQueue(newToken: string) {
-  pendingQueue.forEach((fn) => fn(newToken));
-  pendingQueue = [];
+async function refreshAccessToken(): Promise<string> {
+  console.log('[api] refreshing…');
+  const { data } = await axios.post(`${baseURL}/auth/refresh`, {}, { withCredentials: true });
+  console.log('[api] refresh OK, got accessToken?', !!data?.accessToken);
+  if (isRefreshing) {
+    return new Promise((resolve, reject) => queue.push({ resolve, reject }));
+  }
+  isRefreshing = true;
+  try {
+    const { data } = await axios.post(
+      `${baseURL}/auth/refresh`,
+      {},
+      { withCredentials: true }
+    );
+    const newToken: string | undefined = data?.accessToken;
+    if (!newToken) throw new Error('No accessToken in refresh response');
+    setAccessToken(newToken);
+    queue.forEach((p) => p.resolve(newToken));
+    queue = [];
+    return newToken;
+  } catch (err) {
+    queue.forEach((p) => p.reject(err));
+    queue = [];
+    setAccessToken(null);
+    throw err;
+  } finally {
+    isRefreshing = false;
+  }
 }
 
-async function performRefresh(): Promise<string> {
-  const { data } = await api.post('/auth/refresh'); // cookie-based
-  const newToken = data?.accessToken as string | undefined;
-  if (!newToken) throw new Error('No accessToken returned by refresh');
-  setToken(newToken);
-  return newToken;
-}
-
-// ----------------------------------------------------------------------------
-// Response handling
-// ----------------------------------------------------------------------------
 api.interceptors.response.use(
   (res) => res,
-  async (error: AxiosError<any>) => {
-    // Network-level issue?
-    if (error.code === 'ECONNABORTED' || error.message?.includes('Network Error')) {
-      backendDownToastOnce();
-    }
-
-    const status = error.response?.status;
-    const code = (error.response?.data as any)?.error;
+  async (error: AxiosError) => {
     const original = error.config as (AxiosRequestConfig & { _retry?: boolean }) | undefined;
+    const status = error.response?.status ?? 0;
+    const url = `${original?.baseURL ?? ''}${original?.url ?? ''}`;
+    const isAuthEndpoint = url.includes('/auth/login') || url.includes('/auth/refresh');
 
-    // Identify auth endpoints to avoid refresh/redirect loops
-    const originalUrl = (original?.url || '').toString();
-    const isAuthPath =
-      originalUrl.includes('/auth/login') ||
-      originalUrl.includes('/auth/signup') ||
-      originalUrl.includes('/auth/refresh');
-
-    // Only try to refresh on explicit token expiration, and NEVER for auth endpoints
-    const shouldTryRefresh =
-      !isAuthPath &&
-      status === 401 &&
-      code === 'TOKEN_EXPIRED' &&
-      !!original &&
-      !original._retry;
-
-    if (shouldTryRefresh) {
-      // If a refresh is already in flight, enqueue this request to retry when done
-      if (isRefreshing) {
-        return new Promise((resolve) => {
-          enqueue((newToken) => {
-            if (!original.headers) original.headers = {};
-            (original.headers as any).Authorization = `Bearer ${newToken}`;
-            original._retry = true;
-            resolve(api(original));
-          });
-        });
-      }
-
-      // Start refresh
-      isRefreshing = true;
+    // Only refresh for non-auth endpoints, and only once
+    if (status === 401 && original && !original._retry && !isAuthEndpoint) {
+      original._retry = true;
+      console.log('[api] 401 from', original.url, '→ trying refresh');
+      const token = await refreshAccessToken();
+      console.log('[api] retrying', original.url, 'with new token prefix', token.slice(0,12));
       try {
-        const newToken = await performRefresh();
-        flushQueue(newToken);
-
-        if (!original.headers) original.headers = {};
-        (original.headers as any).Authorization = `Bearer ${newToken}`;
-        original._retry = true;
+        const token = await refreshAccessToken();
+        original.headers = original.headers ?? {};
+        (original.headers as any).Authorization = `Bearer ${token}`;
         return api(original);
       } catch (e) {
-        // Refresh failed – log out and send to login
-        safeClientClear();
-        apiLogout(); // your helper may clear user context and route
-        redirectToLoginWithQuery('expired');
-        return Promise.reject(error);
-      } finally {
-        isRefreshing = false;
+        return Promise.reject(e);
       }
-    }
-
-    // All other 401/403 → treat as unauth (but don't redirect for the auth endpoints themselves)
-    if (!isAuthPath && (status === 401 || status === 403)) {
-      safeClientClear();
-      apiLogout();
-      redirectToLoginWithQuery('unauth');
     }
 
     return Promise.reject(error);
   }
 );
 
-// ----------------------------------------------------------------------------
-// Convenience auth endpoints (optional)
-// ----------------------------------------------------------------------------
-export const signup = (email: string, password: string) => api.post('/auth/signup', { email, password });
-export const login = (email: string, password: string) => api.post('/auth/login', { email, password });
-export const logout = () => api.post('/auth/logout').finally(() => safeClientClear());
-
-// ----------------------------------------------------------------------------
-// Optional: a small helper for GET with typed params (ergonomics)
-// ----------------------------------------------------------------------------
-export async function getJson<T>(url: string, params?: Record<string, any>) {
-  const { data } = await api.get<T>(url, { params });
-  return data;
-}
+export default api;

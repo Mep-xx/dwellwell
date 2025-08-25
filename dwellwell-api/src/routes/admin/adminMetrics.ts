@@ -4,7 +4,6 @@ import { prisma } from '../../db/prisma';
 import { startOfMonth } from 'date-fns';
 
 const router = Router();
-// Optionally: router.use(requireAuth, requireAdmin);
 
 router.get('/', async (_req, res) => {
   try {

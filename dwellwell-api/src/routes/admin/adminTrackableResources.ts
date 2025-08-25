@@ -6,10 +6,6 @@ import path from 'path';
 import fs from 'fs';
 
 const router = Router();
-// Optionally secure with admin middleware:
-// import { requireAuth } from '../../middleware/requireAuth';
-// import { requireAdmin } from '../../middleware/requireAdmin';
-// router.use(requireAuth, requireAdmin);
 
 // Base storage
 const baseUploadDir = path.join(process.cwd(), 'uploads', 'trackables');

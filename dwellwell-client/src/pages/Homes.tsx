@@ -1,14 +1,13 @@
 // src/pages/Homes.tsx
-
 import { useEffect, useState } from 'react';
 import { api } from '@/utils/api';
 import { Home } from '@shared/types/home';
-import { AddHomeWizard } from '@/components/AddHomeWizard';
 import { EditHomeModal } from '@/components/EditHomeModal';
 import { DeleteHomeModal } from '@/components/DeleteHomeModal';
 import { HomeCard } from '@/components/HomeCard';
 import { Room } from '@shared/types/room';
 import { useToast } from '@/components/ui/use-toast';
+import AddHomeWizard from '@/components/AddHomeWizard';
 
 type TaskSummary = {
   complete: number;
@@ -22,7 +21,9 @@ type HomeWithStats = Home & {
   rooms?: Room[];
 };
 
-export default function HomesPage() {
+type ApiHome = Home & { rooms?: Room[] };
+
+export function HomesPage() {
   const [homes, setHomes] = useState<HomeWithStats[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
@@ -31,11 +32,7 @@ export default function HomesPage() {
   const { toast } = useToast();
 
   useEffect(() => {
-    setTimeout(() => {
-      fetchHomes();
-    }, 1000);
-
-    const waitForToken = async () => {
+    const waitForTokenAndFetch = async () => {
       const maxAttempts = 10;
       let attempt = 0;
 
@@ -46,10 +43,12 @@ export default function HomesPage() {
 
       if (localStorage.getItem('dwellwell-token')) {
         fetchHomes();
+      } else {
+        console.warn('⚠️ No token found; skipping homes fetch.');
       }
     };
 
-    waitForToken();
+    waitForTokenAndFetch();
   }, []);
 
   const fetchHomes = async () => {
@@ -60,22 +59,22 @@ export default function HomesPage() {
     }
 
     try {
-      const res = await api.get('/homes');
-      const fetchedHomes: Home[] = res.data;
+      const res = await api.get<ApiHome[]>('/homes');
+      const fetchedHomes: ApiHome[] = res.data;
 
       const enrichedHomes = await Promise.all(
         fetchedHomes.map(async (home) => {
           try {
-            const taskSummary = await api.get(`/homes/${home.id}/summary`);
+            const taskSummaryRes = await api.get(`/homes/${home.id}/summary`);
+            const taskSummary = taskSummaryRes.data as TaskSummary;
             return {
               ...home,
-              taskSummary: taskSummary.data as TaskSummary,
-              // ✅ KEEP original rooms with userTasks
-              rooms: home.rooms || [],
-            };
+              taskSummary,
+              rooms: home.rooms ?? [],
+            } as HomeWithStats;
           } catch (err) {
             console.error(`❌ [ERROR] Enriching home ${home.address}`, err);
-            return home;
+            return { ...home, rooms: home.rooms ?? [] } as HomeWithStats;
           }
         })
       );
@@ -85,7 +84,6 @@ export default function HomesPage() {
       console.error('❌ [ERROR] Failed to fetch homes:', err);
     }
   };
-
 
   const toggleHomeChecked = async (homeId: string, newValue: boolean) => {
     const previousHomes = [...homes];
@@ -97,7 +95,7 @@ export default function HomesPage() {
         )
       );
 
-      await api.patch(`/homes/${homeId}/check`, { isChecked: newValue });
+      await api.put(`/homes/${homeId}/check`, { isChecked: newValue });
 
       toast({
         title: newValue
@@ -127,7 +125,7 @@ export default function HomesPage() {
     if (!editTargetHome?.id) return;
 
     try {
-      await api.patch(`/homes/${editTargetHome.id}`, {
+      await api.put(`/homes/${editTargetHome.id}`, {
         nickname: updatedFields.nickname,
         squareFeet: updatedFields.squareFeet,
         lotSize: updatedFields.lotSize,
@@ -184,10 +182,10 @@ export default function HomesPage() {
 
   return (
     <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
+      <div className="mb-6 flex items-center justify-between">
         <h1 className="text-3xl font-bold text-brand-primary">My Homes</h1>
         <button
-          className="bg-brand-primary text-white px-4 py-2 rounded hover:bg-blue-600"
+          className="rounded bg-brand-primary px-4 py-2 text-white hover:bg-blue-600"
           onClick={() => setShowAddModal(true)}
         >
           + Add Home
@@ -208,10 +206,15 @@ export default function HomesPage() {
         ))}
       </div>
 
+      {/* 🔧 Updated to match AddHomeWizard props */}
       <AddHomeWizard
-        isOpen={showAddModal}
-        onClose={() => setShowAddModal(false)}
-        onComplete={fetchHomes}
+        open={showAddModal}
+        onOpenChange={setShowAddModal}
+        onCreated={() => {
+          // We can refresh as soon as a home is created (step 0),
+          // and the wizard will still let the user finish steps 1–2.
+          fetchHomes();
+        }}
       />
 
       <DeleteHomeModal
@@ -231,3 +234,5 @@ export default function HomesPage() {
     </div>
   );
 }
+
+export default HomesPage;

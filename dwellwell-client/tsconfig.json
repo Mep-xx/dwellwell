@@ -1,9 +1,4 @@
 {
-  "files": [],
-  "references": [
-    { "path": "./tsconfig.app.json" },
-    { "path": "./tsconfig.node.json" }
-  ],
   "compilerOptions": {
     "baseUrl": ".",
     "types": ["vite/client", "node"],
@@ -14,7 +9,9 @@
       "@/*": ["src/*"]
     },
     "jsx": "react-jsx",
-    "typeRoots": ["./node_modules/@types", "./src/types"]
+    "typeRoots": ["./node_modules/@types", "./src/types"],
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true
   },
   "include": ["src", "src/types"]
 }
