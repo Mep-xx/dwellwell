@@ -1,4 +1,3 @@
-// src/components/AddHomeWizard.tsx
 import React from "react";
 import { api } from "@/utils/api";
 import {
@@ -11,15 +10,22 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/select"; // simple styled <select>
+import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { ProgressBar } from "@/components/ui/progressbar";
 import { Textarea } from "@/components/ui/textarea";
+import { ImageUpload } from "@/components/ui/imageupload";
+import { Wand2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import ImageUpload from "@/components/ui/imageupload";
 
-// style dropdown
-import { architecturalStyleLabels } from "@shared/architecturalStyleLabels";
+// shared data (guarded to avoid .map() “String has no call signatures”)
+import * as StyleModule from "@shared/architecturalStyleLabels";
+import * as TemplatesModule from "@shared/houseRoomTemplates";
+const styleList: string[] = Array.isArray((StyleModule as any).architecturalStyleLabels)
+  ? ((StyleModule as any).architecturalStyleLabels as string[])
+  : [];
+const houseRoomTemplates: Record<string, { name?: string; type: string; floor?: number }[]> =
+  (TemplatesModule as any).houseRoomTemplates || {};
 
 type Suggestion = {
   id: string;
@@ -39,18 +45,29 @@ type Home = {
   zip: string;
   apartment?: string | null;
   imageUrl?: string | null;
-  nickname?: string | null;
-  architecturalStyle?: string | null;
-  squareFeet?: number | null;
-  lotSize?: number | null;
-  yearBuilt?: number | null;
 };
 
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated?: (home: Home) => void;
-  onFinished?: (home: Home) => void; // 👈 used to redirect after final step
+  /** Back-compat alias your Homes.tsx used earlier */
+  onFinished?: (home: Home) => void;
+};
+
+type FloorLabel =
+  | "Basement"
+  | "1st Floor"
+  | "2nd Floor"
+  | "3rd Floor"
+  | "Attic"
+  | "Other";
+
+type RoomRow = {
+  key: string;
+  name: string;
+  type: string;
+  floorLabel: FloorLabel;
 };
 
 const steps = [
@@ -60,61 +77,86 @@ const steps = [
   { id: 3, name: "Photo" },
 ];
 
-function normalizeLabels(input: unknown): string[] {
-  if (Array.isArray(input)) return input.filter((v): v is string => typeof v === "string");
-  if (input && typeof input === "object") {
-    // Accept shapes like { Colonial: 'Colonial', Ranch: 'Ranch' } or { labels: [...] }
-    // @ts-ignore probing
-    if (Array.isArray(input.labels)) return input.labels.filter((v: unknown): v is string => typeof v === "string");
-    return Object.values(input).filter((v): v is string => typeof v === "string");
+const floorToLabel = (floor?: number | null): FloorLabel => {
+  switch (floor) {
+    case -1:
+      return "Basement";
+    case 1:
+      return "1st Floor";
+    case 2:
+      return "2nd Floor";
+    case 3:
+      return "3rd Floor";
+    case 99:
+      return "Attic";
+    case 0:
+      return "Other";
+    default:
+      return "1st Floor";
   }
-  return [];
-}
-const styleOptions = normalizeLabels(architecturalStyleLabels);
+};
+const labelToFloor = (label: FloorLabel): number => {
+  switch (label) {
+    case "Basement":
+      return -1;
+    case "1st Floor":
+      return 1;
+    case "2nd Floor":
+      return 2;
+    case "3rd Floor":
+      return 3;
+    case "Attic":
+      return 99;
+    case "Other":
+      return 0;
+    default:
+      return 1;
+  }
+};
 
 export default function AddHomeWizard({ open, onOpenChange, onCreated, onFinished }: Props) {
   const [step, setStep] = React.useState(0);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [aiNote, setAiNote] = React.useState<string | null>(null);
 
-  // created home after step 0
   const [home, setHome] = React.useState<Home | null>(null);
 
-  // Step 0: address search/selection
+  // Address
   const [query, setQuery] = React.useState("");
   const [suggestions, setSuggestions] = React.useState<Suggestion[]>([]);
   const [selected, setSelected] = React.useState<Suggestion | null>(null);
 
-  // Step 1: basics
+  // Basics
   const [nickname, setNickname] = React.useState("");
-  const [yearBuilt, setYearBuilt] = React.useState<string>("");
-  const [squareFeet, setSquareFeet] = React.useState<string>("");
-  const [lotSize, setLotSize] = React.useState<string>("");
+  const [yearBuilt, setYearBuilt] = React.useState("");
+  const [squareFeet, setSquareFeet] = React.useState("");
+  const [lotSize, setLotSize] = React.useState("");
   const [architecturalStyle, setArchitecturalStyle] = React.useState("");
   const [apartment, setApartment] = React.useState("");
+  const [rooms, setRooms] = React.useState<RoomRow[]>([]);
 
-  // Step 2: comfort/exterior
+  // Comfort/exterior
   const [hasCentralAir, setHasCentralAir] = React.useState(false);
   const [hasBaseboard, setHasBaseboard] = React.useState(false);
-  const [boilerType, setBoilerType] = React.useState<string>("");
-  const [roofType, setRoofType] = React.useState<string>("");
-  const [sidingType, setSidingType] = React.useState<string>("");
-  const [features, setFeatures] = React.useState<string>(""); // comma-separated
-  const [heatingCoolingTypes, setHeatingCoolingTypes] = React.useState<string[]>([]);
+  const [boilerType, setBoilerType] = React.useState("");
+  const [roofType, setRoofType] = React.useState("");
+  const [sidingType, setSidingType] = React.useState("");
+  const [features, setFeatures] = React.useState("");
 
-  // Step 3: photo
-  const [imageUrl, setImageUrl] = React.useState<string>("");
+  // photo
+  const [imageUrl, setImageUrl] = React.useState("");
 
-  // address suggestions (avoid re-fetch if a suggestion is selected)
+  // suggest (Mapbox)
   React.useEffect(() => {
     let ignore = false;
     async function run() {
-      if (!query || query.length < 3 || selected) {
-        setSuggestions([]);
+      if (!query || query.length < 3) {
+        if (!ignore) setSuggestions([]);
         return;
       }
       try {
-        const res = await api.get("/mapbox/suggest", { params: { q: query } }); // server accepts q OR query
+        const res = await api.get("/mapbox/suggest", { params: { q: query } });
         if (!ignore) setSuggestions(res.data || []);
       } catch {
         if (!ignore) setSuggestions([]);
@@ -124,14 +166,14 @@ export default function AddHomeWizard({ open, onOpenChange, onCreated, onFinishe
     return () => {
       ignore = true;
     };
-  }, [query, selected]);
+  }, [query]);
 
   function resetAll() {
     setStep(0);
     setLoading(false);
     setError(null);
+    setAiNote(null);
     setHome(null);
-
     setQuery("");
     setSuggestions([]);
     setSelected(null);
@@ -142,6 +184,7 @@ export default function AddHomeWizard({ open, onOpenChange, onCreated, onFinishe
     setLotSize("");
     setArchitecturalStyle("");
     setApartment("");
+    setRooms([]);
 
     setHasCentralAir(false);
     setHasBaseboard(false);
@@ -149,14 +192,11 @@ export default function AddHomeWizard({ open, onOpenChange, onCreated, onFinishe
     setRoofType("");
     setSidingType("");
     setFeatures("");
-    setHeatingCoolingTypes([]);
-
     setImageUrl("");
   }
 
   function close() {
     onOpenChange(false);
-    // Give the dialog a moment to close before clearing
     setTimeout(resetAll, 200);
   }
 
@@ -176,10 +216,10 @@ export default function AddHomeWizard({ open, onOpenChange, onCreated, onFinishe
         apartment: selected.apartment || undefined,
       };
       const res = await api.post("/homes", payload);
-      const created: Home = res.data;
-      setHome(created);
+      setHome(res.data);
       setStep(1);
-      onCreated?.(created);
+      onCreated?.(res.data);
+      onFinished?.(res.data); // back-compat (no-op for you now)
     } catch (e: any) {
       setError(e?.response?.data?.message || "Could not create home.");
     } finally {
@@ -187,27 +227,31 @@ export default function AddHomeWizard({ open, onOpenChange, onCreated, onFinishe
     }
   }
 
-  async function enhanceWithAI() {
-    if (!home) return;
-    try {
-      setLoading(true);
-      const res = await api.post(`/homes/${home.id}/enrich`);
-      const s = res.data || {};
-      if (s.yearBuilt && !yearBuilt) setYearBuilt(String(s.yearBuilt));
-      if (s.roofType && !roofType) setRoofType(s.roofType);
-      if (s.sidingType && !sidingType) setSidingType(s.sidingType);
-      if (Array.isArray(s.heatingCoolingTypes) && heatingCoolingTypes.length === 0) {
-        setHeatingCoolingTypes(s.heatingCoolingTypes);
-      }
-      if (Array.isArray(s.features) && !features) {
-        setFeatures(s.features.join(", "));
-      }
-    } catch (e) {
-      console.error("Enhance failed", e);
-      setError("We couldn’t auto-fill details right now.");
-    } finally {
-      setLoading(false);
+  function applyStyleRooms(style: string) {
+    const tpl = houseRoomTemplates[style];
+    if (!tpl) return;
+    const mapped: RoomRow[] = tpl.map((r, i) => ({
+      key: `tpl-${i}-${r.type}`,
+      name: r.name || "",
+      type: r.type,
+      floorLabel: floorToLabel(r.floor ?? 1),
+    }));
+    setRooms(mapped);
+  }
+
+  function handleStyleChange(next: string) {
+    if (!next) {
+      setArchitecturalStyle("");
+      return;
     }
+    const hasAnyRooms = rooms.length > 0;
+    const canReplace =
+      !hasAnyRooms ||
+      window.confirm(
+        "Changing the style will replace the current room list with the default template. Continue?"
+      );
+    setArchitecturalStyle(next);
+    if (canReplace) applyStyleRooms(next);
   }
 
   async function saveBasicsAndNext() {
@@ -217,14 +261,16 @@ export default function AddHomeWizard({ open, onOpenChange, onCreated, onFinishe
     try {
       const payload: any = {
         nickname: nickname || undefined,
-        apartment: apartment || undefined,
         yearBuilt: yearBuilt ? Number(yearBuilt) : undefined,
         squareFeet: squareFeet ? Number(squareFeet) : undefined,
         lotSize: lotSize ? Number(lotSize) : undefined,
         architecturalStyle: architecturalStyle || undefined,
-        // include booleans to satisfy stricter parsers
-        hasCentralAir,
-        hasBaseboard,
+        apartment: apartment || undefined,
+        rooms: rooms.map((r) => ({
+          name: r.name || "",
+          type: r.type,
+          floor: labelToFloor(r.floorLabel),
+        })),
       };
       const res = await api.put(`/homes/${home.id}`, payload);
       setHome(res.data);
@@ -236,7 +282,7 @@ export default function AddHomeWizard({ open, onOpenChange, onCreated, onFinishe
     }
   }
 
-  async function saveComfortAndNext() {
+  async function finishComfortAndNext() {
     if (!home) return;
     setLoading(true);
     setError(null);
@@ -247,7 +293,6 @@ export default function AddHomeWizard({ open, onOpenChange, onCreated, onFinishe
         boilerType: boilerType || undefined,
         roofType: roofType || undefined,
         sidingType: sidingType || undefined,
-        heatingCoolingTypes: heatingCoolingTypes.length ? heatingCoolingTypes : undefined,
         features:
           features.trim().length > 0
             ? features.split(",").map((s) => s.trim()).filter(Boolean)
@@ -263,18 +308,84 @@ export default function AddHomeWizard({ open, onOpenChange, onCreated, onFinishe
     }
   }
 
-  async function finishWizard() {
+  async function runEnhance() {
     if (!home) return;
-    // optional final sync (imageUrl already saved by upload step)
-    onFinished?.(home);
-    close();
+    setAiNote(null);
+    setError(null);
+    try {
+      const res = await api.post(`/homes/${home.id}/enrich`, {
+        hints: {
+          address: `${home.address}, ${home.city}, ${home.state} ${home.zip}`,
+          style: architecturalStyle || undefined,
+          sqft: squareFeet ? Number(squareFeet) : undefined,
+        },
+      });
+      const patch = res.data?.patch || {};
+
+      let touched = 0;
+      const applyString = (val: any, setter: (s: string) => void) => {
+        if (typeof val === "string" && val.trim() !== "") {
+          setter(val);
+          touched++;
+        }
+      };
+      const applyNumStr = (val: any, setter: (s: string) => void) => {
+        if (typeof val === "number" && !Number.isNaN(val)) {
+          setter(String(val));
+          touched++;
+        }
+      };
+      const applyBool = (val: any, setter: (b: boolean) => void) => {
+        if (typeof val === "boolean") {
+          setter(val);
+          touched++;
+        }
+      };
+
+      applyString(patch.nickname, setNickname);
+      applyString(patch.apartment, setApartment);
+      applyNumStr(patch.squareFeet, setSquareFeet);
+      applyNumStr(patch.lotSize, setLotSize);
+      applyNumStr(patch.yearBuilt, setYearBuilt);
+
+      if (typeof patch.architecturalStyle === "string") {
+        handleStyleChange(patch.architecturalStyle);
+        touched++;
+      }
+      applyBool(patch.hasCentralAir, setHasCentralAir);
+      applyBool(patch.hasBaseboard, setHasBaseboard);
+      applyString(patch.boilerType, setBoilerType);
+      applyString(patch.roofType, setRoofType);
+      applyString(patch.sidingType, setSidingType);
+
+      if (Array.isArray(patch.features)) {
+        setFeatures(patch.features.join(", "));
+        touched++;
+      }
+      if (Array.isArray(patch.rooms)) {
+        const mapped: RoomRow[] = patch.rooms.map((r: any, i: number) => ({
+          key: `ai-${i}-${r.type || "Room"}`,
+          name: r.name || "",
+          type: r.type || "Room",
+          floorLabel: floorToLabel(typeof r.floor === "number" ? r.floor : 1),
+        }));
+        setRooms(mapped);
+        touched++;
+      }
+
+      setAiNote(
+        touched > 0
+          ? `✨ Enhanced: updated ${touched} field${touched === 1 ? "" : "s"} (not yet saved).`
+          : "✨ Enhanced: no changes detected."
+      );
+    } catch (e: any) {
+      console.error("Enhance failed", e);
+      setError(e?.response?.data?.message || "AI enhance failed.");
+    }
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(o) => (o ? setStep(0) : close())}
-    >
+    <Dialog open={open} onOpenChange={(o) => (o ? setStep(0) : close())}>
       <DialogContent aria-describedby="add-home-desc">
         <DialogHeader>
           <DialogTitle>Add a Home</DialogTitle>
@@ -285,7 +396,6 @@ export default function AddHomeWizard({ open, onOpenChange, onCreated, onFinishe
 
         <div className="space-y-4">
           <ProgressBar currentStep={step} steps={steps.map((s) => s.name)} />
-
           <div className="flex gap-2">
             {steps.map((s, i) => (
               <div
@@ -303,6 +413,11 @@ export default function AddHomeWizard({ open, onOpenChange, onCreated, onFinishe
           {error && (
             <div className="rounded-md border border-red-200 p-2 text-sm text-red-600">
               {error}
+            </div>
+          )}
+          {aiNote && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-2 text-sm text-amber-800">
+              {aiNote}
             </div>
           )}
 
@@ -332,7 +447,7 @@ export default function AddHomeWizard({ open, onOpenChange, onCreated, onFinishe
                       onClick={() => {
                         setSelected(s);
                         setQuery(s.place_name);
-                        setSuggestions([]); // prevent re-open flash
+                        setSuggestions([]);
                       }}
                       type="button"
                     >
@@ -354,7 +469,7 @@ export default function AddHomeWizard({ open, onOpenChange, onCreated, onFinishe
           )}
 
           {/* STEP 1: BASICS */}
-          {step === 1 && (
+          {step === 1 && home && (
             <div className="space-y-4">
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <div>
@@ -363,7 +478,6 @@ export default function AddHomeWizard({ open, onOpenChange, onCreated, onFinishe
                     id="nickname"
                     value={nickname}
                     onChange={(e) => setNickname(e.target.value)}
-                    placeholder="e.g., Current Home"
                   />
                 </div>
                 <div>
@@ -372,56 +486,130 @@ export default function AddHomeWizard({ open, onOpenChange, onCreated, onFinishe
                     id="apartment"
                     value={apartment}
                     onChange={(e) => setApartment(e.target.value)}
-                    placeholder="e.g., Unit 3B"
                   />
                 </div>
                 <div>
                   <Label htmlFor="yearBuilt">Year built (optional)</Label>
                   <Input
-                    inputMode="numeric"
                     id="yearBuilt"
+                    inputMode="numeric"
                     value={yearBuilt}
-                    onChange={(e) => setYearBuilt((e.target.value ?? "").replace(/\D/g, ""))}
-                    placeholder="e.g., 1997"
+                    onChange={(e) => setYearBuilt(e.target.value.replace(/\D/g, ""))}
+                    placeholder="e.g., 1998"
                   />
                 </div>
                 <div>
                   <Label htmlFor="squareFeet">Square feet (optional)</Label>
                   <Input
-                    inputMode="numeric"
                     id="squareFeet"
+                    inputMode="numeric"
                     value={squareFeet}
-                    onChange={(e) => setSquareFeet((e.target.value ?? "").replace(/\D/g, ""))}
-                    placeholder="e.g., 2500"
+                    onChange={(e) => setSquareFeet(e.target.value.replace(/\D/g, ""))}
+                    placeholder="e.g., 2200"
                   />
                 </div>
                 <div>
                   <Label htmlFor="lotSize">Lot size (acres, optional)</Label>
                   <Input
-                    inputMode="decimal"
                     id="lotSize"
+                    inputMode="decimal"
                     value={lotSize}
-                    onChange={(e) => setLotSize((e.target.value ?? "").replace(/[^0-9.]/g, ""))}
-                    placeholder="e.g., 0.5"
+                    onChange={(e) => setLotSize(e.target.value.replace(/[^0-9.]/g, ""))}
+                    placeholder="e.g., 0.25"
                   />
                 </div>
                 <div>
-                  <Label htmlFor="style">Architectural style (optional)</Label>
+                  <Label htmlFor="style">Architectural style</Label>
                   <Select
                     id="style"
                     value={architecturalStyle}
-                    onChange={(e) => setArchitecturalStyle(e.target.value)}
-                    aria-label="Architectural Style"
+                    onChange={(e) => handleStyleChange(e.target.value)}
                   >
                     <option value="">Select style</option>
-                    {styleOptions.map((lbl) => (
-                      <option key={lbl} value={lbl}>
-                        {lbl}
+                    {styleList.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
                       </option>
                     ))}
-                    <option value="Other">Other</option>
                   </Select>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Changing style replaces the room list with the style’s defaults.
+                  </p>
                 </div>
+              </div>
+
+              {/* quick inline room list */}
+              <div className="space-y-2">
+                <Label>Rooms</Label>
+                {rooms.length === 0 ? (
+                  <div className="rounded-md border p-3 text-sm text-muted-foreground">
+                    No rooms yet. Choose a style to auto-populate, or add your own.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-2">
+                    {rooms.map((r, idx) => (
+                      <div
+                        key={r.key}
+                        className="grid grid-cols-1 gap-2 rounded-md border p-3 md:grid-cols-12"
+                      >
+                        <div className="md:col-span-5">
+                          <Input
+                            placeholder="Name"
+                            value={r.name}
+                            onChange={(e) =>
+                              setRooms((prev) => {
+                                const copy = [...prev];
+                                copy[idx] = { ...copy[idx], name: e.target.value };
+                                return copy;
+                              })
+                            }
+                          />
+                        </div>
+                        <div className="md:col-span-5">
+                          <Input
+                            placeholder="Type"
+                            value={r.type}
+                            onChange={(e) =>
+                              setRooms((prev) => {
+                                const copy = [...prev];
+                                copy[idx] = { ...copy[idx], type: e.target.value };
+                                return copy;
+                              })
+                            }
+                          />
+                        </div>
+                        <div className="md:col-span-2">
+                          <Select
+                            value={r.floorLabel}
+                            onChange={(e) =>
+                              setRooms((prev) => {
+                                const copy = [...prev];
+                                copy[idx] = {
+                                  ...copy[idx],
+                                  floorLabel: e.target.value as FloorLabel,
+                                };
+                                return copy;
+                              })
+                            }
+                          >
+                            {[
+                              "Basement",
+                              "1st Floor",
+                              "2nd Floor",
+                              "3rd Floor",
+                              "Attic",
+                              "Other",
+                            ].map((f) => (
+                              <option key={f} value={f}>
+                                {f}
+                              </option>
+                            ))}
+                          </Select>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center justify-between pt-2">
@@ -429,8 +617,8 @@ export default function AddHomeWizard({ open, onOpenChange, onCreated, onFinishe
                   Back
                 </Button>
                 <div className="flex gap-2">
-                  <Button variant="ghost" onClick={() => setStep(2)}>
-                    Skip
+                  <Button variant="outline" onClick={runEnhance} title="Enhance with AI">
+                    <Wand2 className="mr-2 h-4 w-4" /> Enhance with AI
                   </Button>
                   <Button onClick={saveBasicsAndNext} disabled={loading}>
                     {loading ? "Saving…" : "Next"}
@@ -441,7 +629,7 @@ export default function AddHomeWizard({ open, onOpenChange, onCreated, onFinishe
           )}
 
           {/* STEP 2: COMFORT & EXTERIOR */}
-          {step === 2 && (
+          {step === 2 && home && (
             <div className="space-y-4">
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <div className="flex items-center justify-between rounded-md border p-3">
@@ -468,7 +656,6 @@ export default function AddHomeWizard({ open, onOpenChange, onCreated, onFinishe
                   <Select
                     value={boilerType}
                     onChange={(e) => setBoilerType(e.target.value)}
-                    aria-label="Boiler or Furnace Type"
                   >
                     <option value="">Select type</option>
                     <option value="Gas-Fired">Gas-Fired</option>
@@ -480,11 +667,7 @@ export default function AddHomeWizard({ open, onOpenChange, onCreated, onFinishe
 
                 <div>
                   <Label>Roof (optional)</Label>
-                  <Select
-                    value={roofType}
-                    onChange={(e) => setRoofType(e.target.value)}
-                    aria-label="Roof Type"
-                  >
+                  <Select value={roofType} onChange={(e) => setRoofType(e.target.value)}>
                     <option value="">Select roof type</option>
                     <option value="Asphalt Shingle">Asphalt Shingle</option>
                     <option value="Metal">Metal</option>
@@ -498,7 +681,6 @@ export default function AddHomeWizard({ open, onOpenChange, onCreated, onFinishe
                   <Select
                     value={sidingType}
                     onChange={(e) => setSidingType(e.target.value)}
-                    aria-label="Siding Type"
                   >
                     <option value="">Select siding type</option>
                     <option value="Vinyl">Vinyl</option>
@@ -509,67 +691,24 @@ export default function AddHomeWizard({ open, onOpenChange, onCreated, onFinishe
                 </div>
 
                 <div className="md:col-span-2">
-                  <Label>Heating/Cooling systems (optional)</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {[
-                      "Central Air",
-                      "Baseboard Heating",
-                      "Boiler (Radiators)",
-                      "Forced Hot Air",
-                      "Heat Pump",
-                      "Radiant Heating",
-                      "Ductless Mini-Split",
-                      "Pellet Stove",
-                      "Space Heater",
-                      "Solar Heating",
-                    ].map((option) => {
-                      const checked = heatingCoolingTypes.includes(option);
-                      return (
-                        <button
-                          key={option}
-                          type="button"
-                          className={cn(
-                            "rounded border px-3 py-1 text-sm",
-                            checked ? "bg-primary text-primary-foreground" : "bg-gray-100 hover:bg-gray-200"
-                          )}
-                          onClick={() =>
-                            setHeatingCoolingTypes((prev) =>
-                              prev.includes(option) ? prev.filter((x) => x !== option) : [...prev, option]
-                            )
-                          }
-                        >
-                          {checked ? "✓ " : ""}
-                          {option}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="md:col-span-2">
                   <Label>Features (comma-separated, optional)</Label>
                   <Textarea
                     placeholder="e.g., Fireplace, Finished Basement, Solar Panels"
                     value={features}
-                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setFeatures(e.target.value)}
+                    onChange={(e) => setFeatures(e.target.value)}
                   />
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
-                <div className="flex gap-2">
-                  <Button variant="secondary" onClick={() => setStep(1)}>
-                    Back
-                  </Button>
-                  <Button variant="outline" onClick={enhanceWithAI} disabled={loading}>
-                    {loading ? "Enhancing…" : "Enhance with AI"}
-                  </Button>
-                </div>
+              <div className="flex items-center justify-between pt-2">
+                <Button variant="secondary" onClick={() => setStep(1)}>
+                  Back
+                </Button>
                 <div className="flex gap-2">
                   <Button variant="ghost" onClick={() => setStep(3)}>
                     Skip
                   </Button>
-                  <Button onClick={saveComfortAndNext} disabled={loading}>
+                  <Button onClick={finishComfortAndNext} disabled={loading}>
                     {loading ? "Saving…" : "Next"}
                   </Button>
                 </div>
@@ -578,45 +717,32 @@ export default function AddHomeWizard({ open, onOpenChange, onCreated, onFinishe
           )}
 
           {/* STEP 3: PHOTO */}
-          {step === 3 && (
+          {step === 3 && home && (
             <div className="space-y-4">
-              <div>
-                <Label>Photo (optional)</Label>
-                {imageUrl ? (
-                  <img
-                    src={imageUrl}
-                    alt="Home"
-                    className="mt-2 max-h-56 w-full rounded border object-cover"
-                  />
-                ) : (
-                  <div className="mt-2 rounded border p-3 text-sm text-muted-foreground">No photo yet.</div>
-                )}
-              </div>
-
+              {imageUrl && (
+                <img
+                  src={imageUrl}
+                  alt="Home"
+                  className="h-48 w-full rounded-md object-cover"
+                />
+              )}
               <ImageUpload
-                homeId={home!.id}
-                onUploadComplete={async (absoluteUrl) => {
-                  setImageUrl(absoluteUrl); // show immediately
-                  try {
-                    await api.put(`/homes/${home!.id}`, { imageUrl: absoluteUrl });
-                  } catch (e) {
-                    console.warn("Could not persist imageUrl on home", e);
-                  }
+                homeId={home.id}
+                onUploadComplete={(url) => {
+                  setImageUrl(url);
                 }}
               />
-
               <div className="flex items-center justify-between pt-2">
                 <Button variant="secondary" onClick={() => setStep(2)}>
                   Back
                 </Button>
-                <div className="flex gap-2">
-                  <Button variant="ghost" onClick={() => finishWizard()}>
-                    Skip
-                  </Button>
-                  <Button onClick={() => finishWizard()} disabled={loading}>
-                    Finish
-                  </Button>
-                </div>
+                <Button
+                  onClick={() => {
+                    close();
+                  }}
+                >
+                  Finish
+                </Button>
               </div>
             </div>
           )}

@@ -175,7 +175,7 @@ export default function HomesPage() {
         onFinished={(h) => {
           setShowAddModal(false);
           fetchHomes().finally(() => {
-            navigate(`/homes/${h.id}/edit`); 
+            void fetchHomes().finally(() => navigate(`/homes/${h.id}/edit`));
           });
         }}
       />

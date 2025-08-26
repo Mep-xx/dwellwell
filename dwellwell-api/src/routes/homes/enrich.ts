@@ -1,87 +1,125 @@
-// src/routes/homes/enrich.ts
-import express from 'express';
-import { z } from 'zod';
-import OpenAI from 'openai';
+import { Router } from "express";
+import { requireAuth } from "../../middleware/requireAuth";
+import { prisma } from "../../db/prisma";
+import OpenAI from "openai";
 
-const router = express.Router();
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const router = Router();
 
-const EnrichReq = z.object({
-  address: z.string().optional(),
-  city: z.string().optional(),
-  state: z.string().optional(),
-  zip: z.string().optional(),
-  // send any current values so the model can leave them alone
-  current: z.object({
-    yearBuilt: z.number().optional(),
-    squareFeet: z.number().optional(),
-    lotSize: z.number().optional(),
-    numberOfRooms: z.number().optional(),
-    hasCentralAir: z.boolean().optional(),
-    hasBaseboard: z.boolean().optional(),
-    boilerType: z.string().optional(),
-    roofType: z.string().optional(),
-    sidingType: z.string().optional(),
-    architecturalStyle: z.string().optional(),
-    features: z.array(z.string()).optional(),
-  }).optional(),
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
-const EnrichOut = z.object({
-  yearBuilt: z.number().optional(),
-  squareFeet: z.number().optional(),
-  lotSize: z.number().optional(),
-  numberOfRooms: z.number().optional(),
-  hasCentralAir: z.boolean().optional(),
-  hasBaseboard: z.boolean().optional(),
-  boilerType: z.string().optional(),
-  roofType: z.string().optional(),
-  sidingType: z.string().optional(),
-  architecturalStyle: z.string().optional(),
-  features: z.array(z.string()).optional(),
-});
-
-router.post('/homes/:id/enrich', async (req, res) => {
-  const parse = EnrichReq.safeParse(req.body);
-  if (!parse.success) return res.status(400).json({ error: 'INVALID_BODY' });
-
-  const { address, city, state, zip, current } = parse.data;
-
-  const system = `You infer home basics. If unsure, leave a field out. Reply ONLY with JSON.`;
-  const user = {
-    address: [address, city, state, zip].filter(Boolean).join(', '),
-    current,
-    want: Object.keys(EnrichOut.shape),
-    notes: [
-      "If the style can be inferred (e.g., 'Colonial', 'Ranch', etc.), return it.",
-      "Boiler/furnace types can be 'Gas-Fired', 'Oil-Fired', 'Electric', etc.",
-      "Only include fields you feel reasonably confident about."
-    ]
-  };
+/**
+ * POST /api/homes/:homeId/enrich
+ * - Calls OpenAI to generate a PATCH of suggested fields.
+ * - Writes a record to AIQueryHistory (schema-agnostic: works with/without userId).
+ * - Returns { id?: string, patch: object }
+ */
+router.post("/homes/:homeId/enrich", requireAuth, async (req, res) => {
+  const { homeId } = req.params;
+  // support either req.user or req.ctx.user
+  const userId: string | undefined =
+    (req as any)?.user?.id ?? (req as any)?.ctx?.user?.id ?? undefined;
+  const hints = req.body?.hints ?? {};
 
   try {
+    const home = await prisma.home.findUnique({
+      where: { id: homeId },
+      include: { rooms: true },
+    });
+    if (!home) return res.status(404).json({ message: "Home not found" });
+
+    const addressLine = `${home.address}, ${home.city}, ${home.state} ${home.zip}`;
+    const system = `You are enriching metadata for a residential home. 
+Return ONLY valid JSON with any of these optional fields:
+
+{
+  "nickname": string,
+  "squareFeet": number,
+  "lotSize": number,
+  "yearBuilt": number,
+  "architecturalStyle": string,
+  "hasCentralAir": boolean,
+  "hasBaseboard": boolean,
+  "boilerType": string,
+  "roofType": string,
+  "sidingType": string,
+  "features": string[],
+  "rooms": [{"name": string, "type": string, "floor": number}]
+}
+
+Floor mapping: Basement:-1, 1st:1, 2nd:2, 3rd:3, Attic:99, Other:0.
+If you are not confident about a field, omit it. Never fabricate the address.`;
+
+    const user = `Address: ${addressLine}
+Known fields:
+- nickname: ${home.nickname ?? ""}
+- squareFeet: ${home.squareFeet ?? ""}
+- lotSize: ${home.lotSize ?? ""}
+- yearBuilt: ${home.yearBuilt ?? ""}
+- architecturalStyle: ${home.architecturalStyle ?? ""}
+- hasCentralAir: ${home.hasCentralAir}
+- hasBaseboard: ${home.hasBaseboard}
+- boilerType: ${home.boilerType ?? ""}
+- roofType: ${home.roofType ?? ""}
+- sidingType: ${home.sidingType ?? ""}
+- features: ${(home.features ?? []).join(", ")}
+Hints: ${JSON.stringify(hints)}`;
+
     const completion = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: system },
-        { role: 'user', content: JSON.stringify(user) },
-      ],
-      response_format: { type: 'json_object' },
+      model: process.env.OPENAI_MODEL || "gpt-4o-mini",
       temperature: 0.2,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
     });
 
-    const raw = completion.choices?.[0]?.message?.content || '{}';
-    let data: unknown = {};
-    try { data = JSON.parse(raw); } catch { /* ignore */ }
-
-    const validated = EnrichOut.safeParse(data);
-    if (!validated.success) {
-      return res.json({ ok: true, data: {} });
+    const raw = completion.choices?.[0]?.message?.content ?? "{}";
+    let patch: any = {};
+    try {
+      patch = JSON.parse(raw);
+    } catch {
+      patch = {};
     }
-    return res.json({ ok: true, data: validated.data });
+
+    // Write to AI history (schema-agnostic)
+    let historyId: string | undefined;
+    try {
+      // Try including userId if your schema supports it
+      const savedWithUser = await (prisma as any).aIQueryHistory.create({
+        data: {
+          userId, // may not exist in your schema; if not, we'll fall back
+          provider: "openai",
+          model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+          requestJson: JSON.stringify({ system, user }),
+          responseJson: raw,
+        },
+      });
+      historyId = savedWithUser?.id;
+    } catch (err) {
+      // Fall back to a minimal create without userId
+      try {
+        const savedNoUser = await (prisma as any).aIQueryHistory.create({
+          data: {
+            provider: "openai",
+            model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+            requestJson: JSON.stringify({ system, user }),
+            responseJson: raw,
+          },
+        });
+        historyId = savedNoUser?.id;
+      } catch (err2) {
+        // If the table differs completely, just continue; enrichment still returns patch
+        console.warn("[enrich] Could not write AIQueryHistory:", err2);
+      }
+    }
+
+    return res.json({ id: historyId, patch });
   } catch (e) {
-    console.error('enrich error', e);
-    return res.status(500).json({ error: 'OPENAI_ERROR' });
+    console.error("enrich error", e);
+    return res.status(500).json({ message: "Failed to enrich with AI" });
   }
 });
 
