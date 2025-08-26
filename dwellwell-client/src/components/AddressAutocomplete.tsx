@@ -81,6 +81,7 @@ export function AddressAutocomplete({
           value={locked ? (displayValue ?? '') : term}
           onChange={(e) => setTerm(e.target.value)}
           placeholder={placeholder}
+          autoComplete="off"
           disabled={locked}
           onFocus={() => {
             if (!locked && list.length > 0) setOpen(true);

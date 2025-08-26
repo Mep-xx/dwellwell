@@ -92,7 +92,6 @@ export default function HomesPage() {
       setHomes((p) =>
         p.map((h) => (h.id === homeId ? { ...h, isChecked: newValue } : h))
       );
-
       await api.put(`/homes/${homeId}/check`, { isChecked: newValue });
 
       toast({
@@ -115,7 +114,6 @@ export default function HomesPage() {
     }
   };
 
-  // 👉 Edit now navigates to the full page editor
   const handleEdit = (home: Home) => {
     navigate(`/homes/${home.id}/edit`);
   };
@@ -162,7 +160,7 @@ export default function HomesPage() {
               home={home}
               summary={home.taskSummary}
               onToggle={toggleHomeChecked}
-              onEdit={handleEdit} 
+              onEdit={handleEdit}
               onDelete={() => confirmDelete(home.id)}
             />
           </div>
@@ -175,7 +173,7 @@ export default function HomesPage() {
         onFinished={(h) => {
           setShowAddModal(false);
           fetchHomes().finally(() => {
-            void fetchHomes().finally(() => navigate(`/homes/${h.id}/edit`));
+            navigate(`/homes/${h.id}/edit`);
           });
         }}
       />

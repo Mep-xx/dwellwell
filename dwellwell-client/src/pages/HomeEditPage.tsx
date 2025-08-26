@@ -1,5 +1,6 @@
+// src/pages/HomeEditPage.tsx
 import React from "react";
-import { useNavigate, useParams, Link } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { api } from "@/utils/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,27 +9,22 @@ import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { ImageUpload } from "@/components/ui/imageupload";
-import { Wand2 } from "lucide-react";
+import { Star, StarIcon, Stars, Wand2 } from "lucide-react";
 
-// shared (guarded)
+// shared (guarded imports)
 import * as StyleModule from "@shared/architecturalStyleLabels";
 import * as TemplatesModule from "@shared/houseRoomTemplates";
+
 const styleList: string[] = Array.isArray((StyleModule as any).architecturalStyleLabels)
   ? ((StyleModule as any).architecturalStyleLabels as string[])
   : [];
 const houseRoomTemplates: Record<string, { name?: string; type: string; floor?: number }[]> =
   (TemplatesModule as any).houseRoomTemplates || {};
 
-type FloorLabel =
-  | "Basement"
-  | "1st Floor"
-  | "2nd Floor"
-  | "3rd Floor"
-  | "Attic"
-  | "Other";
+type FloorLabel = "Basement" | "1st Floor" | "2nd Floor" | "3rd Floor" | "Attic" | "Other";
 
 type RoomRow = {
-  key: string; // local key for React list management
+  key: string;
   name: string;
   type: string;
   floorLabel: FloorLabel;
@@ -101,7 +97,11 @@ export default function HomeEditPage() {
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+
+  // AI feedback
   const [aiNote, setAiNote] = React.useState<string | null>(null);
+  const [aiDetails, setAiDetails] = React.useState<string[]>([]);
+  const [aiBusy, setAiBusy] = React.useState(false);
 
   // base
   const [home, setHome] = React.useState<Home | null>(null);
@@ -174,34 +174,39 @@ export default function HomeEditPage() {
     };
   }, [id]);
 
-  function handleStyleChange(next: string) {
-    if (!next) {
-      setArchitecturalStyle("");
-      return;
-    }
+  // when user picks a style, auto-apply template (with confirmation if rooms exist)
+  const handleStyleChange = React.useCallback(
+    (next: string, { fromAI = false }: { fromAI?: boolean } = {}) => {
+      if (!next) {
+        setArchitecturalStyle("");
+        return;
+      }
 
-    const template = houseRoomTemplates[next];
-    setArchitecturalStyle(next);
+      const template = houseRoomTemplates[next];
+      setArchitecturalStyle(next);
 
-    if (!template) return;
+      if (!template) return;
 
-    const hasAnyRooms = rooms.length > 0;
-    const wantsReplace =
-      !hasAnyRooms ||
-      window.confirm(
-        "Changing the style will replace the current room list with the default template. Continue?"
-      );
+      const hasAnyRooms = rooms.length > 0;
+      const wantsReplace =
+        !hasAnyRooms ||
+        fromAI ||
+        window.confirm(
+          "Changing the style will replace the current room list with the default template. Continue?"
+        );
 
-    if (wantsReplace) {
-      const mapped: RoomRow[] = template.map((r, i) => ({
-        key: `tpl-${i}-${r.type}`,
-        name: r.name || "",
-        type: r.type,
-        floorLabel: floorToLabel(r.floor ?? 1),
-      }));
-      setRooms(mapped);
-    }
-  }
+      if (wantsReplace) {
+        const mapped: RoomRow[] = template.map((r, i) => ({
+          key: `tpl-${i}-${r.type}`,
+          name: r.name || "",
+          type: r.type,
+          floorLabel: floorToLabel(r.floor ?? 1),
+        }));
+        setRooms(mapped);
+      }
+    },
+    [rooms.length]
+  );
 
   function addRoom() {
     setRooms((prev) => [
@@ -230,6 +235,7 @@ export default function HomeEditPage() {
     setSaving(true);
     setError(null);
     setAiNote(null);
+    setAiDetails([]);
     try {
       const payload: any = {
         nickname: nickname || undefined,
@@ -266,9 +272,12 @@ export default function HomeEditPage() {
   }
 
   async function runEnhance() {
-    if (!home) return;
+    if (!home || aiBusy) return;
     setError(null);
     setAiNote(null);
+    setAiDetails([]);
+    setAiBusy(true);
+
     try {
       const res = await api.post(`/homes/${home.id}/enrich`, {
         hints: {
@@ -278,44 +287,60 @@ export default function HomeEditPage() {
           style: architecturalStyle || undefined,
         },
       });
-      const patch = res.data?.patch || {};
 
+      // expected server shape: { patch: {...}, meta?: {...} }
+      const patch = (res.data && res.data.patch) || {};
+      const changes: string[] = [];
       let touched = 0;
 
-      const applyString = (value: any, setter: (s: string) => void) => {
+      const applyString = (label: string, value: any, setter: (s: string) => void) => {
         if (typeof value === "string" && value.trim() !== "") {
           setter(value);
+          changes.push(`${label}: “${value}”`);
           touched++;
         }
       };
-      const applyNumStr = (value: any, setter: (s: string) => void) => {
+      const applyNumStr = (label: string, value: any, setter: (s: string) => void) => {
         if (typeof value === "number" && !Number.isNaN(value)) {
           setter(String(value));
+          changes.push(`${label}: ${value}`);
           touched++;
         }
       };
-      const applyBool = (value: any, setter: (b: boolean) => void) => {
+      const applyBool = (label: string, value: any, setter: (b: boolean) => void) => {
         if (typeof value === "boolean") {
           setter(value);
+          changes.push(`${label}: ${value ? "Yes" : "No"}`);
           touched++;
         }
       };
 
-      applyString(patch.nickname, setNickname);
-      applyString(patch.apartment, setApartment);
-      applyNumStr(patch.squareFeet, setSquareFeet);
-      applyNumStr(patch.lotSize, setLotSize);
-      applyNumStr(patch.yearBuilt, setYearBuilt);
-      applyString(patch.architecturalStyle, (v) => handleStyleChange(v));
-      applyBool(patch.hasCentralAir, setHasCentralAir);
-      applyBool(patch.hasBaseboard, setHasBaseboard);
-      applyString(patch.boilerType, setBoilerType);
-      applyString(patch.roofType, setRoofType);
-      applyString(patch.sidingType, setSidingType);
-      if (Array.isArray(patch.features)) {
-        setFeatures(patch.features.join(", "));
+      applyString("Nickname", patch.nickname, setNickname);
+      applyString("Apartment/Unit", patch.apartment, setApartment);
+      applyNumStr("Square Feet", patch.squareFeet, setSquareFeet);
+      applyNumStr("Lot Size", patch.lotSize, setLotSize);
+      applyNumStr("Year Built", patch.yearBuilt, setYearBuilt);
+
+      // style: also apply rooms template automatically (no prompt) when AI sets it
+      if (typeof patch.architecturalStyle === "string" && patch.architecturalStyle.trim() !== "") {
+        handleStyleChange(patch.architecturalStyle, { fromAI: true });
+        changes.push(`Architectural Style: “${patch.architecturalStyle}”`);
         touched++;
       }
+
+      applyBool("Central Air", patch.hasCentralAir, setHasCentralAir);
+      applyBool("Baseboard Heating", patch.hasBaseboard, setHasBaseboard);
+      applyString("Boiler/Furnace", patch.boilerType, setBoilerType);
+      applyString("Roof", patch.roofType, setRoofType);
+      applyString("Siding", patch.sidingType, setSidingType);
+
+      if (Array.isArray(patch.features)) {
+        const val = patch.features.join(", ");
+        setFeatures(val);
+        changes.push(`Features: ${val.length ? val : "(none)"}`);
+        touched++;
+      }
+
       if (Array.isArray(patch.rooms)) {
         const mapped: RoomRow[] = patch.rooms.map((r: any, i: number) => ({
           key: `ai-${i}-${r.type || "Room"}`,
@@ -324,9 +349,11 @@ export default function HomeEditPage() {
           floorLabel: floorToLabel(typeof r.floor === "number" ? r.floor : 1),
         }));
         setRooms(mapped);
+        changes.push(`Rooms: ${mapped.length} item${mapped.length === 1 ? "" : "s"}`);
         touched++;
       }
 
+      setAiDetails(changes);
       setAiNote(
         touched > 0
           ? `✨ Enhanced: updated ${touched} field${touched === 1 ? "" : "s"} (not yet saved).`
@@ -335,6 +362,8 @@ export default function HomeEditPage() {
     } catch (e: any) {
       console.error("Enhance failed", e);
       setError(e?.response?.data?.message || "AI enhance failed.");
+    } finally {
+      setAiBusy(false);
     }
   }
 
@@ -377,9 +406,17 @@ export default function HomeEditPage() {
           {error}
         </div>
       )}
+
       {aiNote && (
         <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-          {aiNote}
+          <div className="font-medium">{aiNote}</div>
+          {aiDetails.length > 0 && (
+            <ul className="mt-2 list-disc pl-5">
+              {aiDetails.map((line, i) => (
+                <li key={i}>{line}</li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
 
@@ -428,9 +465,7 @@ export default function HomeEditPage() {
               id="squareFeet"
               inputMode="numeric"
               value={squareFeet}
-              onChange={(e) =>
-                setSquareFeet(e.target.value.replace(/\D/g, ""))
-              }
+              onChange={(e) => setSquareFeet(e.target.value.replace(/\D/g, ""))}
               placeholder="e.g., 2500"
             />
           </div>
@@ -440,9 +475,7 @@ export default function HomeEditPage() {
               id="lotSize"
               inputMode="decimal"
               value={lotSize}
-              onChange={(e) =>
-                setLotSize(e.target.value.replace(/[^0-9.]/g, ""))
-              }
+              onChange={(e) => setLotSize(e.target.value.replace(/[^0-9.]/g, ""))}
               placeholder="e.g., 0.5"
             />
           </div>
@@ -481,8 +514,9 @@ export default function HomeEditPage() {
       <section className="mb-8">
         <div className="mb-2 flex items-center justify-between">
           <h2 className="text-lg font-medium">Comfort & Exterior</h2>
-          <Button variant="outline" onClick={runEnhance} title="Enhance with AI">
-            <Wand2 className="mr-2 h-4 w-4" /> Enhance with AI
+          <Button variant="outline" onClick={runEnhance} disabled={aiBusy} title="Enhance with AI">
+            <Stars className="mr-2 h-4 w-4" />
+            {aiBusy ? "Enhancing…" : "Enhance with AI"}
           </Button>
         </div>
 
@@ -494,11 +528,9 @@ export default function HomeEditPage() {
                 Does the home have central A/C?
               </div>
             </div>
-            <Switch
-              checked={hasCentralAir}
-              onCheckedChange={setHasCentralAir}
-            />
+            <Switch checked={hasCentralAir} onCheckedChange={setHasCentralAir} />
           </div>
+
           <div className="flex items-center justify-between rounded-md border p-3">
             <div>
               <div className="font-medium">Baseboard Heating</div>
@@ -506,18 +538,12 @@ export default function HomeEditPage() {
                 Hydronic baseboards present?
               </div>
             </div>
-            <Switch
-              checked={hasBaseboard}
-              onCheckedChange={setHasBaseboard}
-            />
+            <Switch checked={hasBaseboard} onCheckedChange={setHasBaseboard} />
           </div>
 
           <div>
             <Label>Boiler / Furnace (optional)</Label>
-            <Select
-              value={boilerType}
-              onChange={(e) => setBoilerType(e.target.value)}
-            >
+            <Select value={boilerType} onChange={(e) => setBoilerType(e.target.value)}>
               <option value="">Select type</option>
               <option value="Gas-Fired">Gas-Fired</option>
               <option value="Oil-Fired">Oil-Fired</option>
@@ -528,10 +554,7 @@ export default function HomeEditPage() {
 
           <div>
             <Label>Roof (optional)</Label>
-            <Select
-              value={roofType}
-              onChange={(e) => setRoofType(e.target.value)}
-            >
+            <Select value={roofType} onChange={(e) => setRoofType(e.target.value)}>
               <option value="">Select roof type</option>
               <option value="Asphalt Shingle">Asphalt Shingle</option>
               <option value="Metal">Metal</option>
@@ -542,10 +565,7 @@ export default function HomeEditPage() {
 
           <div>
             <Label>Siding (optional)</Label>
-            <Select
-              value={sidingType}
-              onChange={(e) => setSidingType(e.target.value)}
-            >
+            <Select value={sidingType} onChange={(e) => setSidingType(e.target.value)}>
               <option value="">Select siding type</option>
               <option value="Vinyl">Vinyl</option>
               <option value="Wood">Wood</option>
@@ -610,18 +630,13 @@ export default function HomeEditPage() {
                       })
                     }
                   >
-                    {[
-                      "Basement",
-                      "1st Floor",
-                      "2nd Floor",
-                      "3rd Floor",
-                      "Attic",
-                      "Other",
-                    ].map((f) => (
-                      <option key={f} value={f}>
-                        {f}
-                      </option>
-                    ))}
+                    {["Basement", "1st Floor", "2nd Floor", "3rd Floor", "Attic", "Other"].map(
+                      (f) => (
+                        <option key={f} value={f}>
+                          {f}
+                        </option>
+                      )
+                    )}
                   </Select>
                 </div>
                 <div className="md:col-span-12">
