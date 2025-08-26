@@ -78,18 +78,14 @@ export function AddressAutocomplete({
     <div className={cn('relative', className)}>
       <div className="flex gap-2">
         <Input
-          value={locked ? (displayValue ?? '') : term}
+          value={locked ? (displayValue ?? "") : term}
           onChange={(e) => setTerm(e.target.value)}
           placeholder={placeholder}
-          autoComplete="off"
           disabled={locked}
-          onFocus={() => {
-            if (!locked && list.length > 0) setOpen(true);
-          }}
-          onBlur={() => {
-            // small delay so click can register
-            setTimeout(() => setOpen(false), 120);
-          }}
+          autoComplete="off"
+          spellCheck={false}
+          onFocus={() => { if (!locked && list.length > 0) setOpen(true); }}
+          onBlur={() => { setTimeout(() => setOpen(false), 120); }}
         />
         {locked && (
           <button

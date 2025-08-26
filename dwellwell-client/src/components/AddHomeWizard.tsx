@@ -1,12 +1,8 @@
 // src/components/AddHomeWizard.tsx
-import { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { api } from "@/utils/api";
 import type { Home } from "@shared/types/home";
-import { AddressAutocomplete, type AddressSuggestion } from "@/components/AddressAutocomplete";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Select } from "@/components/ui/select";
-import ImageUpload from "@/components/ui/imageupload";
+
 import {
   Dialog,
   DialogContent,
@@ -14,454 +10,172 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
+import { AddressAutocomplete, type AddressSuggestion } from "@/components/AddressAutocomplete";
+import { architecturalStyleLabels } from "@shared/architecturalStyleLabels";
 
 type Props = {
   open: boolean;
-  onOpenChange: (v: boolean) => void;
+  onOpenChange: (open: boolean) => void;
   onFinished: (home: Home) => void;
 };
 
-type Form = {
-  id?: string;
-  address: string;
-  apartment?: string;
-  city: string;
-  state: string;
-  zip: string;
-  nickname?: string;
-  architecturalStyle?: string;
-  squareFeet?: number | "";
-  lotSize?: number | "";
-  yearBuilt?: number | "";
-  hasCentralAir?: boolean;
-  hasBaseboard?: boolean;
-  imageUrl?: string;
-};
-
-const STYLE_OPTIONS = [
-  "Colonial",
-  "Cape Cod",
-  "Ranch",
-  "Split-Level",
-  "Victorian",
-  "Tudor",
-  "Craftsman",
-  "Contemporary",
-  "Modern Farmhouse",
-  "Other",
-];
-
-function ensureNumber(v: number | string | undefined | null): number | undefined {
-  if (v === "" || v === undefined || v === null) return undefined;
-  const n = typeof v === "number" ? v : Number(String(v).replace(/[^0-9.]/g, ""));
-  return Number.isFinite(n) ? n : undefined;
+function normalizeStyles(src: unknown): string[] {
+  if (Array.isArray(src)) return src.filter((s): s is string => typeof s === "string");
+  if (src && typeof src === "object") return Object.values(src as Record<string, unknown>)
+    .filter((s): s is string => typeof s === "string");
+  return [];
 }
+const STYLE_OPTIONS = normalizeStyles(architecturalStyleLabels);
 
 export default function AddHomeWizard({ open, onOpenChange, onFinished }: Props) {
-  const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState<Form>({
-    address: "",
-    apartment: "",
-    city: "",
-    state: "",
-    zip: "",
-    nickname: "",
-    architecturalStyle: "",
-    squareFeet: "",
-    lotSize: "",
-    yearBuilt: "",
-    hasCentralAir: undefined,
-    hasBaseboard: undefined,
-    imageUrl: "",
-  });
+  const [error, setError] = useState<string | null>(null);
 
-  // reset when modal opens/closes
-  useEffect(() => {
-    if (!open) {
-      setStep(0);
-      setForm({
-        address: "",
-        apartment: "",
-        city: "",
-        state: "",
-        zip: "",
-        nickname: "",
-        architecturalStyle: "",
-        squareFeet: "",
-        lotSize: "",
-        yearBuilt: "",
-        hasCentralAir: undefined,
-        hasBaseboard: undefined,
-        imageUrl: "",
-      });
-      setSaving(false);
+  const [selected, setSelected] = useState<AddressSuggestion | null>(null);
+  const [apartment, setApartment] = useState("");
+  const [nickname, setNickname] = useState("");
+  const [architecturalStyle, setArchitecturalStyle] = useState("");
+
+  const displayAddress = useMemo(
+    () => (selected ? selected.place_name : ""),
+    [selected]
+  );
+
+  async function handleCreate() {
+    setError(null);
+
+    if (!selected) {
+      setError("Please choose an address.");
+      return;
     }
-  }, [open]);
 
-  // ---- Step 0: address selected with autocomplete ----
-  const addressDisplay = useMemo(() => {
-    const parts = [form.address, form.city, form.state, form.zip].filter(Boolean);
-    return parts.join(", ");
-  }, [form.address, form.city, form.state, form.zip]);
+    // Try to provide best-guess street line if the suggestion didn’t include .address
+    const line1 =
+      selected.address ??
+      (selected.place_name ? selected.place_name.split(",")[0]?.trim() : "");
 
-  async function handleUseThisAddress() {
+    const payload: any = {
+      address: line1,
+      city: selected.city ?? "",
+      state: selected.state ?? "",
+      zip: selected.zip ?? "",
+      apartment: apartment || undefined,
+      nickname: nickname || undefined,
+      architecturalStyle: architecturalStyle || undefined,
+    };
+
     setSaving(true);
     try {
-      const payload = {
-        address: form.address,
-        apartment: form.apartment || undefined,
-        city: form.city,
-        state: form.state,
-        zip: form.zip,
-        nickname: form.nickname || undefined,
-        imageUrl: form.imageUrl || undefined,
-      };
       const res = await api.post<Home>("/homes", payload);
-      const created = res.data;
-      setForm((p) => ({ ...p, id: created.id }));
-      setStep(1);
-    } catch (err) {
-      console.error("Failed to create home", err);
+      const newHome = res.data;
+
+      // Best-effort: pre-seed rooms for the chosen style (ignore if endpoint is missing).
+      if (architecturalStyle) {
+        try {
+          await api.post(`/homes/${newHome.id}/rooms/apply-style-defaults`, {
+            style: architecturalStyle,
+          });
+        } catch {
+          // non-blocking — the Edit page can still apply defaults on load / style change
+        }
+      }
+
+      onOpenChange(false);
+      onFinished(newHome);
+    } catch (e: any) {
+      setError(e?.response?.data?.message || "Could not create the home.");
     } finally {
       setSaving(false);
     }
   }
 
-  // ---- Step 1: basics / style ----
-  async function saveBasicsAndNext() {
-    if (!form.id) return;
-    setSaving(true);
-    try {
-      const payload = {
-        nickname: form.nickname || undefined,
-        architecturalStyle: form.architecturalStyle || undefined,
-        squareFeet: ensureNumber(form.squareFeet),
-        lotSize: ensureNumber(form.lotSize),
-        yearBuilt: ensureNumber(form.yearBuilt),
-        hasCentralAir: form.hasCentralAir,
-        hasBaseboard: form.hasBaseboard,
-      };
-      await api.put(`/homes/${form.id}`, payload);
-      setStep(2);
-    } catch (err) {
-      console.error("Failed to update basics", err);
-    } finally {
-      setSaving(false);
-    }
+  function resetAll() {
+    setSelected(null);
+    setApartment("");
+    setNickname("");
+    setArchitecturalStyle("");
+    setError(null);
   }
-
-  // ---- Step 2: confirm (summary) ----
-  async function finalizeAndNext() {
-    setStep(3);
-  }
-
-  // ---- Step 3: upload image then finish ----
-  function handleImageUploaded(url: string) {
-    setForm((p) => ({ ...p, imageUrl: url }));
-  }
-
-  async function finish() {
-    if (form.id && form.imageUrl) {
-      try {
-        await api.put(`/homes/${form.id}`, { imageUrl: form.imageUrl });
-      } catch (err) {
-        console.warn("Could not persist imageUrl; continuing", err);
-      }
-    }
-    if (form.id) {
-      try {
-        const res = await api.get<Home>(`/homes/${form.id}`);
-        onFinished(res.data);
-      } catch {
-        onFinished({
-          id: form.id!,
-          address: form.address,
-          apartment: form.apartment || null,
-          city: form.city,
-          state: form.state,
-          zip: form.zip,
-          nickname: form.nickname || null,
-          imageUrl: form.imageUrl || null,
-          // other fields omitted
-        } as unknown as Home);
-      }
-    }
-    onOpenChange(false);
-  }
-
-  const canUseAddress = Boolean(form.address && form.city && form.state && form.zip);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+    <Dialog open={open} onOpenChange={(v) => { if (!v) resetAll(); onOpenChange(v); }}>
+      <DialogContent>
         <DialogHeader>
-          <DialogTitle>Add a home</DialogTitle>
-          <DialogDescription>Step {step + 1} of 4</DialogDescription>
+          <DialogTitle>Add a Home</DialogTitle>
+          <DialogDescription id="add-home-desc">
+            Start with your address. You can fill in the rest on the next screen.
+          </DialogDescription>
         </DialogHeader>
 
-        {/* STEP 0 - address */}
-        {step === 0 && (
-          <div className="space-y-6">
+        <div className="space-y-4">
+          <div>
+            <label className="mb-1 block text-sm font-medium">Search Address</label>
+            <AddressAutocomplete
+              displayValue={displayAddress}
+              onSelectSuggestion={(s) => setSelected(s)}
+              onClear={() => setSelected(null)}
+              placeholder="Start typing your address…"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label className="block text-sm font-medium mb-1">Search Address</label>
-              <AddressAutocomplete
-                displayValue={addressDisplay}
-                onSelectSuggestion={(s: AddressSuggestion) => {
-                  setForm((p) => ({
-                    ...p,
-                    address: s.address ?? p.address,
-                    apartment: s.apartment ?? "",
-                    city: s.city ?? "",
-                    state: s.state ?? "",
-                    zip: s.zip ?? "",
-                  }));
-                }}
-                onClear={() => {
-                  setForm((p) => ({
-                    ...p,
-                    address: "",
-                    apartment: "",
-                    city: "",
-                    state: "",
-                    zip: "",
-                  }));
-                }}
-                placeholder="Start typing your street address…"
-                className="w-full"
+              <label className="mb-1 block text-sm font-medium">Apartment (optional)</label>
+              <Input
+                value={apartment}
+                onChange={(e) => setApartment(e.target.value)}
+                autoComplete="off"
+                spellCheck={false}
               />
-              {addressDisplay ? (
-                <p className="mt-2 text-xs text-muted-foreground">Selected: {addressDisplay}</p>
-              ) : null}
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm font-medium mb-1">Nickname</label>
-                <Input
-                  value={form.nickname || ""}
-                  onChange={(e) => setForm((p) => ({ ...p, nickname: e.target.value }))}
-                  autoComplete="off"
-                  placeholder="Optional (e.g., 'Lake House')"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Apartment / Unit</label>
-                <Input
-                  value={form.apartment || ""}
-                  onChange={(e) => setForm((p) => ({ ...p, apartment: e.target.value }))}
-                  autoComplete="off"
-                  placeholder="Optional"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2">
-              <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
-              <Button disabled={!canUseAddress || saving} onClick={handleUseThisAddress}>
-                Use this address
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* STEP 1 - basics */}
-        {step === 1 && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="block text-sm font-medium mb-1">Square feet</label>
-                <Input
-                  type="number"
-                  value={form.squareFeet ?? ""}
-                  onChange={(e) =>
-                    setForm((p) => ({
-                      ...p,
-                      squareFeet: e.target.value === "" ? "" : Number(e.target.value),
-                    }))
-                  }
-                  inputMode="numeric"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Lot size (sq ft)</label>
-                <Input
-                  type="number"
-                  value={form.lotSize ?? ""}
-                  onChange={(e) =>
-                    setForm((p) => ({
-                      ...p,
-                      lotSize: e.target.value === "" ? "" : Number(e.target.value),
-                    }))
-                  }
-                  inputMode="numeric"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Year built</label>
-                <Input
-                  type="number"
-                  value={form.yearBuilt ?? ""}
-                  onChange={(e) =>
-                    setForm((p) => ({
-                      ...p,
-                      yearBuilt: e.target.value === "" ? "" : Number(e.target.value),
-                    }))
-                  }
-                  inputMode="numeric"
-                />
-              </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">Architectural style</label>
-              <Select
-                value={form.architecturalStyle || ""}
-                onChange={(e) => {
-                  const style = e.target.value;
-                  setForm((p) => ({ ...p, architecturalStyle: style }));
-                }}
-                aria-placeholder="Choosing a style helps us suggest sensible rooms and tasks."
-              >
-                <option value="">Select style</option>
-                {STYLE_OPTIONS.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </Select>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <label className="inline-flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={!!form.hasCentralAir}
-                  onChange={(e) => setForm((p) => ({ ...p, hasCentralAir: e.target.checked }))}
-                />
-                <span>Central air</span>
-              </label>
-              <label className="inline-flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={!!form.hasBaseboard}
-                  onChange={(e) => setForm((p) => ({ ...p, hasBaseboard: e.target.checked }))}
-                />
-                <span>Baseboard heating</span>
-              </label>
-            </div>
-
-            <div className="flex justify-between">
-              <Button variant="ghost" onClick={() => setStep(0)}>
-                Back
-              </Button>
-              <div className="flex gap-2">
-                <Button variant="ghost" onClick={() => onOpenChange(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={saveBasicsAndNext} disabled={saving}>
-                  Save &amp; Continue
-                </Button>
-              </div>
+              <label className="mb-1 block text-sm font-medium">Nickname (optional)</label>
+              <Input
+                value={nickname}
+                onChange={(e) => setNickname(e.target.value)}
+                autoComplete="off"
+                spellCheck={false}
+              />
             </div>
           </div>
-        )}
 
-        {/* STEP 2 - review summary */}
-        {step === 2 && (
-          <div className="space-y-6">
-            <div className="rounded-md border p-4 text-sm">
-              <div className="font-medium mb-2">Summary</div>
-              <div className="space-y-1">
-                <div>
-                  <span className="text-muted-foreground">Address:</span> {addressDisplay}
-                </div>
-                {form.nickname ? (
-                  <div>
-                    <span className="text-muted-foreground">Nickname:</span> {form.nickname}
-                  </div>
-                ) : null}
-                {form.architecturalStyle ? (
-                  <div>
-                    <span className="text-muted-foreground">Style:</span>{" "}
-                    {form.architecturalStyle}
-                  </div>
-                ) : null}
-                {form.squareFeet ? (
-                  <div>
-                    <span className="text-muted-foreground">Sq ft:</span> {form.squareFeet}
-                  </div>
-                ) : null}
-                {form.lotSize ? (
-                  <div>
-                    <span className="text-muted-foreground">Lot size:</span> {form.lotSize}
-                  </div>
-                ) : null}
-                {form.yearBuilt ? (
-                  <div>
-                    <span className="text-muted-foreground">Year built:</span>{" "}
-                    {form.yearBuilt}
-                  </div>
-                ) : null}
-                <div>
-                  <span className="text-muted-foreground">Central air:</span>{" "}
-                  {form.hasCentralAir ? "Yes" : "No/unknown"}
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Baseboard:</span>{" "}
-                  {form.hasBaseboard ? "Yes" : "No/unknown"}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex justify-between">
-              <Button variant="ghost" onClick={() => setStep(1)}>
-                Back
-              </Button>
-              <div className="flex gap-2">
-                <Button variant="ghost" onClick={() => onOpenChange(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={finalizeAndNext}>Continue</Button>
-              </div>
-            </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium">House Style (optional)</label>
+            <Select
+              value={architecturalStyle}
+              onChange={(e) => setArchitecturalStyle(e.target.value)}
+            >
+              <option value="">— Select a style —</option>
+              {STYLE_OPTIONS.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </Select>
+            <p className="mt-1 text-xs text-muted-foreground">
+              If provided, we’ll pre-fill a room template for this style.
+            </p>
           </div>
-        )}
 
-        {/* STEP 3 - image upload */}
-        {step === 3 && (
-          <div className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium mb-1">Upload a photo (optional)</label>
-              {form.id ? (
-                <ImageUpload homeId={form.id} onUploadComplete={handleImageUploaded} disabled={saving} />
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  Create the home first to upload photos.
-                </p>
-              )}
-              {form.imageUrl ? (
-                <img
-                  src={form.imageUrl}
-                  alt="Home"
-                  className="mt-3 max-h-48 rounded-md border object-cover"
-                />
-              ) : null}
+          {error && (
+            <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {error}
             </div>
+          )}
 
-            <div className="flex justify-between">
-              <Button variant="ghost" onClick={() => setStep(2)}>
-                Back
-              </Button>
-              <div className="flex gap-2">
-                <Button variant="ghost" onClick={() => onOpenChange(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={finish}>Finish</Button>
-              </div>
-            </div>
+          <div className="mt-2 flex items-center justify-end gap-2">
+            <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreate} disabled={saving || !selected}>
+              {saving ? "Creating…" : "Create & Continue"}
+            </Button>
           </div>
-        )}
+        </div>
       </DialogContent>
     </Dialog>
   );
