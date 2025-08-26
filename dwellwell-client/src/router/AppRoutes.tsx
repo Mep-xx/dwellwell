@@ -7,6 +7,7 @@ import Login from '@/pages/Login';
 import Signup from '@/pages/Signup';
 import Dashboard from '@/pages/Dashboard';
 import Homes from '@/pages/Homes';
+import HomeEditPage from "@/pages/HomeEditPage";
 import Trackables from '@/pages/Trackables';
 import Lawn from '@/pages/Lawn';
 import Vehicles from '@/pages/Vehicles';
@@ -50,6 +51,7 @@ export default function AppRoutes() {
         <Route element={<ProtectedLayout />}>
           <Route path="/app" element={<Dashboard />} />
           <Route path="/app/homes" element={<Homes />} />
+          <Route path="/homes/:id/edit" element={<HomeEditPage />} />
           <Route path="/app/trackables" element={<Trackables />} />
           <Route path="/app/lawn" element={<Lawn />} />
           <Route path="/app/vehicles" element={<Vehicles />} />
