@@ -1,421 +1,619 @@
 // src/pages/HomeEditPage.tsx
-import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { api } from "@/utils/api";
+import { useToast } from "@/components/ui/use-toast";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
+import ImageUpload from "@/components/ui/imageupload";
 
-// Types (from shared)
 import type { Home } from "@shared/types/home";
 import type { Room } from "@shared/types/room";
 
-// UI
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { Select } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import { useToast } from "@/components/ui/use-toast";
+/** ---------- Constants ---------- */
+const STYLE_OPTIONS = [
+  "Colonial","Cape","Ranch","Contemporary","Tudor","Victorian",
+  "Craftsman","Farmhouse","Split-Level","Townhouse","Condo","Multi-Family","Other",
+];
 
-// Helpers
-import { architecturalStyleLabels } from "@shared/architecturalStyleLabels";
-import { houseRoomTemplates } from "@shared/houseRoomTemplates";
+const ROOM_TYPES = [
+  "Bedroom","Bathroom","Kitchen","Living Room","Dining Room","Office",
+  "Laundry","Garage","Basement","Attic","Hallway","Closet","Other",
+] as const;
 
-type LoadedHome = Home & { rooms?: Room[] };
-
-type FormState = {
-  nickname: string;
-  architecturalStyle: string;
-  squareFeet: string;   // keep as string for inputs; convert on save
-  lotSize: string;
-  yearBuilt: string;
-  hasCentralAir: boolean;
-  hasBaseboard: boolean;
-  boilerType: string;
-  roofType: string;
-  sidingType: string;
-  featuresCsv: string;   // comma separated features
-  imageUrl?: string | null;
+const DEFAULT_ROOMS_BY_STYLE: Record<
+  string,
+  Array<{ name: string; type: string; floor?: number }>
+> = {
+  Colonial: [
+    { name: "Primary Bedroom", type: "Bedroom", floor: 2 },
+    { name: "Bedroom 2", type: "Bedroom", floor: 2 },
+    { name: "Bedroom 3", type: "Bedroom", floor: 2 },
+    { name: "Full Bath", type: "Bathroom", floor: 2 },
+    { name: "Kitchen", type: "Kitchen", floor: 1 },
+    { name: "Living Room", type: "Living Room", floor: 1 },
+    { name: "Dining Room", type: "Dining Room", floor: 1 },
+    { name: "Half Bath", type: "Bathroom", floor: 1 },
+    { name: "Laundry", type: "Laundry", floor: 1 },
+  ],
+  Ranch: [
+    { name: "Primary Bedroom", type: "Bedroom", floor: 1 },
+    { name: "Bedroom 2", type: "Bedroom", floor: 1 },
+    { name: "Bedroom 3", type: "Bedroom", floor: 1 },
+    { name: "Full Bath", type: "Bathroom", floor: 1 },
+    { name: "Kitchen", type: "Kitchen", floor: 1 },
+    { name: "Living Room", type: "Living Room", floor: 1 },
+    { name: "Dining Area", type: "Dining Room", floor: 1 },
+  ],
+  Cape: [
+    { name: "Primary Bedroom", type: "Bedroom", floor: 2 },
+    { name: "Bedroom 2", type: "Bedroom", floor: 2 },
+    { name: "Full Bath", type: "Bathroom", floor: 2 },
+    { name: "Kitchen", type: "Kitchen", floor: 1 },
+    { name: "Living Room", type: "Living Room", floor: 1 },
+    { name: "Dining Room", type: "Dining Room", floor: 1 },
+  ],
+  Other: [
+    { name: "Primary Bedroom", type: "Bedroom", floor: 1 },
+    { name: "Full Bath", type: "Bathroom", floor: 1 },
+    { name: "Kitchen", type: "Kitchen", floor: 1 },
+    { name: "Living Room", type: "Living Room", floor: 1 },
+  ],
 };
 
+// Building details dropdowns
+const BOILER_TYPES = ["None","Steam","Hot Water","Combi","Electric","Forced Air Furnace","Heat Pump","Other"];
+const ROOF_TYPES   = ["Asphalt Shingle","Metal","Tile","Slate","Wood Shake","Rubber (EPDM)","TPO","Other"];
+const SIDING_TYPES = ["Vinyl","Wood","Fiber Cement","Brick","Stone","Stucco","Aluminum","Other"];
+
+// Feature suggestions
+const FEATURE_SUGGESTIONS = [
+  "Fireplace","Hardwood Floors","Fenced Yard","Deck/Patio","Central Air",
+  "Finished Basement","Walk-In Closet","Granite Counters","Stainless Appliances",
+  "Solar Panels","Irrigation System","Skylight","Mudroom","Workshop","EV Charger",
+];
+
+/** ---------- Types ---------- */
+type LoadedHome = Home & {
+  rooms?: Room[];
+  features?: string[] | null;
+  imageUrl?: string | null;
+  boilerType?: string | null;
+  roofType?: string | null;
+  sidingType?: string | null;
+  hasCentralAir?: boolean | null;
+  hasBaseboard?: boolean | null;
+};
+
+/** ---------- Helpers ---------- */
+const isUUIDish = (v: unknown) =>
+  typeof v === "string" &&
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+
+const diffSummary = (before: any, after: any): string[] => {
+  const keys = new Set([...Object.keys(before || {}), ...Object.keys(after || {})]);
+  const normalize = (val: any) => (Array.isArray(val) ? JSON.stringify(val) : val ?? null);
+  const out: string[] = [];
+  keys.forEach((k) => {
+    if (normalize(before?.[k]) !== normalize(after?.[k])) {
+      out.push(`${k}: ${before?.[k] ?? "—"} → ${after?.[k] ?? "—"}`);
+    }
+  });
+  return out;
+};
+
+/** =============================
+ *             Page
+ *  ============================= */
 export default function HomeEditPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const [home, setHome] = useState<LoadedHome | null>(null);
-  const [form, setForm] = useState<FormState | null>(null);
-  const [rooms, setRooms] = useState<Room[]>([]);
-  const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [home, setHome] = useState<LoadedHome | null>(null);
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [features, setFeatures] = useState<string[]>([]);
 
-  // Architectural style options
-  const styleOptions = useMemo(() => {
-    return Object.entries(architecturalStyleLabels).map(([value, label]) => ({
-      value,
-      label,
-    }));
-  }, []);
+  const [boilerType, setBoilerType] = useState<string>("");
+  const [roofType, setRoofType] = useState<string>("");
+  const [sidingType, setSidingType] = useState<string>("");
 
+  const prevStyleRef = useRef<string | null>(null);
+
+  // Load once
   useEffect(() => {
-    let mounted = true;
-    async function load() {
+    if (!id) return;
+    (async () => {
       try {
-        setLoading(true);
-        const res = await api.get<LoadedHome>(`/homes/${id}`);
-        if (!mounted) return;
-        const h = res.data;
-
-        // Prime form state
-        const f: FormState = {
-          nickname: h.nickname ?? "",
-          architecturalStyle: h.architecturalStyle ?? "",
-          squareFeet: h.squareFeet ? String(h.squareFeet) : "",
-          lotSize: h.lotSize ? String(h.lotSize) : "",
-          yearBuilt: h.yearBuilt ? String(h.yearBuilt) : "",
-          hasCentralAir: Boolean((h as any).hasCentralAir ?? false),
-          hasBaseboard: Boolean((h as any).hasBaseboard ?? false),
-          boilerType: (h as any).boilerType ?? "",
-          roofType: (h as any).roofType ?? "",
-          sidingType: (h as any).sidingType ?? "",
-          featuresCsv: Array.isArray((h as any).features)
-            ? ((h as any).features as string[]).join(", ")
-            : "",
-          imageUrl: (h as any).imageUrl ?? null,
-        };
+        const res = await api.get(`/homes/${id}`);
+        const h = res.data as LoadedHome;
 
         setHome(h);
-        setForm(f);
-        // If no rooms came back but a style exists, preload room template
-        setRooms(
-          h.rooms && h.rooms.length
-            ? h.rooms
-            : h.architecturalStyle
-            ? (houseRoomTemplates as any)[h.architecturalStyle]
-              ? (houseRoomTemplates as any)[h.architecturalStyle].map(
-                  (r: any, i: number) => ({
-                    id: `tmp-${i}-${Date.now()}`,
-                    name: r.name,
-                    type: r.type,
-                    floor: r.floor,
-                    homeId: h.id as any,
-                  })
-                )
-              : []
-            : []
-        );
-      } catch (err) {
-        console.error("[HomeEdit] load failed", err);
-        toast({
-          title: "Failed to load home",
-          description: "Please try again.",
-          variant: "destructive",
-        });
-        navigate("/homes");
+        setRooms((h.rooms ?? []).map((r) => ({ ...r })));
+        setFeatures(Array.isArray(h.features) ? h.features : []);
+        setBoilerType(h.boilerType ?? "");
+        setRoofType(h.roofType ?? "");
+        setSidingType(h.sidingType ?? "");
+
+        // Track the style we loaded with
+        prevStyleRef.current = h.architecturalStyle ?? null;
+      } catch (e) {
+        console.error("Failed to load home", e);
+        toast({ title: "Error", description: "Could not load home.", variant: "destructive" });
       } finally {
-        if (mounted) setLoading(false);
+        setLoading(false);
       }
+    })();
+  }, [id]);
+
+  // Apply default room template whenever the current style is non-empty & changed,
+  // including the first selection (when prev was null).
+  useEffect(() => {
+    if (!home) return;
+    const current = home.architecturalStyle || "";
+    const prev = prevStyleRef.current;
+
+    if (current && current !== prev) {
+      const tmpl = DEFAULT_ROOMS_BY_STYLE[current] || DEFAULT_ROOMS_BY_STYLE.Other;
+      const mapped: Room[] = tmpl.map((t, i) => ({
+        id: `tmp-${Date.now()}-${i}`,
+        homeId: home.id!,
+        name: t.name,
+        type: t.type,
+        floor: t.floor ?? 1,
+      })) as any;
+
+      setRooms(mapped);
+      toast({
+        title: "Default rooms applied",
+        description: `Loaded ${mapped.length} rooms for ${current}.`,
+      });
     }
-    if (id) load();
-    return () => {
-      mounted = false;
-    };
-  }, [id, navigate, toast]);
+    prevStyleRef.current = current;
+  }, [home?.architecturalStyle]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-apply default rooms when style changes from empty to something or between styles
-  function handleStyleChange(nextStyle: string) {
-    if (!form) return;
-    setForm({ ...form, architecturalStyle: nextStyle });
+  /** Rooms CRUD (client side) */
+  const addRoom = () => {
+    if (!home) return;
+    setRooms((prev) => [
+      ...prev,
+      {
+        id: `tmp-${Date.now()}`,
+        homeId: home.id!,
+        name: `Room ${prev.length + 1}`,
+        type: "Other",
+        floor: 1,
+      } as any,
+    ]);
+  };
+  const updateRoom = (rid: string, patch: Partial<Room>) =>
+    setRooms((prev) => prev.map((r) => (String(r.id) === String(rid) ? { ...r, ...patch } : r)));
+  const removeRoom = (rid: string) =>
+    setRooms((prev) => prev.filter((r) => String(r.id) !== String(rid)));
 
-    // Only apply template if we actually have a template for this style
-    const tpl = houseRoomTemplates[nextStyle as keyof typeof houseRoomTemplates];
-    if (tpl && Array.isArray(tpl) && tpl.length) {
-      const newRooms: Room[] = tpl.map((r, i) => ({
-        // generate a temporary id for UI; server owns real ids
-        id: (rooms[i]?.id ?? `tmp-${i}-${Date.now()}`) as any,
-        name: r.name,
-        type: r.type,
-        // floor is optional in your shared type
-        floor: (r as any).floor,
-        homeId: (home?.id || "") as any,
-      }));
-      setRooms(newRooms);
-    }
-  }
+  /** Features (chips + suggestions) */
+  const [featureInput, setFeatureInput] = useState("");
+  const addFeature = (f: string) => {
+    const val = f.trim();
+    if (!val) return;
+    setFeatures((prev) => (prev.includes(val) ? prev : [...prev, val]));
+    setFeatureInput("");
+  };
+  const removeFeature = (f: string) => setFeatures((prev) => prev.filter((x) => x !== f));
+  const filteredSuggestions = useMemo(
+    () =>
+      FEATURE_SUGGESTIONS.filter(
+        (s) =>
+          s.toLowerCase().includes(featureInput.toLowerCase()) &&
+          !features.some((f) => f.toLowerCase() === s.toLowerCase())
+      ).slice(0, 8),
+    [featureInput, features]
+  );
 
-  function setField<K extends keyof FormState>(key: K, val: FormState[K]) {
-    if (!form) return;
-    setForm({ ...form, [key]: val });
-  }
+  const onImageUploaded = (url: string) => {
+    setHome((p) => (p ? { ...p, imageUrl: url } : p));
+  };
 
-  function parseNum(s: string): number | undefined {
-    if (s === "" || s == null) return undefined;
-    const n = Number(s);
-    return Number.isFinite(n) ? n : undefined;
-  }
+  /** Save */
+  const save = async () => {
+    if (!home || !id) return;
 
-  async function save() {
-    if (!home || !form) return;
-    setSaving(true);
     try {
-      // Build minimal patch (and avoid sending empty strings, which 400s Zod)
-      const patch: Record<string, any> = {};
-      if (form.nickname !== (home.nickname ?? "")) patch.nickname = form.nickname.trim();
+      const before = {
+        nickname: home.nickname ?? null,
+        apartment: home.apartment ?? null,
+        architecturalStyle: home.architecturalStyle ?? null,
+        squareFeet: home.squareFeet ?? null,
+        lotSize: home.lotSize ?? null,
+        yearBuilt: home.yearBuilt ?? null,
+        hasCentralAir: !!home.hasCentralAir,
+        hasBaseboard: !!home.hasBaseboard,
+        boilerType,
+        roofType,
+        sidingType,
+        features,
+        roomsCount: rooms.length,
+      };
 
-      const sf = parseNum(form.squareFeet);
-      if (sf !== (home.squareFeet ?? undefined)) patch.squareFeet = sf;
+      // Only send UUID ids; tmp-* means "create new"
+      const cleanRooms = rooms.map((r) => {
+        const base = {
+          name: r.name,
+          type: r.type,
+          floor: typeof r.floor === "number" ? r.floor : 1,
+        };
+        return isUUIDish(r.id) ? { id: r.id, ...base } : base;
+      });
 
-      const ls = parseNum(form.lotSize);
-      if (ls !== (home.lotSize ?? undefined)) patch.lotSize = ls;
+      // Build payload with only API-allowed keys (no imageUrl — that’s handled by the upload route)
+      const payload: any = {
+        nickname: home.nickname ?? null,
+        apartment: home.apartment ?? null,
+        architecturalStyle: home.architecturalStyle ?? null,
+        squareFeet: home.squareFeet ?? null,
+        lotSize: home.lotSize ?? null,
+        yearBuilt: home.yearBuilt ?? null,
+        hasCentralAir: !!home.hasCentralAir,
+        hasBaseboard: !!home.hasBaseboard,
+        boilerType: boilerType || null,
+        roofType: roofType || null,
+        sidingType: sidingType || null,
+        features,
+        rooms: cleanRooms,
+      };
 
-      const yb = parseNum(form.yearBuilt);
-      if (yb !== (home.yearBuilt ?? undefined)) patch.yearBuilt = yb;
+      await api.put(`/homes/${id}`, payload);
 
-      if (form.architecturalStyle !== (home.architecturalStyle ?? ""))
-        patch.architecturalStyle = form.architecturalStyle || undefined;
+      // Re-fetch to reflect server state precisely
+      const refreshed = (await api.get(`/homes/${id}`)).data as LoadedHome;
+      setHome(refreshed);
+      setRooms((refreshed.rooms ?? []).map((r) => ({ ...r })));
+      setFeatures(Array.isArray(refreshed.features) ? refreshed.features : []);
+      setBoilerType(refreshed.boilerType ?? "");
+      setRoofType(refreshed.roofType ?? "");
+      setSidingType(refreshed.sidingType ?? "");
 
-      // These exist in your API schema.ts / update.ts
-      if (form.hasCentralAir !== Boolean((home as any).hasCentralAir ?? false))
-        patch.hasCentralAir = form.hasCentralAir;
-      if (form.hasBaseboard !== Boolean((home as any).hasBaseboard ?? false))
-        patch.hasBaseboard = form.hasBaseboard;
-
-      if (form.boilerType !== ((home as any).boilerType ?? ""))
-        patch.boilerType = form.boilerType || undefined;
-      if (form.roofType !== ((home as any).roofType ?? ""))
-        patch.roofType = form.roofType || undefined;
-      if (form.sidingType !== ((home as any).sidingType ?? ""))
-        patch.sidingType = form.sidingType || undefined;
-
-      const feats = form.featuresCsv
-        .split(",")
-        .map((t) => t.trim())
-        .filter(Boolean);
-      const origFeats = Array.isArray((home as any).features) ? (home as any).features : [];
-      if (JSON.stringify(feats) !== JSON.stringify(origFeats)) {
-        patch.features = feats;
-      }
-
-      // Do NOT send rooms here; your /homes/:id/update route doesn't accept it.
-
-      await api.put(`/homes/${home.id}`, patch);
+      const after = {
+        ...before,
+        roomsCount: (refreshed.rooms ?? []).length,
+        boilerType: refreshed.boilerType ?? "",
+        roofType: refreshed.roofType ?? "",
+        sidingType: refreshed.sidingType ?? "",
+      };
+      const changes = diffSummary(before, after);
 
       toast({
         title: "Saved",
-        description: "Home details were updated.",
+        description:
+          changes.length > 0
+            ? `Updated ${changes.length} field${changes.length === 1 ? "" : "s"}:\n• ${changes.join("\n• ")}`
+            : "No changes detected.",
         variant: "success",
       });
-
-      // Refresh original so dirty tracking stays correct
-      const res = await api.get<LoadedHome>(`/homes/${home.id}`);
-      setHome(res.data);
     } catch (err: any) {
-      console.error("[HomeEdit] save failed", err?.response?.data ?? err);
-      const detail =
-        err?.response?.data?.message ??
-        (Array.isArray(err?.response?.data?.issues)
-          ? err.response.data.issues.map((i: any) => i.message).join("; ")
-          : "Please check your entries and try again.");
+      const apiErr = err?.response?.data;
+      console.error("Save failed", apiErr || err);
+      const details = Array.isArray(apiErr?.issues)
+        ? "\n\nIssues:\n• " + apiErr.issues.map((i: any) => i.message ?? JSON.stringify(i)).join("\n• ")
+        : "";
       toast({
         title: "Save failed",
-        description: detail,
+        description:
+          (apiErr?.message as string) ||
+          "The server rejected the update. Please review required fields." + details,
         variant: "destructive",
       });
-    } finally {
-      setSaving(false);
     }
-  }
+  };
 
-  if (loading || !form || !home) {
+  if (loading) return <div className="p-6 text-sm text-muted-foreground">Loading…</div>;
+  if (!home)
     return (
-      <div className="p-8 text-muted-foreground">
-        Loading home…
+      <div className="p-6">
+        <p className="text-red-600">Home not found.</p>
+        <Button className="mt-4" onClick={() => navigate("/homes")}>
+          Back to Homes
+        </Button>
       </div>
     );
-  }
 
   return (
-    <div className="p-6">
+    <div className="mx-auto max-w-5xl p-6">
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-bold">Edit Home</h1>
-        <div className="flex gap-2">
-          <Button variant="secondary" onClick={() => navigate("/homes")}>
+        <div className="space-x-2">
+          <Button variant="outline" onClick={() => navigate("/homes")}>
             Back
           </Button>
-          <Button onClick={save} disabled={saving}>
-            {saving ? "Saving…" : "Save"}
-          </Button>
+          <Button onClick={save}>Save</Button>
         </div>
       </div>
 
+      {/* Photo + Basics */}
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-        {/* Basics */}
-        <section className="col-span-2 rounded-lg border p-4">
-          <h2 className="mb-4 text-lg font-semibold">Basics</h2>
-
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label>Nickname</Label>
-              <Input
-                value={form.nickname}
-                onChange={(e) => setField("nickname", e.target.value)}
-                placeholder="My place"
-                autoComplete="off"
+        <div className="md:col-span-1">
+          <div className="rounded-lg border p-3">
+            <ImageUpload homeId={home.id!} onUploadComplete={onImageUploaded} />
+            {home.imageUrl ? (
+              <img
+                src={home.imageUrl}
+                alt="Home"
+                className="mt-3 aspect-[4/3] w-full rounded object-cover"
               />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Architectural Style</Label>
-              <Select
-                value={form.architecturalStyle}
-                onChange={(e) => handleStyleChange(e.target.value)}
-                aria-placeholder="Changing style auto-loads a default room template (you can tweak rooms below)."
-              >
-                <option value="">— Select —</option>
-                {styleOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Square Feet</Label>
-              <Input
-                type="number"
-                value={form.squareFeet}
-                onChange={(e) => setField("squareFeet", e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Lot Size (acres)</Label>
-              <Input
-                type="number"
-                value={form.lotSize}
-                onChange={(e) => setField("lotSize", e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Year Built</Label>
-              <Input
-                type="number"
-                value={form.yearBuilt}
-                onChange={(e) => setField("yearBuilt", e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Boiler Type</Label>
-              <Input
-                value={form.boilerType}
-                onChange={(e) => setField("boilerType", e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Roof Type</Label>
-              <Input
-                value={form.roofType}
-                onChange={(e) => setField("roofType", e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Siding Type</Label>
-              <Input
-                value={form.sidingType}
-                onChange={(e) => setField("sidingType", e.target.value)}
-              />
-            </div>
+            ) : (
+              <div className="mt-3 aspect-[4/3] w-full rounded bg-muted/40" />
+            )}
           </div>
+        </div>
 
-          <div className="mt-4 grid grid-cols-1 gap-6 md:grid-cols-2">
-            <div className="flex items-center gap-3">
-              <Switch
-                id="hasCentralAir"
-                checked={form.hasCentralAir}
-                onCheckedChange={(v: boolean) => setField("hasCentralAir", v)}
-              />
-              <Label htmlFor="hasCentralAir">Central Air</Label>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <Switch
-                id="hasBaseboard"
-                checked={form.hasBaseboard}
-                onCheckedChange={(v: boolean) => setField("hasBaseboard", v)}
-              />
-              <Label htmlFor="hasBaseboard">Baseboard Heating</Label>
-            </div>
-          </div>
-
-          <div className="mt-4">
-            <Label>Features (comma-separated)</Label>
+        <div className="md:col-span-2 grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div>
+            <Label htmlFor="nickname">Nickname</Label>
             <Input
-              className="mt-2"
-              value={form.featuresCsv}
-              onChange={(e) => setField("featuresCsv", e.target.value)}
-              placeholder="fireplace, garage, deck"
+              id="nickname"
+              value={home.nickname ?? ""}
+              onChange={(e) => setHome((p) => (p ? { ...p, nickname: e.target.value } : p))}
+              autoComplete="off"
             />
           </div>
-        </section>
 
-        {/* Sidebar */}
-        <aside className="rounded-lg border p-4">
-          <h2 className="mb-4 text-lg font-semibold">Address</h2>
-          <div className="text-sm text-muted-foreground">
-            <div>{home.address}</div>
-            <div>
-              {home.city}, {home.state} {home.zip}
-            </div>
+          <div>
+            <Label htmlFor="apartment">Apartment / Unit</Label>
+            <Input
+              id="apartment"
+              value={home.apartment ?? ""}
+              onChange={(e) => setHome((p) => (p ? { ...p, apartment: e.target.value } : p))}
+              autoComplete="off"
+            />
           </div>
 
-          {form.imageUrl ? (
-            <div className="mt-4">
-              <img
-                src={form.imageUrl}
-                alt="Home"
-                className="h-40 w-full rounded-md object-cover"
-              />
-            </div>
-          ) : null}
-        </aside>
+          <div>
+            <Label>Architectural Style</Label>
+            <Select
+              value={home.architecturalStyle ?? ""}
+              onChange={(e) =>
+                setHome((p) => (p ? { ...p, architecturalStyle: e.target.value || null } : p))
+              }
+            >
+              <option value="">(Select style)</option>
+              {STYLE_OPTIONS.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </Select>
+          </div>
+
+          <div>
+            <Label htmlFor="yearBuilt">Year Built</Label>
+            <Input
+              id="yearBuilt"
+              type="number"
+              value={home.yearBuilt ?? ""}
+              onChange={(e) =>
+                setHome((p) =>
+                  p ? { ...p, yearBuilt: e.target.value ? Number(e.target.value) : null } : p
+                )
+              }
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="squareFeet">Square Feet</Label>
+            <Input
+              id="squareFeet"
+              type="number"
+              value={home.squareFeet ?? ""}
+              onChange={(e) =>
+                setHome((p) =>
+                  p ? { ...p, squareFeet: e.target.value ? Number(e.target.value) : null } : p
+                )
+              }
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="lotSize">Lot Size (sqft)</Label>
+            <Input
+              id="lotSize"
+              type="number"
+              value={home.lotSize ?? ""}
+              onChange={(e) =>
+                setHome((p) => (p ? { ...p, lotSize: e.target.value ? Number(e.target.value) : null } : p))
+              }
+            />
+          </div>
+        </div>
       </div>
 
-      {/* Rooms view (read-only for now; server updates are on different routes) */}
-      <section className="mt-6 rounded-lg border p-4">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Rooms</h2>
-          <div className="text-xs text-muted-foreground">
-            Rooms auto-load from style. Edit room details on the Rooms page (coming soon).
+      {/* Building Details */}
+      <div className="mt-8 rounded-lg border p-4">
+        <h2 className="mb-3 text-lg font-semibold">Building Details</h2>
+
+        <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div>
+            <Label>Boiler / HVAC</Label>
+            <Select value={boilerType} onChange={(e) => setBoilerType(e.target.value)}>
+              <option value="">(Select…)</option>
+              {BOILER_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </Select>
           </div>
+          <div>
+            <Label>Roof Type</Label>
+            <Select value={roofType} onChange={(e) => setRoofType(e.target.value)}>
+              <option value="">(Select…)</option>
+              {ROOF_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div>
+            <Label>Siding Type</Label>
+            <Select value={sidingType} onChange={(e) => setSidingType(e.target.value)}>
+              <option value="">(Select…)</option>
+              {SIDING_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </Select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              className="h-4 w-4"
+              checked={!!home.hasCentralAir}
+              onChange={(e) =>
+                setHome((p) => (p ? { ...p, hasCentralAir: e.target.checked } : p))
+              }
+            />
+            <span>Central Air</span>
+          </label>
+
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              className="h-4 w-4"
+              checked={!!home.hasBaseboard}
+              onChange={(e) =>
+                setHome((p) => (p ? { ...p, hasBaseboard: e.target.checked } : p))
+              }
+            />
+            <span>Baseboard Heating</span>
+          </label>
+        </div>
+      </div>
+
+      {/* Features */}
+      <div className="mt-8 rounded-lg border p-4">
+        <h2 className="mb-3 text-lg font-semibold">Features</h2>
+        <div className="mt-1 flex flex-wrap gap-2">
+          {features.map((f) => (
+            <span
+              key={f}
+              className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs"
+            >
+              {f}
+              <button
+                type="button"
+                className="ml-2 text-muted-foreground hover:text-foreground"
+                onClick={() => removeFeature(f)}
+                aria-label={`Remove ${f}`}
+                title={`Remove ${f}`}
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+        <div className="mt-2 flex items-center gap-2">
+          <Input
+            placeholder="Type a feature and press Add"
+            value={featureInput}
+            onChange={(e) => setFeatureInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                addFeature(featureInput);
+              }
+            }}
+          />
+          <Button type="button" variant="outline" onClick={() => addFeature(featureInput)}>
+            Add
+          </Button>
+        </div>
+        {filteredSuggestions.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {filteredSuggestions.map((s) => (
+              <button
+                key={s}
+                type="button"
+                className="rounded-full border px-2 py-0.5 text-xs hover:bg-muted"
+                onClick={() => addFeature(s)}
+              >
+                + {s}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Rooms */}
+      <div className="mt-8 rounded-lg border p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Rooms</h2>
+          <Button variant="outline" onClick={addRoom}>
+            Add Room
+          </Button>
         </div>
 
         {rooms.length === 0 ? (
-          <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-            No rooms yet. Pick an architectural style to load a template.
-          </div>
+          <p className="text-sm text-muted-foreground">No rooms yet.</p>
         ) : (
-          <ul className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
-            {rooms.map((r) => (
-              <li key={String(r.id)} className="rounded-md border p-3">
-                <div className="flex items-center justify-between">
-                  <div className="font-medium">{r.name}</div>
-                  <div className="text-xs uppercase text-muted-foreground">
-                    {r.type}
-                  </div>
-                </div>
-                {r.floor != null && (
-                  <div className="mt-1 text-xs text-muted-foreground">
-                    Floor: {r.floor}
-                  </div>
-                )}
-              </li>
-            ))}
-          </ul>
+          <div className="overflow-auto">
+            <table className="w-full min-w-[700px] text-sm">
+              <thead>
+                <tr className="border-b text-left">
+                  <th className="py-2 pr-4">Name</th>
+                  <th className="py-2 pr-4">Type</th>
+                  <th className="py-2 pr-4">Floor</th>
+                  <th className="py-2"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {rooms.map((r) => (
+                  <tr key={String(r.id)} className="border-b">
+                    <td className="py-2 pr-4">
+                      <Input
+                        value={r.name ?? ""}
+                        onChange={(e) => updateRoom(String(r.id), { name: e.target.value })}
+                      />
+                    </td>
+                    <td className="py-2 pr-4">
+                      <Select
+                        value={r.type ?? "Other"}
+                        onChange={(e) => updateRoom(String(r.id), { type: e.target.value })}
+                      >
+                        {ROOM_TYPES.map((t) => (
+                          <option key={t} value={t}>
+                            {t}
+                          </option>
+                        ))}
+                      </Select>
+                    </td>
+                    <td className="py-2 pr-4">
+                      <Input
+                        type="number"
+                        value={typeof r.floor === "number" ? r.floor : 1}
+                        onChange={(e) =>
+                          updateRoom(String(r.id), { floor: Number(e.target.value || 1) })
+                        }
+                      />
+                    </td>
+                    <td className="py-2">
+                      <Button variant="ghost" onClick={() => removeRoom(String(r.id))}>
+                        Remove
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
-      </section>
+      </div>
     </div>
   );
 }
