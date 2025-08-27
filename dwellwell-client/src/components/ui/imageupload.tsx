@@ -7,6 +7,7 @@ type Props = {
   homeId: string;
   onUploadComplete: (absoluteUrl: string) => void;
   disabled?: boolean;
+  showPreview?: boolean;
 };
 
 /** Make whatever the server returns into an absolute URL on the API origin. */
@@ -14,13 +15,13 @@ function absolutizeFromApiBase(pathOrUrl: string): string {
   if (!pathOrUrl) return "";
   if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl;
 
-  const base = api.defaults.baseURL ?? window.location.origin; // e.g. http://localhost:4000/api
-  const apiOrigin = new URL("/", base).origin;                  // -> http://localhost:4000
+  const base = api.defaults.baseURL ?? window.location.origin;
+  const apiOrigin = new URL("/", base).origin;                
   const trimmed = String(pathOrUrl).replace(/^\/?api\/?/, "").replace(/^\/+/, "");
   return `${apiOrigin}/${trimmed}`;
 }
 
-export function ImageUpload({ homeId, onUploadComplete, disabled = false }: Props) {
+export function ImageUpload({ homeId, onUploadComplete, disabled = false, showPreview = false }: Props) {
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState<string>("");
   const [err, setErr] = useState<string | null>(null);
@@ -44,12 +45,17 @@ export function ImageUpload({ homeId, onUploadComplete, disabled = false }: Prop
         setErr(null);
 
         let data: any;
+
+        // Primary (matches your API route)
         try {
-          // Preferred new route
           data = await send(`/homes/${encodeURIComponent(homeId)}/image`);
         } catch {
-          // Optional legacy fallback
-          data = await send(`/homes/upload-image?homeId=${encodeURIComponent(homeId)}`);
+          // Optional fallbacks (kept for safety; you can remove if unused)
+          try {
+            data = await send(`/homes/${encodeURIComponent(homeId)}/upload`);
+          } catch {
+            data = await send(`/homes/upload-image?homeId=${encodeURIComponent(homeId)}`);
+          }
         }
 
         const candidate: string | undefined =
@@ -58,8 +64,8 @@ export function ImageUpload({ homeId, onUploadComplete, disabled = false }: Prop
         if (!candidate) throw new Error("Upload response missing image url");
 
         const absolute = absolutizeFromApiBase(candidate);
-        setPreview(absolute);          // 👈 show thumbnail right away
-        onUploadComplete(absolute);    // 👈 notify parent (wizard)
+        setPreview(absolute);
+        onUploadComplete(absolute);
       } catch (e: any) {
         console.error("Image upload failed:", e);
         setErr(e?.response?.data?.error || "Failed to upload image. Please try again.");
@@ -79,37 +85,27 @@ export function ImageUpload({ homeId, onUploadComplete, disabled = false }: Prop
   });
 
   return (
-    <div className="space-y-3">
+    <div className="rounded-lg border p-3">
       <div
         {...getRootProps()}
-        className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition ${
-          disabled || busy ? "opacity-50 cursor-not-allowed" : "border-gray-300 hover:bg-gray-50"
+        className={`cursor-pointer rounded border-2 border-dashed p-4 text-center ${
+          isDragActive ? "bg-muted/50" : ""
         }`}
-        aria-busy={busy || undefined}
       >
         <input {...getInputProps()} />
-        {isDragActive ? (
-          <p className="text-gray-600">Drop the image here…</p>
-        ) : (
-          <>
-            <p className="text-gray-600">
-              {busy ? "Uploading…" : "Drag & drop an image here, or click to select"}
-            </p>
-            <p className="text-xs text-gray-400">Recommended size: 800×400px. Max size: 5MB.</p>
-          </>
-        )}
+        <p className="text-sm">
+          Drag &amp; drop an image here, or <span className="underline">click to select</span>.<br />
+          <span className="text-xs text-muted-foreground">Recommended size 800×400px • Max 5MB</span>
+        </p>
+        {busy && <p className="mt-2 text-xs">Uploading…</p>}
+        {err && <p className="mt-2 text-xs text-red-600">{err}</p>}
       </div>
 
-      {err && <p className="text-sm text-red-600">{err}</p>}
-
-      {preview && (
-        <div className="flex items-center gap-3">
-          <img
-            src={preview}
-            alt="Home photo preview"
-            className="h-20 w-32 rounded object-cover border"
-          />
-          <span className="text-sm text-green-700">✅ Photo uploaded & saved</span>
+      {/* Hide the component’s own tiny preview unless explicitly requested */}
+      {showPreview && preview && (
+        <div className="mt-3 flex items-center gap-3">
+          <img src={preview} alt="Home photo preview" className="h-20 w-32 rounded object-cover border" />
+          <span className="text-sm text-green-700">✅ Photo uploaded &amp; saved</span>
         </div>
       )}
     </div>

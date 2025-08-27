@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { AddressAutocomplete, type AddressSuggestion } from "@/components/AddressAutocomplete";
-import { architecturalStyleLabels } from "@shared/architecturalStyleLabels";
+import { ARCHITECTURAL_STYLES } from "@shared/constants/architecturalStyleLabels";
 
 type Props = {
   open: boolean;
@@ -28,7 +28,7 @@ function normalizeStyles(src: unknown): string[] {
     .filter((s): s is string => typeof s === "string");
   return [];
 }
-const STYLE_OPTIONS = normalizeStyles(architecturalStyleLabels);
+const STYLE_OPTIONS = normalizeStyles(ARCHITECTURAL_STYLES);
 
 export default function AddHomeWizard({ open, onOpenChange, onFinished }: Props) {
   const [saving, setSaving] = useState(false);

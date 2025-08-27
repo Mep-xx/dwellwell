@@ -1,6 +1,6 @@
 // src/shared/houseRoomTemplates.ts
 
-export const houseRoomTemplates: Record<string, { name: string; type: string; floor?: number }[]> = {
+export const HOUSE_ROOM_TEMPLATES: Record<string, { name: string; type: string; floor?: number }[]> = {
   Colonial: [
     { name: 'Living Room', type: 'Living Room', floor: 1 },
     { name: 'Dining Room', type: 'Dining Room', floor: 1 },

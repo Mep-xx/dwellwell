@@ -5,7 +5,8 @@
     "paths": {
       "@shared/*": ["../shared/*"],
       "@types/*": ["../shared/types"],
-      "@constants/*": ["../shared/constants"],
+      "@constants*": ["../shared/constants"],
+      "@constants/*": ["../shared/constants/*"],
       "@/*": ["src/*"]
     },
     "jsx": "react-jsx",

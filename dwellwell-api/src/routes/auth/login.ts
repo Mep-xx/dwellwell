@@ -6,7 +6,7 @@ import { comparePassword } from '../../utils/auth';
 // Types-friendly constants
 const ACCESS_SECRET: jwt.Secret = (process.env.JWT_SECRET || 'dev-secret') as jwt.Secret;
 const REFRESH_SECRET: jwt.Secret = (process.env.REFRESH_TOKEN_SECRET || 'dev-refresh') as jwt.Secret;
-const ACCESS_TTL: jwt.SignOptions['expiresIn'] = (process.env.ACCESS_TOKEN_TTL as any) || '15m';
+const ACCESS_TTL: jwt.SignOptions['expiresIn'] = (process.env.ACCESS_TOKEN_TTL as any) || '60m';
 const REFRESH_TTL: jwt.SignOptions['expiresIn'] = (process.env.REFRESH_TOKEN_TTL as any) || '30d';
 
 const COOKIE_SAMESITE: 'none' | 'lax' = ((process.env.COOKIE_SAMESITE as any) || 'none') as any;
