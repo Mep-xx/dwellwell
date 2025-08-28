@@ -1,4 +1,4 @@
-// floorHelpers.ts (create this file and import it)
+//dwellwell-client/src/utils/floorHelpers.ts
 export const floorToLabel = (floor?: string | number) => {
     if (typeof floor === 'string') return floor;
     switch (floor) {

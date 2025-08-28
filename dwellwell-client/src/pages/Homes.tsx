@@ -92,7 +92,7 @@ export default function HomesPage() {
       setHomes((p) =>
         p.map((h) => (h.id === homeId ? { ...h, isChecked: newValue } : h))
       );
-      await api.put(`/homes/${homeId}/check`, { isChecked: newValue });
+      await api.patch(`/homes/${homeId}`, { isChecked: newValue });
 
       toast({
         title: newValue

@@ -1,3 +1,4 @@
+//shared/types/home.ts
 export type Home = {
   id: string;
   userId: string;

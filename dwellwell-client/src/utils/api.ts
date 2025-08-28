@@ -1,4 +1,4 @@
-// src/utils/api.ts
+//dwellwell-client/src/utils/api.ts
 import axios, { AxiosError, AxiosRequestConfig } from 'axios';
 
 /**
@@ -69,9 +69,6 @@ let isRefreshing = false;
 let queue: Array<{ resolve: (t: string) => void; reject: (e: any) => void }> = [];
 
 async function refreshAccessToken(): Promise<string> {
-  console.log('[api] refreshing…');
-  const { data } = await axios.post(`${baseURL}/auth/refresh`, {}, { withCredentials: true });
-  console.log('[api] refresh OK, got accessToken?', !!data?.accessToken);
   if (isRefreshing) {
     return new Promise((resolve, reject) => queue.push({ resolve, reject }));
   }
@@ -109,14 +106,11 @@ api.interceptors.response.use(
     // Only refresh for non-auth endpoints, and only once
     if (status === 401 && original && !original._retry && !isAuthEndpoint) {
       original._retry = true;
-      console.log('[api] 401 from', original.url, '→ trying refresh');
-      const token = await refreshAccessToken();
-      console.log('[api] retrying', original.url, 'with new token prefix', token.slice(0,12));
       try {
-        const token = await refreshAccessToken();
+        const token = await refreshAccessToken(); // once
         original.headers = original.headers ?? {};
         (original.headers as any).Authorization = `Bearer ${token}`;
-        return api(original);
+        return api(original); // retry with the new token
       } catch (e) {
         return Promise.reject(e);
       }

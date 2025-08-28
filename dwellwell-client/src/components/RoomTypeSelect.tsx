@@ -1,5 +1,5 @@
 // src/components/RoomTypeSelect.tsx
-import { ROOM_TYPES } from '@shared/constants/roomTypes';
+import { ROOM_TYPES } from '@shared/constants';
 
 type Props = {
   value: string;

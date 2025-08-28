@@ -1,3 +1,4 @@
+//dwellwell-client/src/components/ui/checkbox.tsx
 import { InputHTMLAttributes } from 'react';
 import { cn } from '@/lib/utils';
 

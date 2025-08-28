@@ -1,4 +1,4 @@
-// src/router/RequireAuth.tsx
+//dwellwell-client/src/router/RequireAuth.tsx
 import { PropsWithChildren } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 

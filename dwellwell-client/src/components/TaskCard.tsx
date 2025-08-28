@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Task } from '../../../dwellwell-api/src/shared/types/task';
+import { Task } from '@shared/types/task';
 import { categoryGradients } from '../data/mockTasks';
 
 type Props = {

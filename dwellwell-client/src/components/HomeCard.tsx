@@ -1,8 +1,9 @@
+//dwellwell-client/src/components/HomeCard.tsx
 import { useState } from 'react';
 import { Home } from '@shared/types/home';
 import { Room } from '@shared/types/room';
 import { Task } from '@shared/types/task';
-import { ROOM_TYPE_ICONS } from '@shared/constants/roomTypes';
+import { ROOM_TYPE_ICONS } from '@shared/constants';
 import { Switch } from '@/components/ui/switch';
 import { Pencil, Trash2, ChevronDown, ChevronUp, Settings2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -73,6 +74,8 @@ export function HomeCard({ home, summary, onToggle, onEdit, onDelete }: Props) {
 
   const imageSrc = resolveHomeImageUrl(home.imageUrl);
 
+  const acres = typeof home.lotSize === 'number' ? (home.lotSize / 43560) : undefined;
+
   return (
     <div className={`relative rounded-xl border shadow overflow-hidden transition-all ${home.isChecked ? 'bg-white' : 'bg-gray-100 opacity-70'}`}>
       {/* Image */}
@@ -98,8 +101,7 @@ export function HomeCard({ home, summary, onToggle, onEdit, onDelete }: Props) {
           {home.address}, {home.city}, {home.state}
         </p>
         <p>
-          {home.squareFeet?.toLocaleString?.()} sq. ft. • {home.lotSize} acres • Built in{' '}
-          {home.yearBuilt}
+          {home.squareFeet?.toLocaleString?.()} sq. ft. • {acres?.toFixed?.(2)} acres • Built in {home.yearBuilt}
         </p>
         {Array.isArray(home.features) && home.features.length > 0 && (
           <div className="flex flex-wrap gap-2">

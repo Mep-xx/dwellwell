@@ -1,4 +1,4 @@
-// shared/constants/homeOptions.ts
+//shared/constants/homeOptions.ts
 export const BOILER_TYPES = [
   "None",
   "Steam",

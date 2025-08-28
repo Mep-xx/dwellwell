@@ -1,4 +1,4 @@
-// src/shared/houseRoomTemplates.ts
+//shared/constants/houseRoomTemplates.ts
 
 export const HOUSE_ROOM_TEMPLATES: Record<string, { name: string; type: string; floor?: number }[]> = {
   Colonial: [

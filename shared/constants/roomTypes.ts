@@ -1,4 +1,4 @@
-// @shared/constants/roomTypes.ts
+//shared/constants//roomTypes.ts
 export const ROOM_TYPES = [
     'Bathroom',
     'Bedroom',

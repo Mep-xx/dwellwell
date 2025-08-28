@@ -4,7 +4,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Input } from './ui/input';
 import { RoomTypeSelect } from './RoomTypeSelect';
-import { ROOM_TYPE_ICONS } from '@shared/constants/roomTypes';
+import { ROOM_TYPE_ICONS } from '@shared/constants';
 import { floorToLabel, labelToFloor } from '@/utils/floorHelpers';
 
 type Room = {

@@ -1,14 +1,12 @@
+//dwellwell-api/src/routes/homes/schema.ts
 import { z } from "zod";
 
-/**
- * Helpers to gracefully accept form values that may come as strings.
- */
 const toOptionalNumber = (schema: z.ZodTypeAny) =>
   z.preprocess((v) => {
     if (v === "" || v === null || v === undefined) return undefined;
     if (typeof v === "string") {
       const n = Number(v);
-      return Number.isFinite(n) ? n : v; // let zod complain if it's not a number
+      return Number.isFinite(n) ? n : v;
     }
     return v;
   }, schema);
@@ -28,27 +26,36 @@ export const createHomeSchema = z.object({
   state: z.string().min(1),
   zip: z.string().min(1),
   apartment: z.string().optional(),
+  // let these through at create time so downstream flows work:
+  nickname: z.string().max(120).optional(),
+  architecturalStyle: z.string().max(120).optional(),
 });
 
 export const updateHomeSchema = z.object({
   nickname: z.string().max(120).optional(),
-  squareFeet: toOptionalInt(),
-  lotSize: toOptionalFloat(),
-  yearBuilt: toOptionalInt(),
+  squareFeet: toOptionalInt().optional(),
+  lotSize: toOptionalFloat().optional(),
+  yearBuilt: toOptionalInt().optional(),
+
   boilerType: z.string().max(80).optional(),
   roofType: z.string().max(80).optional(),
   sidingType: z.string().max(80).optional(),
   imageUrl: z.string().url().optional(),
-  hasCentralAir: toOptionalBool(),
-  hasBaseboard: toOptionalBool(),
+
+  hasCentralAir: toOptionalBool().optional(),
+  hasBaseboard: toOptionalBool().optional(),
+  hasHeatPump: toOptionalBool().optional(),
+
   architecturalStyle: z.string().max(120).optional(),
-  numberOfRooms: toOptionalInt(),
+  numberOfRooms: toOptionalInt().optional(),
   features: z.array(z.string().max(80)).optional(),
   apartment: z.string().optional(),
+
+  isChecked: toOptionalBool().optional(),
 });
 
 export const homeIdParam = z.object({
-  id: z.string().cuid(), // <-- switched from .uuid() to .cuid()
+  id: z.string().cuid(),
 });
 
 export type CreateHomeInput = z.infer<typeof createHomeSchema>;

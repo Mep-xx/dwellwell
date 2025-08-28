@@ -1,4 +1,4 @@
-// src/components/ui/dialog.tsx
+//dwellwell-client/src/components/ui/dialog.tsx
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';

@@ -9,7 +9,7 @@ const router = Router();
  * GET /api/homes/:homeId
  * Returns a single home with rooms.
  */
-router.get("/homes/:homeId", requireAuth, async (req, res) => {
+router.get("/:homeId", requireAuth, async (req, res) => {
   const { homeId } = req.params;
   try {
     const home = await prisma.home.findUnique({

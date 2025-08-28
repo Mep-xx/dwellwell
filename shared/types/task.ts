@@ -1,3 +1,5 @@
+//shared/types/task.ts
+
 export type TaskStatus = 'PENDING' | 'COMPLETED' | 'SKIPPED';
 export type TaskCategory =
   | 'appliance'

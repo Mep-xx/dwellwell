@@ -1,4 +1,4 @@
-// src/utils/sanitize.ts
+//dwellwell-client/src/utils/sanitize.ts
 
 /**
  * Basic sanitization to prevent unwanted characters or potential injection.

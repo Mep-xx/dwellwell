@@ -1,4 +1,4 @@
-// src/shared/houseArchitecturalLabels.ts
+//shared/constants/architecturalStyleLabels.ts
 export const ARCHITECTURAL_STYLES: Record<string, string> = {
     Colonial: "Colonial",
     Ranch: "Ranch",

@@ -1,4 +1,4 @@
-// src/components/ui/imageupload.tsx
+//dwellwell-client/src/components/ui/imageupload.tsx
 import { useCallback, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { api } from "@/utils/api";

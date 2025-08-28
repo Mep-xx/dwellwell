@@ -1,3 +1,4 @@
+//dwellwell-client/src/router/AppRoutes.tsx
 import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 

@@ -1,3 +1,4 @@
+//dwellwell-client/src/components/ui/progressbar.tsx
 interface ProgressBarProps {
   currentStep: number;
   steps: string[];
