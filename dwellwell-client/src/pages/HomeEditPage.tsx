@@ -530,7 +530,7 @@ export default function HomeEditPage() {
               />
               <span>Include in tasks</span>
             </label>
-            <Button variant="outline" onClick={() => navigate("/homes")}>
+            <Button variant="outline" onClick={() => navigate("/app/homes")}>
               Back
             </Button>
             <Button onClick={saveAll} disabled={saving}>
