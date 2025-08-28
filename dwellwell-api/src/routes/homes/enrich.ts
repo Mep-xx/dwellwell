@@ -1,10 +1,7 @@
 import { Router, Request, Response } from "express";
-import { PrismaClient, Home, Room } from "@prisma/client";
+import { Room } from "@prisma/client";
+import { prisma } from "../../db/prisma";
 import OpenAI from "openai";
-
-// If you already have a shared prisma instance, import that instead.
-// e.g. import prisma from "../../db";
-const prisma = new PrismaClient();
 
 const router = Router();
 
@@ -279,7 +276,6 @@ router.post("/:homeId/enrich", async (req: Request, res: Response) => {
       architecturalStyle: home.architecturalStyle ?? null,
       hasCentralAir: home.hasCentralAir ?? null,
       hasBaseboard: home.hasBaseboard ?? null,
-      boilerType: home.boilerType ?? null,
       roofType: home.roofType ?? null,
       sidingType: home.sidingType ?? null,
       features: Array.isArray((home as any).features) ? (home as any).features : [],

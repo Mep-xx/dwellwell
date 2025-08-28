@@ -99,8 +99,11 @@ api.interceptors.response.use(
   (res) => res,
   async (error: AxiosError) => {
     const original = error.config as (AxiosRequestConfig & { _retry?: boolean }) | undefined;
+    if (!original) return Promise.reject(error);
+    
     const status = error.response?.status ?? 0;
     const url = `${original?.baseURL ?? ''}${original?.url ?? ''}`;
+    
     const isAuthEndpoint = url.includes('/auth/login') || url.includes('/auth/refresh');
 
     // Only refresh for non-auth endpoints, and only once

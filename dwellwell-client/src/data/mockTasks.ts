@@ -1,4 +1,4 @@
-import { Task } from '../../../dwellwell-api/src/shared/types/task';
+import { Task } from '@shared/types/task';
 
 export const categoryGradients: Record<string, string> = {
   appliance: 'from-gray-50 to-gray-100',

@@ -8,15 +8,16 @@ import { Input } from "@/components/ui/input";
 import ImageUpload from "@/components/ui/imageupload";
 import MapboxAddress from "@/components/MapboxAddress";
 
-import { EditRoomModal } from "@/components/EditRoomModal"; // uses your file
-import { RoomTypeSelect } from "@/components/RoomTypeSelect"; // uses your file
-import { SortableRoomCard } from "@/components/SortableRoomCard"; // uses your file
+import { EditRoomModal } from "@/components/EditRoomModal";
+import { RoomTypeSelect } from "@/components/RoomTypeSelect";
+import { SortableRoomCard } from "@/components/SortableRoomCard";
 
 import {
   DndContext,
   PointerSensor,
   useSensor,
   useSensors,
+  DragEndEvent,
 } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -33,7 +34,6 @@ import {
   HOUSE_ROOM_TEMPLATES,
 } from "@constants";
 
-// If your shared Room type differs, this minimal shape is enough here
 import type { Room } from "@shared/types/room";
 
 /* ============================== Helpers =============================== */
@@ -42,42 +42,36 @@ const toAbsoluteUrl = (url: string) =>
   !url
     ? url
     : /^(https?:)?\/\//i.test(url)
-      ? url
-      : `${window.location.origin}${url.startsWith("/") ? "" : "/"}${url}`;
+    ? url
+    : `${window.location.origin}${url.startsWith("/") ? "" : "/"}${url}`;
 
 const acresToSqft = (acres: number) => acres * 43560;
 const sqftToAcres = (sqft: number) => sqft / 43560;
 
-function compact(parts: (string | null | undefined)[]) {
-  return parts.filter(Boolean) as string[];
-}
 function renderAddressLine(h: any) {
   if (!h) return "";
-  const line1 = h.addressLine1 ?? h.street1 ?? h.address1 ?? h.street ?? h.address ?? "";
+  const line1 =
+    h.addressLine1 ?? h.street1 ?? h.address1 ?? h.street ?? h.address ?? "";
   const line2 = h.addressLine2 ?? h.street2 ?? h.address2 ?? "";
   const city = h.city;
   const state = h.state ?? h.province;
   const zip = h.postalCode ?? h.zip ?? h.zipCode;
   const country = h.country;
-  const compact = (xs: (string | null | undefined)[]) => xs.filter(Boolean) as string[];
+
+  const compact = (xs: (string | null | undefined)[]) =>
+    xs.filter(Boolean) as string[];
   const upper = compact([line1, line2]).join(" · ");
-  const lower = compact([compact([city, state].filter(Boolean) as string[]).join(", "), zip, country]).join(" ");
+  const lower = compact([
+    compact([city, state].filter(Boolean) as string[]).join(", "),
+    zip,
+    country,
+  ]).join(" ");
   return compact([upper, lower]).join(" — ");
 }
 
-
-const isFiniteNum = (x: unknown): x is number =>
-  typeof x === "number" && Number.isFinite(x);
-const strOrUndef = (x: unknown) => {
-  const s = x == null ? "" : String(x);
-  return s.trim() === "" ? undefined : s;
-};
-const boolOrUndef = (x: unknown) =>
-  typeof x === "boolean" ? x : x == null ? undefined : Boolean(x);
-
 /**
  * Build Home update payload that matches your Prisma model.
- * We SAVE lotSize as **sqft** (your DB row shows 20000), but DISPLAY as acres by default.
+ * We SAVE lotSize as **sqft** but DISPLAY as acres by default.
  */
 function buildHomeUpdatePayload(
   home: LoadedHome,
@@ -88,18 +82,22 @@ function buildHomeUpdatePayload(
     home.lotSize == null
       ? undefined
       : lotUnit === "acres"
-        ? Math.round(Number(home.lotSize) * 43560) // UI in acres → DB in sqft
-        : Number(home.lotSize);
+      ? Math.round(Number(home.lotSize) * 43560)
+      : Number(home.lotSize);
 
   const map = {
     nickname: home.nickname?.trim() || undefined,
-    squareFeet: typeof home.squareFeet === "number" ? home.squareFeet : undefined,
+    squareFeet:
+      typeof home.squareFeet === "number" ? home.squareFeet : undefined,
     lotSize: typeof lotSqft === "number" ? lotSqft : undefined,
     yearBuilt: typeof home.yearBuilt === "number" ? home.yearBuilt : undefined,
 
-    hasCentralAir: typeof home.hasCentralAir === "boolean" ? home.hasCentralAir : undefined,
-    hasBaseboard: typeof home.hasBaseboard === "boolean" ? home.hasBaseboard : undefined,
-    hasHeatPump: typeof home.hasHeatPump === "boolean" ? home.hasHeatPump : undefined,
+    hasCentralAir:
+      typeof home.hasCentralAir === "boolean" ? home.hasCentralAir : undefined,
+    hasBaseboard:
+      typeof home.hasBaseboard === "boolean" ? home.hasBaseboard : undefined,
+    hasHeatPump:
+      typeof home.hasHeatPump === "boolean" ? home.hasHeatPump : undefined,
 
     roofType: home.roofType?.trim() || undefined,
     sidingType: home.sidingType?.trim() || undefined,
@@ -152,6 +150,27 @@ type LoadedHome = {
   rooms?: Room[];
 };
 
+/* ========================== Suggestions =========================== */
+/**
+ * A lightweight suggestions list that shows IF the feature isn’t present
+ * and hasn’t been dismissed for this home. Dismissals are stored per-home.
+ */
+const SUGGESTED_FEATURES = [
+  "Solar Panels",
+  "Irrigation System",
+  "Deck",
+  "Fireplace",
+  "Water Softener",
+  "Sump Pump",
+  "EV Charger",
+  "Pool",
+  "Hot Tub",
+  "Whole-House Generator",
+] as const;
+
+const dismissedKey = (homeId: string) =>
+  `home:${homeId}:dismissed-feature-prompts`;
+
 /* ============================== Component =============================== */
 
 export default function HomeEditPage() {
@@ -165,7 +184,7 @@ export default function HomeEditPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // Lot unit for UI: default to ACRES (your preference)
+  // Lot unit for UI: default to ACRES
   const [lotUnit, setLotUnit] = useState<"acres" | "sqft">("acres");
 
   // Add-room mini dialog
@@ -177,6 +196,9 @@ export default function HomeEditPage() {
   // Room editing modal
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
   const [isRoomModalOpen, setRoomModalOpen] = useState(false);
+
+  // Dismissed suggestions (per-home)
+  const [dismissed, setDismissed] = useState<string[]>([]);
 
   // curated features (remove “Central Air” since it’s a boolean; add a clearly fake placeholder)
   const FEATURE_SUGGESTIONS = useMemo(() => {
@@ -223,10 +245,19 @@ export default function HomeEditPage() {
         setRooms(db?.rooms ?? []);
         setFeatures(uiHome.features ?? []);
         setLotUnit("acres"); // default UI view
-      } catch (e) {
+
+        // Load per-home dismissed suggestions
+        try {
+          const raw = localStorage.getItem(dismissedKey(String(db?.id)));
+          if (raw) setDismissed(JSON.parse(raw));
+        } catch {
+          /* ignore */
+        }
+      } catch (e: any) {
         toast({
           title: "Load failed",
-          description: "Could not load this home.",
+          description:
+            e?.response?.data?.message || "Could not load this home.",
           variant: "destructive",
         });
         navigate("/homes");
@@ -240,9 +271,11 @@ export default function HomeEditPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [homeId]);
 
-  const fullAddress = home
-    ? [home.address, home.apartment, `${home.city}, ${home.state} ${home.zip}`].filter(Boolean).join(", ")
-    : "";
+  const fullAddress =
+    home &&
+    [home.address, home.apartment, `${home.city}, ${home.state} ${home.zip}`]
+      .filter(Boolean)
+      .join(", ");
 
   /* --------------------------- Save (explicit) --------------------------- */
 
@@ -266,13 +299,18 @@ export default function HomeEditPage() {
       console.groupEnd();
 
       // If the server complains about extra keys, drop them once and retry.
-      const unrec = data?.issues?.find?.((i: any) => i?.code === "unrecognized_keys");
+      const unrec = data?.issues?.find?.(
+        (i: any) => i?.code === "unrecognized_keys"
+      );
       if (unrec?.keys?.length) {
         const cleaned = { ...payload };
         for (const k of unrec.keys) delete cleaned[k];
         try {
           await api.put(`/homes/${homeId}`, cleaned);
-          toast({ title: "Saved", description: "Home updated (after removing extra keys)." });
+          toast({
+            title: "Saved",
+            description: "Home updated (after removing extra keys).",
+          });
           setSaving(false);
           return;
         } catch (e2) {
@@ -315,7 +353,8 @@ export default function HomeEditPage() {
 
   // Apply style template rooms (skip duplicates)
   const applyTemplateRooms = async (style: string) => {
-    const template = (ARCHITECTURAL_STYLES && (HOUSE_ROOM_TEMPLATES as any)?.[style]) || [];
+    const template =
+      (ARCHITECTURAL_STYLES && (HOUSE_ROOM_TEMPLATES as any)?.[style]) || [];
     const existingNames = new Set(
       rooms.map((r) => (r.name || "").trim().toLowerCase())
     );
@@ -346,15 +385,14 @@ export default function HomeEditPage() {
     }
   };
 
-  // Drag sort
-  const handleDragEnd = async (event: any) => {
+  // Drag sort — use stable IDs (room.id) for better correctness
+  const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-    const oldIndex = Number(active.id);
-    const newIndex = Number(over.id);
     setRooms((prev) => {
+      const oldIndex = prev.findIndex((r) => r.id === active.id);
+      const newIndex = prev.findIndex((r) => r.id === over.id);
       const next = arrayMove(prev, oldIndex, newIndex);
-      // Try to persist order if you add an endpoint for it:
       const roomIds = next.map((r) => r.id);
       api.put(`/rooms/reorder`, { homeId, roomIds }).catch(() => void 0);
       return next;
@@ -375,13 +413,46 @@ export default function HomeEditPage() {
   };
 
   const toggleCuratedFeature = (f: string) => {
-    setFeatures((prev) => (prev.includes(f) ? prev.filter((x) => x !== f) : [...prev, f]));
+    setFeatures((prev) =>
+      prev.includes(f) ? prev.filter((x) => x !== f) : [...prev, f]
+    );
+  };
+
+  // Suggestions list derived from SUGGESTED_FEATURES minus selected and dismissed
+  const suggestionsToShow = useMemo(() => {
+    const selected = new Set(features.map((f) => f.toLowerCase()));
+    const hidden = new Set(dismissed.map((d) => d.toLowerCase()));
+    return SUGGESTED_FEATURES.filter(
+      (s) => !selected.has(s.toLowerCase()) && !hidden.has(s.toLowerCase())
+    );
+  }, [features, dismissed]);
+
+  const acceptSuggestion = (s: string) => {
+    toggleCuratedFeature(s);
+    toast({ title: "Added", description: `"${s}" added to features.` });
+  };
+
+  const dismissSuggestion = (s: string) => {
+    const lower = s.toLowerCase();
+    const next = Array.from(new Set([...dismissed, s]));
+    setDismissed(next);
+    if (home?.id) {
+      try {
+        localStorage.setItem(dismissedKey(home.id), JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+    }
   };
 
   /* ------------------------------- UI -------------------------------- */
 
   if (loading || !home) {
-    return <div className="p-6"><div className="text-sm text-muted-foreground">Loading home…</div></div>;
+    return (
+      <div className="p-6">
+        <div className="text-sm text-muted-foreground">Loading home…</div>
+      </div>
+    );
   }
 
   return (
@@ -400,7 +471,9 @@ export default function HomeEditPage() {
               />
               <span>Include in tasks</span>
             </label>
-            <Button variant="outline" onClick={() => navigate("/homes")}>Back</Button>
+            <Button variant="outline" onClick={() => navigate("/homes")}>
+              Back
+            </Button>
             <Button onClick={saveAll} disabled={saving}>
               {saving ? "Saving…" : "Save"}
             </Button>
@@ -411,13 +484,17 @@ export default function HomeEditPage() {
         </div>
       </div>
 
-      {/* Photo + uploader */}
+      {/* Photo + uploader + map */}
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
         <div className="md:col-span-1">
           <div className="rounded-lg border p-3">
             <div className="aspect-[4/3] w-full rounded overflow-hidden bg-muted/40">
               {home.imageUrl ? (
-                <img src={home.imageUrl} alt="Home" className="h-full w-full object-cover" />
+                <img
+                  src={home.imageUrl}
+                  alt="Home"
+                  className="h-full w-full object-cover"
+                />
               ) : (
                 <div className="h-full w-full grid place-items-center text-sm text-muted-foreground">
                   No photo yet
@@ -430,14 +507,19 @@ export default function HomeEditPage() {
                 onUploadComplete={(url) => {
                   const abs = toAbsoluteUrl(url);
                   setHome({ ...home, imageUrl: abs });
-                  toast({ title: "Photo updated", description: "Main photo replaced." });
+                  toast({
+                    title: "Photo updated",
+                    description: "Main photo replaced.",
+                  });
                 }}
               />
             </div>
-            <div className="mb-4">
-              <MapboxAddress addressLine={fullAddress} className="h-56 w-full rounded-lg border" />
+            <div className="mt-3">
+              <MapboxAddress
+                addressLine={fullAddress || ""}
+                className="h-56 w-full rounded-lg border"
+              />
             </div>
-
           </div>
         </div>
 
@@ -535,7 +617,7 @@ export default function HomeEditPage() {
                 id="lotSize"
                 type="number"
                 inputMode="numeric"
-                value={home.lotSize ?? ""} // UI holds acres by default
+                value={home.lotSize ?? ""}
                 onChange={(e) =>
                   setHome({
                     ...home,
@@ -549,9 +631,10 @@ export default function HomeEditPage() {
                 value={lotUnit}
                 onChange={(e) => {
                   const next = e.target.value as "acres" | "sqft";
-                  if (home.lotSize != null) {
+                  if (home.lotSize != null && !Number.isNaN(Number(home.lotSize))) {
                     const v = Number(home.lotSize);
-                    const converted = next === "sqft" ? Math.round(acresToSqft(v)) : sqftToAcres(v);
+                    const converted =
+                      next === "sqft" ? Math.round(acresToSqft(v)) : sqftToAcres(v);
                     setHome({ ...home, lotSize: converted });
                   }
                   setLotUnit(next);
@@ -567,7 +650,9 @@ export default function HomeEditPage() {
             <label className="block text-sm font-medium mb-1">Roof Type</label>
             <select
               value={home.roofType || ""}
-              onChange={(e) => setHome({ ...home, roofType: e.target.value || undefined })}
+              onChange={(e) =>
+                setHome({ ...home, roofType: e.target.value || undefined })
+              }
               className="w-full border rounded px-3 py-2 text-sm"
             >
               <option value="">(Select…)</option>
@@ -583,7 +668,9 @@ export default function HomeEditPage() {
             <label className="block text-sm font-medium mb-1">Siding Type</label>
             <select
               value={home.sidingType || ""}
-              onChange={(e) => setHome({ ...home, sidingType: e.target.value || undefined })}
+              onChange={(e) =>
+                setHome({ ...home, sidingType: e.target.value || undefined })
+              }
               className="w-full border rounded px-3 py-2 text-sm"
             >
               <option value="">(Select…)</option>
@@ -602,7 +689,9 @@ export default function HomeEditPage() {
                   type="checkbox"
                   className="h-4 w-4"
                   checked={!!home.hasCentralAir}
-                  onChange={(e) => setHome({ ...home, hasCentralAir: e.target.checked })}
+                  onChange={(e) =>
+                    setHome({ ...home, hasCentralAir: e.target.checked })
+                  }
                 />
                 <span>Central Air</span>
               </label>
@@ -612,7 +701,9 @@ export default function HomeEditPage() {
                   type="checkbox"
                   className="h-4 w-4"
                   checked={!!home.hasBaseboard}
-                  onChange={(e) => setHome({ ...home, hasBaseboard: e.target.checked })}
+                  onChange={(e) =>
+                    setHome({ ...home, hasBaseboard: e.target.checked })
+                  }
                 />
                 <span>Baseboard Heating</span>
               </label>
@@ -622,7 +713,9 @@ export default function HomeEditPage() {
                   type="checkbox"
                   className="h-4 w-4"
                   checked={!!home.hasHeatPump}
-                  onChange={(e) => setHome({ ...home, hasHeatPump: e.target.checked })}
+                  onChange={(e) =>
+                    setHome({ ...home, hasHeatPump: e.target.checked })
+                  }
                 />
                 <span>Heat Pump</span>
               </label>
@@ -630,6 +723,43 @@ export default function HomeEditPage() {
           </div>
         </div>
       </div>
+
+      {/* Suggestions (prompts) */}
+      {suggestionsToShow.length > 0 && (
+        <div className="mt-8 rounded-lg border p-4 bg-amber-50/40">
+          <h2 className="mb-2 text-lg font-semibold">Suggestions</h2>
+          <p className="text-sm text-muted-foreground mb-3">
+            Don’t see some of your home’s features? Add them now or dismiss and
+            we’ll stop suggesting them for this home.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {suggestionsToShow.map((s) => (
+              <div
+                key={s}
+                className="flex items-center gap-2 border rounded-full px-2 py-1 bg-white"
+              >
+                <span className="text-xs">{s}</span>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="h-6 px-2 text-xs"
+                  onClick={() => acceptSuggestion(s)}
+                  title="Add feature"
+                >
+                  Add
+                </Button>
+                <button
+                  className="text-xs text-gray-500 hover:text-gray-700 px-1"
+                  onClick={() => dismissSuggestion(s)}
+                  title="Dismiss suggestion"
+                >
+                  Dismiss
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Features (curated chips + suggestion submit) */}
       <div className="mt-8 rounded-lg border p-4">
@@ -642,19 +772,20 @@ export default function HomeEditPage() {
               f === "Hangar Bay"
                 ? "🛸 Placeholder only"
                 : f === "Fireplace"
-                  ? "Adds: chimney sweep, ash disposal"
-                  : f === "EV Charger"
-                    ? "Adds: breaker check, cable inspection"
-                    : f === "Irrigation System"
-                      ? "Adds: winterization, seasonal startup"
-                      : "Adds: maintenance reminders";
+                ? "Adds: chimney sweep, ash disposal"
+                : f === "EV Charger"
+                ? "Adds: breaker check, cable inspection"
+                : f === "Irrigation System"
+                ? "Adds: winterization, seasonal startup"
+                : "Adds: maintenance reminders";
             return (
               <button
                 key={f}
                 type="button"
                 onClick={() => toggleCuratedFeature(f)}
-                className={`rounded-full border px-2 py-1 text-xs ${selected ? "bg-muted" : "hover:bg-muted/60"
-                  }`}
+                className={`rounded-full border px-2 py-1 text-xs ${
+                  selected ? "bg-muted" : "hover:bg-muted/60"
+                }`}
                 title={preview}
               >
                 {f}
@@ -681,7 +812,9 @@ export default function HomeEditPage() {
           <Button
             variant="outline"
             onClick={async () => {
-              const el = document.getElementById("suggestFeature") as HTMLInputElement;
+              const el = document.getElementById(
+                "suggestFeature"
+              ) as HTMLInputElement;
               const val = el?.value.trim();
               if (val) {
                 await submitFeatureSuggestion(val);
@@ -712,20 +845,26 @@ export default function HomeEditPage() {
         ) : (
           <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
             <SortableContext
-              items={rooms.map((_, idx) => idx)}
+              items={rooms.map((r) => r.id)} // stable IDs
               strategy={verticalListSortingStrategy}
             >
               <div className="grid gap-2">
-                {rooms.map((r, idx) => (
+                {rooms.map((r) => (
                   <div key={r.id} className="flex items-center gap-2">
                     <div className="flex-1">
                       <SortableRoomCard
-                        id={idx}
-                        room={{ name: r.name, type: r.type, floor: r.floor ?? undefined }}
+                        id={r.id as unknown as number} // component expects number; cast to satisfy props without refactor
+                        room={{
+                          name: (r.name as string) ?? "",
+                          type: (r.type as string) ?? "Other",
+                          floor: r.floor ?? undefined,
+                        }}
                         onChange={(updated) => {
                           // Local inline change; persisted via modal or a dedicated room save if needed
                           setRooms((prev) =>
-                            prev.map((x) => (x.id === r.id ? { ...x, ...updated } : x))
+                            prev.map((x) =>
+                              x.id === r.id ? { ...x, ...updated } : x
+                            )
                           );
                         }}
                         onRemove={async () => {
@@ -734,7 +873,11 @@ export default function HomeEditPage() {
                         }}
                       />
                     </div>
-                    <Button size="sm" variant="outline" onClick={() => openEditRoom(r)}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => openEditRoom(r)}
+                    >
                       Edit
                     </Button>
                   </div>
@@ -753,10 +896,16 @@ export default function HomeEditPage() {
             <div className="space-y-2">
               <div>
                 <label className="mb-1 block text-sm font-medium">Type</label>
-                <RoomTypeSelect value={newRoomType} onChange={setNewRoomType} className="w-full" />
+                <RoomTypeSelect
+                  value={newRoomType}
+                  onChange={setNewRoomType}
+                  className="w-full"
+                />
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium">Name (optional)</label>
+                <label className="mb-1 block text-sm font-medium">
+                  Name (optional)
+                </label>
                 <Input
                   value={newRoomName}
                   onChange={(e) => setNewRoomName(e.target.value)}
@@ -768,7 +917,9 @@ export default function HomeEditPage() {
                 <select
                   value={String(newRoomFloor ?? "")}
                   onChange={(e) =>
-                    setNewRoomFloor(e.target.value === "" ? undefined : Number(e.target.value))
+                    setNewRoomFloor(
+                      e.target.value === "" ? undefined : Number(e.target.value)
+                    )
                   }
                   className="border rounded px-2 py-1 text-sm w-full"
                 >
@@ -789,7 +940,10 @@ export default function HomeEditPage() {
               <Button
                 onClick={async () => {
                   if (!newRoomType) {
-                    toast({ title: "Pick a type", description: "Please choose a room type." });
+                    toast({
+                      title: "Pick a type",
+                      description: "Please choose a room type.",
+                    });
                     return;
                   }
                   await createRoom(newRoomName.trim(), newRoomType, newRoomFloor);
