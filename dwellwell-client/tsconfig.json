@@ -1,24 +1,19 @@
+//dwellwell-client/tsconfig.json
 {
+  "extends": "../tsconfig.base.json",
   "compilerOptions": {
-    "target": "ES2020",
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "lib": ["DOM", "ESNext"],
     "jsx": "react-jsx",
     "baseUrl": ".",
     "paths": {
+      "@/*": ["src/*"],
       "@shared/*": ["../shared/*"],
-      "@types/*": ["../shared/types"],
       "@constants": ["../shared/constants/index.ts"],
-      "@constants/*": ["../shared/constants/*"],
-      "@/*": ["src/*"]
+      "@constants/*": ["../shared/constants/*"]
     },
-    "types": ["vite/client", "node"],
-    "typeRoots": ["./node_modules/@types", "./src/types"],
-    "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
-    "skipLibCheck": true,
-    "strict": true
+    "types": ["vite/client", "node"]
   },
-  "include": ["src", "src/types"]
+  "include": ["src", "src/types"],
+  "exclude": ["node_modules", "dist"]
 }

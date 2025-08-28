@@ -1,0 +1,22 @@
+//tsconfig.base.json
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["ESNext", "DOM"],
+
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+
+    "baseUrl": ".",
+    "paths": {
+      "@shared/*": ["shared/*"],
+      "@constants": ["shared/constants/index.ts"],
+      "@constants/*": ["shared/constants/*"]
+    }
+  }
+}

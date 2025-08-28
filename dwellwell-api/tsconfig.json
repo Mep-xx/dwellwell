@@ -1,23 +1,13 @@
+//dwellwell-api/tsconfig.json
 {
+  "extends": "../tsconfig.base.json",
   "compilerOptions": {
-    "target": "ES2020",
     "module": "CommonJS",
-    "outDir": "build",
-    "rootDir": "src",
-    "strict": true,
-    "skipLibCheck": true,
-    "esModuleInterop": true,
-    "moduleResolution": "node",
-    "resolveJsonModule": true,
-    "baseUrl": "./",
+    "rootDir": "..",                 // <— broaden to repo root
+    "outDir": "../build-api",        // <— emit into a sibling folder
     "composite": true,
-    "typeRoots": ["./node_modules/@types", "./src/types"],
-    "types": ["node"],
-    "paths": {
-      "@shared/*": ["../shared/*"],
-      "@constants": ["../shared/constants/index.ts"],
-      "@constants/*": ["../shared/constants/*"]
-    }
+    "types": ["node"]
   },
-  "include": ["src", "../shared"]
+  "include": ["src", "../shared"],   // <— compile api/src + shared
+  "exclude": ["node_modules", "build", "../build-api"]
 }
