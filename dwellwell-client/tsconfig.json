@@ -1,18 +1,24 @@
 {
   "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["DOM", "ESNext"],
+    "jsx": "react-jsx",
     "baseUrl": ".",
-    "types": ["vite/client", "node"],
     "paths": {
       "@shared/*": ["../shared/*"],
       "@types/*": ["../shared/types"],
-      "@constants*": ["../shared/constants"],
+      "@constants": ["../shared/constants/index.ts"],
       "@constants/*": ["../shared/constants/*"],
       "@/*": ["src/*"]
     },
-    "jsx": "react-jsx",
+    "types": ["vite/client", "node"],
     "typeRoots": ["./node_modules/@types", "./src/types"],
     "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true
+    "allowSyntheticDefaultImports": true,
+    "skipLibCheck": true,
+    "strict": true
   },
   "include": ["src", "src/types"]
 }

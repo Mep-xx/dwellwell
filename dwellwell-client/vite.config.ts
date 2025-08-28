@@ -9,20 +9,14 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
-      '@constants': path.resolve(__dirname, "../shared/constants"),
-      '@shared': path.resolve(__dirname, '../shared'),
-    },
+      '@constants': path.resolve(__dirname, '../shared/constants'),
+      '@shared': path.resolve(__dirname, '../shared')
+    }
   },
   server: {
     proxy: {
-      '/api': {
-        target: 'http://localhost:4000',
-        changeOrigin: true,
-      },
-      '/uploads': {
-        target: 'http://localhost:4000',
-        changeOrigin: true,
-      },
-    },
-  },
+      '/api': { target: 'http://localhost:4000', changeOrigin: true },
+      '/uploads': { target: 'http://localhost:4000', changeOrigin: true }
+    }
+  }
 });

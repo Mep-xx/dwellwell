@@ -12,6 +12,8 @@ import { EditRoomModal } from "@/components/EditRoomModal";
 import { RoomTypeSelect } from "@/components/RoomTypeSelect";
 import { SortableRoomCard } from "@/components/SortableRoomCard";
 
+import { Flame, PlugZap, Sun, Droplets, Waves, Bath, Zap, Sprout, Home as HomeIcon } from "lucide-react";
+
 import {
   DndContext,
   PointerSensor,
@@ -42,8 +44,8 @@ const toAbsoluteUrl = (url: string) =>
   !url
     ? url
     : /^(https?:)?\/\//i.test(url)
-    ? url
-    : `${window.location.origin}${url.startsWith("/") ? "" : "/"}${url}`;
+      ? url
+      : `${window.location.origin}${url.startsWith("/") ? "" : "/"}${url}`;
 
 const acresToSqft = (acres: number) => acres * 43560;
 const sqftToAcres = (sqft: number) => sqft / 43560;
@@ -82,8 +84,8 @@ function buildHomeUpdatePayload(
     home.lotSize == null
       ? undefined
       : lotUnit === "acres"
-      ? Math.round(Number(home.lotSize) * 43560)
-      : Number(home.lotSize);
+        ? Math.round(Number(home.lotSize) * 43560)
+        : Number(home.lotSize);
 
   const map = {
     nickname: home.nickname?.trim() || undefined,
@@ -171,8 +173,48 @@ const SUGGESTED_FEATURES = [
 const dismissedKey = (homeId: string) =>
   `home:${homeId}:dismissed-feature-prompts`;
 
-/* ============================== Component =============================== */
 
+
+// ---- Feature icon helpers ----
+const FEATURE_ICONS: Record<string, React.FC<{ className?: string }>> = {
+  "Fireplace": Flame,
+  "EV Charger": PlugZap,
+  "Solar Panels": Sun,
+  "Irrigation System": Sprout,           // (sprinklers-ish)
+  "Water Softener": Droplets,
+  "Pool": Waves,
+  "Hot Tub": Bath,
+  "Whole-House Generator": Zap,
+  "Deck": HomeIcon,
+  "Sump Pump": Droplets,
+  // keep a reasonable fallback
+};
+
+function FeatureChip({
+  label,
+  selected,
+  onToggle,
+}: {
+  label: string;
+  selected: boolean;
+  onToggle: () => void;
+}) {
+  const Icon = FEATURE_ICONS[label] ?? HomeIcon;
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs ${selected ? "bg-muted" : "hover:bg-muted/60"
+        }`}
+      title={selected ? "Remove" : "Add"}
+    >
+      <Icon className="h-3.5 w-3.5" />
+      <span>{label}</span>
+    </button>
+  );
+}
+
+/* ============================== Component =============================== */
 export default function HomeEditPage() {
   const { id: homeId } = useParams<{ id: string }>();
   const { toast } = useToast();
@@ -385,16 +427,26 @@ export default function HomeEditPage() {
     }
   };
 
-  // Drag sort — use stable IDs (room.id) for better correctness
-  const handleDragEnd = async (event: DragEndEvent) => {
+  // outside component, tiny debounce helper
+  let reorderTimer: number | undefined;
+
+  const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-    setRooms((prev) => {
-      const oldIndex = prev.findIndex((r) => r.id === active.id);
-      const newIndex = prev.findIndex((r) => r.id === over.id);
+
+    setRooms(prev => {
+      const oldIndex = prev.findIndex(r => String(r.id) === String(active.id));
+      const newIndex = prev.findIndex(r => String(r.id) === String(over.id));
       const next = arrayMove(prev, oldIndex, newIndex);
-      const roomIds = next.map((r) => r.id);
-      api.put(`/rooms/reorder`, { homeId, roomIds }).catch(() => void 0);
+
+      if (reorderTimer) window.clearTimeout(reorderTimer);
+      reorderTimer = window.setTimeout(() => {
+        const roomIds = next.map(r => String(r.id));
+        api.put(`/rooms/reorder`, { homeId, roomIds }).catch(e => {
+          if (e?.response?.status !== 404) console.warn("reorder failed", e?.response?.data || e);
+        });
+      }, 150);
+
       return next;
     });
   };
@@ -724,76 +776,47 @@ export default function HomeEditPage() {
         </div>
       </div>
 
-      {/* Suggestions (prompts) */}
-      {suggestionsToShow.length > 0 && (
-        <div className="mt-8 rounded-lg border p-4 bg-amber-50/40">
-          <h2 className="mb-2 text-lg font-semibold">Suggestions</h2>
-          <p className="text-sm text-muted-foreground mb-3">
-            Don’t see some of your home’s features? Add them now or dismiss and
-            we’ll stop suggesting them for this home.
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {suggestionsToShow.map((s) => (
-              <div
-                key={s}
-                className="flex items-center gap-2 border rounded-full px-2 py-1 bg-white"
-              >
-                <span className="text-xs">{s}</span>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  className="h-6 px-2 text-xs"
-                  onClick={() => acceptSuggestion(s)}
-                  title="Add feature"
-                >
-                  Add
-                </Button>
-                <button
-                  className="text-xs text-gray-500 hover:text-gray-700 px-1"
-                  onClick={() => dismissSuggestion(s)}
-                  title="Dismiss suggestion"
-                >
-                  Dismiss
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Features (curated chips + suggestion submit) */}
+      {/* Features (selected summary + curated list + suggestion submit) */}
       <div className="mt-8 rounded-lg border p-4">
         <h2 className="mb-3 text-lg font-semibold">Features</h2>
 
-        <div className="flex flex-wrap gap-2">
-          {FEATURE_SUGGESTIONS.map((f) => {
-            const selected = features.includes(f);
-            const preview =
-              f === "Hangar Bay"
-                ? "🛸 Placeholder only"
-                : f === "Fireplace"
-                ? "Adds: chimney sweep, ash disposal"
-                : f === "EV Charger"
-                ? "Adds: breaker check, cable inspection"
-                : f === "Irrigation System"
-                ? "Adds: winterization, seasonal startup"
-                : "Adds: maintenance reminders";
-            return (
-              <button
-                key={f}
-                type="button"
-                onClick={() => toggleCuratedFeature(f)}
-                className={`rounded-full border px-2 py-1 text-xs ${
-                  selected ? "bg-muted" : "hover:bg-muted/60"
-                }`}
-                title={preview}
-              >
-                {f}
-              </button>
-            );
-          })}
+        {/* Selected features summary */}
+        <div className="mb-3">
+          <div className="text-sm font-medium mb-2">Selected</div>
+          {features.length ? (
+            <div className="flex flex-wrap gap-2">
+              {features.map((f) => (
+                <FeatureChip
+                  key={`sel-${f}`}
+                  label={f}
+                  selected={true}
+                  onToggle={() => toggleCuratedFeature(f)}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="text-sm text-muted-foreground">No features yet. Pick from the list below or add your own.</div>
+          )}
         </div>
 
+        <div className="h-px bg-muted my-3" />
+
+        {/* Curated list with icons (click to toggle) */}
+        <div className="mb-4">
+          <div className="text-sm font-medium mb-2">Quick add</div>
+          <div className="flex flex-wrap gap-2">
+            {FEATURE_SUGGESTIONS.map((f) => (
+              <FeatureChip
+                key={`cur-${f}`}
+                label={f}
+                selected={features.includes(f)}
+                onToggle={() => toggleCuratedFeature(f)}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Suggest a feature */}
         <div className="mt-4 flex gap-2 items-center">
           <Input
             id="suggestFeature"
@@ -812,9 +835,7 @@ export default function HomeEditPage() {
           <Button
             variant="outline"
             onClick={async () => {
-              const el = document.getElementById(
-                "suggestFeature"
-              ) as HTMLInputElement;
+              const el = document.getElementById("suggestFeature") as HTMLInputElement;
               const val = el?.value.trim();
               if (val) {
                 await submitFeatureSuggestion(val);
@@ -843,9 +864,10 @@ export default function HomeEditPage() {
         {rooms.length === 0 ? (
           <p className="text-sm text-muted-foreground">No rooms yet.</p>
         ) : (
+          // HomeEditPage.tsx (inside the Rooms section)
           <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
             <SortableContext
-              items={rooms.map((r) => r.id)} // stable IDs
+              items={rooms.map(r => String(r.id))}
               strategy={verticalListSortingStrategy}
             >
               <div className="grid gap-2">
@@ -853,19 +875,14 @@ export default function HomeEditPage() {
                   <div key={r.id} className="flex items-center gap-2">
                     <div className="flex-1">
                       <SortableRoomCard
-                        id={r.id as unknown as number} // component expects number; cast to satisfy props without refactor
+                        id={String(r.id)}                          // ← strings
                         room={{
-                          name: (r.name as string) ?? "",
-                          type: (r.type as string) ?? "Other",
+                          name: r.name ?? "",
+                          type: r.type ?? "Other",
                           floor: r.floor ?? undefined,
                         }}
-                        onChange={(updated) => {
-                          // Local inline change; persisted via modal or a dedicated room save if needed
-                          setRooms((prev) =>
-                            prev.map((x) =>
-                              x.id === r.id ? { ...x, ...updated } : x
-                            )
-                          );
+                        onChange={updated => {
+                          setRooms(prev => prev.map(x => x.id === r.id ? { ...x, ...updated } : x));
                         }}
                         onRemove={async () => {
                           await api.delete(`/rooms/${r.id}`);
@@ -873,11 +890,7 @@ export default function HomeEditPage() {
                         }}
                       />
                     </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => openEditRoom(r)}
-                    >
+                    <Button size="sm" variant="outline" onClick={() => openEditRoom(r)}>
                       Edit
                     </Button>
                   </div>

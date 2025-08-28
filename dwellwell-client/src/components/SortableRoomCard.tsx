@@ -14,7 +14,7 @@ type Room = {
 };
 
 type Props = {
-  id: number;
+  id: string;
   room: Room;
   onChange: (updated: Room) => void;
   onRemove: () => void;
