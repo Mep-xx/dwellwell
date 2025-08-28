@@ -1,24 +1,54 @@
-# Logs
-logs
-*.log
+# ----------------------------
+# Node / Package artifacts
+# ----------------------------
+node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
+# ----------------------------
+# Build outputs
+# ----------------------------
+dist/
+dist-ssr/
+build/
+build-*/   # e.g. build-api, build-client
+*.tsbuildinfo
 
-# Editor directories and files
+# ----------------------------
+# Environment files (never commit secrets)
+# ----------------------------
+.env
+.env.*
+!.env.example     # keep example/template env files
+
+# ----------------------------
+# Logs
+# ----------------------------
+logs/
+*.log
+
+# ----------------------------
+# OS / IDE junk
+# ----------------------------
+.DS_Store
+Thumbs.db
+
+# VSCode / JetBrains
 .vscode/*
 !.vscode/extensions.json
-.idea
-.DS_Store
+.idea/
+
+# Windows / Misc
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+
+# ----------------------------
+# Misc project-specific
+# ----------------------------
+uploads/    # if your API stores local uploads
