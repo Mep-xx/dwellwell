@@ -5,12 +5,14 @@ import { api } from "@/utils/api";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import ImageUpload from "@/components/ui/imageupload";
 import MapboxAddress from "@/components/MapboxAddress";
+import HomePhotoDropzone from "@/components/ui/HomePhotoDropzone";
 
 import { EditRoomModal } from "@/components/EditRoomModal";
 import { RoomTypeSelect } from "@/components/RoomTypeSelect";
 import { SortableRoomCard } from "@/components/SortableRoomCard";
+
+import type { AxiosError } from "axios";
 
 import { Flame, PlugZap, Sun, Droplets, Waves, Bath, Zap, Sprout, Home as HomeIcon } from "lucide-react";
 
@@ -329,10 +331,12 @@ export default function HomeEditPage() {
     try {
       await api.put(`/homes/${homeId}`, payload);
       toast({ title: "Saved", description: "Home updated." });
-    } catch (err: any) {
-      const data = err?.response?.data;
+    } catch (e: unknown) {
+      const err = e as AxiosError<any>;   // 👈 narrow here
+      const data = err.response?.data;
+
       console.groupCollapsed(
-        `%cPUT /homes/${homeId} ${err?.response?.status} — payload below`,
+        `%cPUT /homes/${homeId} ${err.response?.status} — payload below`,
         "color:#b00;font-weight:bold"
       );
       console.log("payload:", payload);
@@ -340,7 +344,6 @@ export default function HomeEditPage() {
       console.log("issues:", JSON.stringify(data?.issues, null, 2));
       console.groupEnd();
 
-      // If the server complains about extra keys, drop them once and retry.
       const unrec = data?.issues?.find?.(
         (i: any) => i?.code === "unrecognized_keys"
       );
@@ -355,8 +358,9 @@ export default function HomeEditPage() {
           });
           setSaving(false);
           return;
-        } catch (e2) {
-          console.warn("Retry failed:", e2?.response?.data);
+        } catch (e2: unknown) {
+          const err2 = e2 as AxiosError<any>;
+          console.warn("Retry failed:", err2.response?.data);
         }
       }
 
@@ -442,8 +446,11 @@ export default function HomeEditPage() {
       if (reorderTimer) window.clearTimeout(reorderTimer);
       reorderTimer = window.setTimeout(() => {
         const roomIds = next.map(r => String(r.id));
-        api.put(`/rooms/reorder`, { homeId, roomIds }).catch(e => {
-          if (e?.response?.status !== 404) console.warn("reorder failed", e?.response?.data || e);
+        api.put(`/rooms/reorder`, { homeId, roomIds }).catch((e: unknown) => {
+          const err = e as AxiosError<any>;
+          if (err.response?.status !== 404) {
+            console.warn("reorder failed", err.response?.data || err);
+          }
         });
       }, 150);
 
@@ -539,39 +546,21 @@ export default function HomeEditPage() {
       {/* Photo + uploader + map */}
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
         <div className="md:col-span-1">
-          <div className="rounded-lg border p-3">
-            <div className="aspect-[4/3] w-full rounded overflow-hidden bg-muted/40">
-              {home.imageUrl ? (
-                <img
-                  src={home.imageUrl}
-                  alt="Home"
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                <div className="h-full w-full grid place-items-center text-sm text-muted-foreground">
-                  No photo yet
-                </div>
-              )}
-            </div>
-            <div className="mt-3">
-              <ImageUpload
-                homeId={home.id}
-                onUploadComplete={(url) => {
-                  const abs = toAbsoluteUrl(url);
-                  setHome({ ...home, imageUrl: abs });
-                  toast({
-                    title: "Photo updated",
-                    description: "Main photo replaced.",
-                  });
-                }}
-              />
-            </div>
-            <div className="mt-3">
-              <MapboxAddress
-                addressLine={fullAddress || ""}
-                className="h-56 w-full rounded-lg border"
-              />
-            </div>
+          <div className="rounded-lg border p-3 space-y-3">
+            <HomePhotoDropzone
+              homeId={home.id}
+              imageUrl={home.imageUrl || undefined}
+              onUploaded={(abs) => {
+                setHome({ ...home, imageUrl: abs });
+                toast({ title: "Photo updated", description: "Main photo replaced." });
+              }}
+              className="aspect-[4/3] w-full rounded overflow-hidden bg-muted/40"
+            />
+
+            <MapboxAddress
+              addressLine={fullAddress || ""}
+              className="h-56 w-full rounded-lg border"
+            />
           </div>
         </div>
 
