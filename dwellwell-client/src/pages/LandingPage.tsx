@@ -1,3 +1,4 @@
+//dwellwell-client/src/pages/LandingPage.tsx
 import { useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';

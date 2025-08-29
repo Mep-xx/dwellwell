@@ -1,3 +1,4 @@
+//dwellwell-api/src/routes/auth/index.ts
 import { Router } from 'express';
 import login from './login';
 import logout from './logout';

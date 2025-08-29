@@ -1,3 +1,4 @@
+//dwellwell-api/src/routes/auth/logout.ts
 import type { Request, Response } from 'express';
 
 export default async function logout(_req: Request, res: Response) {

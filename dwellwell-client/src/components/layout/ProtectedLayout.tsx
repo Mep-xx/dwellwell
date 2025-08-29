@@ -1,3 +1,4 @@
+//dwellwell-client/src/components/layout/ProtectedLayout.tsx
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useMemo } from 'react';
 import { useAuth } from '@/context/AuthContext';

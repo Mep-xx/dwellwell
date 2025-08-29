@@ -1,3 +1,4 @@
+//dwellwell-api/src/routes/auth/signup.ts
 import type { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../../db/prisma';
