@@ -1,126 +1,129 @@
-//dwellwell-client/src/utils/api.ts
+// dwellwell-client/src/utils/api.ts
 import axios, { AxiosError, AxiosRequestConfig } from 'axios';
+import { apiLogout } from '@/utils/logoutHelper';
 
-/**
- * We ONLY read VITE_API_BASE_URL from .env and require it to end with /api.
- * No defaults, no guessing.
- */
-const RAW_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
+const baseURL =
+  (import.meta.env.VITE_API_URL
+    ? `${import.meta.env.VITE_API_URL}/api`
+    : 'http://localhost:4000/api');
 
-if (!RAW_BASE) {
-  throw new Error('[api] Missing VITE_API_BASE_URL in .env (it must include /api).');
+export const api = axios.create({
+  baseURL,
+  withCredentials: true,
+});
+
+// ----------------------------------------------------------------------------
+// Token helpers
+// ----------------------------------------------------------------------------
+const ACCESS_TOKEN_KEY = 'dwellwell-token';
+const USER_KEY = 'dwellwell-user';
+
+export function getToken() {
+  try { return localStorage.getItem(ACCESS_TOKEN_KEY); } catch { return null; }
 }
-
-// normalize: remove trailing slashes ONLY (no appending)
-const baseURL = RAW_BASE.replace(/\/+$/, '');
-if (!/\/api$/.test(baseURL)) {
-  throw new Error(`[api] VITE_API_BASE_URL must end with "/api". Got "${RAW_BASE}".`);
+export function setToken(token: string) {
+  try { localStorage.setItem(ACCESS_TOKEN_KEY, token); } catch {}
 }
-
-// ---- Token storage
-export const ACCESS_TOKEN_KEY = 'dwellwell-token';
-
-export function getAccessToken(): string | null {
+export function clearToken() {
   try {
-    return localStorage.getItem(ACCESS_TOKEN_KEY);
+    localStorage.removeItem(ACCESS_TOKEN_KEY);
+    // do NOT clear user here; AuthContext handles it on logout so UI updates correctly
+  } catch {}
+}
+
+// ----------------------------------------------------------------------------
+// Attach token to requests
+// ----------------------------------------------------------------------------
+api.interceptors.request.use((config) => {
+  const token = getToken();
+  if (token) {
+    config.headers = config.headers ?? {};
+    (config.headers as any).Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// ----------------------------------------------------------------------------
+// 401 auto-refresh logic with request queue
+// ----------------------------------------------------------------------------
+let isRefreshing = false;
+let pendingQueue: Array<(token: string | null) => void> = [];
+
+function flushQueue(newToken: string | null) {
+  pendingQueue.forEach((resolve) => resolve(newToken));
+  pendingQueue = [];
+}
+
+async function refreshAccess(): Promise<string | null> {
+  try {
+    const resp = await axios.post<{ accessToken: string }>(
+      `${baseURL}/auth/refresh`,
+      {},
+      { withCredentials: true }
+    );
+    const t = resp.data?.accessToken || null;
+    if (t) setToken(t);
+    return t;
   } catch {
     return null;
   }
 }
 
-export function setAccessToken(token: string | null) {
-  try {
-    if (token) localStorage.setItem(ACCESS_TOKEN_KEY, token);
-    else localStorage.removeItem(ACCESS_TOKEN_KEY);
-  } catch {
-    /* ignore storage errors (SSR or disabled storage) */
-  }
-}
-
-// ---- Axios instance (send cookies for refresh)
-export const api = axios.create({
-  baseURL,
-  withCredentials: true, // needed so refresh cookie is sent
-});
-
-// Attach Authorization on every request (skip auth endpoints)
-api.interceptors.request.use((config) => {
-  const url = `${config.baseURL ?? ''}${config.url ?? ''}`;
-  const token = getAccessToken();
-  const isAuthEndpoint = url.includes('/auth/login') || url.includes('/auth/refresh');
-
-  if (!isAuthEndpoint && token) {
-    config.headers = config.headers ?? {};
-    (config.headers as any).Authorization = `Bearer ${token}`;
-  }
-
-  // DEBUG:
-  console.log('[api->]', (config.method || 'GET').toUpperCase(), url, {
-    hasAuth: !isAuthEndpoint && !!token,
-    tokenPrefix: token ? token.slice(0, 12) : null
-  });
-
-  return config;
-});
-
-
-// ---- 401 handler: refresh once, then retry original
-let isRefreshing = false;
-let queue: Array<{ resolve: (t: string) => void; reject: (e: any) => void }> = [];
-
-async function refreshAccessToken(): Promise<string> {
-  if (isRefreshing) {
-    return new Promise((resolve, reject) => queue.push({ resolve, reject }));
-  }
-  isRefreshing = true;
-  try {
-    const { data } = await axios.post(
-      `${baseURL}/auth/refresh`,
-      {},
-      { withCredentials: true }
-    );
-    const newToken: string | undefined = data?.accessToken;
-    if (!newToken) throw new Error('No accessToken in refresh response');
-    setAccessToken(newToken);
-    queue.forEach((p) => p.resolve(newToken));
-    queue = [];
-    return newToken;
-  } catch (err) {
-    queue.forEach((p) => p.reject(err));
-    queue = [];
-    setAccessToken(null);
-    throw err;
-  } finally {
-    isRefreshing = false;
-  }
-}
-
 api.interceptors.response.use(
-  (res) => res,
+  (r) => r,
   async (error: AxiosError) => {
-    const original = error.config as (AxiosRequestConfig & { _retry?: boolean }) | undefined;
-    if (!original) return Promise.reject(error);
-    
-    const status = error.response?.status ?? 0;
-    const url = `${original?.baseURL ?? ''}${original?.url ?? ''}`;
-    
-    const isAuthEndpoint = url.includes('/auth/login') || url.includes('/auth/refresh');
+    const original = error.config as AxiosRequestConfig & { _retry?: boolean };
 
-    // Only refresh for non-auth endpoints, and only once
-    if (status === 401 && original && !original._retry && !isAuthEndpoint) {
-      original._retry = true;
-      try {
-        const token = await refreshAccessToken(); // once
-        original.headers = original.headers ?? {};
-        (original.headers as any).Authorization = `Bearer ${token}`;
-        return api(original); // retry with the new token
-      } catch (e) {
-        return Promise.reject(e);
-      }
+    // ✅ Never try to auto-refresh if the request that failed is /auth/refresh
+    const url = (original?.url || '').toString();
+    if (url.includes('/auth/refresh')) {
+      // Do NOT redirect here; just let the caller (AuthContext on mount) decide.
+      return Promise.reject(error);
     }
 
-    return Promise.reject(error);
+    const status = error.response?.status;
+    const code = (error.response?.data as any)?.error;
+
+    const isAuthErr = status === 401;
+    const eligible = isAuthErr && (code === 'TOKEN_EXPIRED' || code === 'UNAUTHORIZED');
+
+    if (!eligible || original?._retry) {
+      // Hard fail: if this looks like auth loss, log out
+      if (status === 401) {
+        clearToken();
+        const params = new URLSearchParams({ reason: 'expired' });
+        window.location.replace(`/login?${params.toString()}`);
+      }
+      return Promise.reject(error);
+    }
+
+    original._retry = true;
+
+    if (isRefreshing) {
+      // Queue this request until the in-flight refresh completes
+      return new Promise((resolve, reject) => {
+        pendingQueue.push((newToken) => {
+          if (!newToken) return reject(error);
+          original.headers = { ...(original.headers || {}), Authorization: `Bearer ${newToken}` };
+          resolve(api(original));
+        });
+      });
+    }
+
+    isRefreshing = true;
+    const newToken = await refreshAccess();
+    isRefreshing = false;
+
+    flushQueue(newToken);
+
+    if (!newToken) {
+      clearToken();
+      const params = new URLSearchParams({ reason: 'expired' });
+      window.location.replace(`/login?${params.toString()}`);
+      return Promise.reject(error);
+    }
+
+    original.headers = { ...(original.headers || {}), Authorization: `Bearer ${newToken}` };
+    return api(original);
   }
 );
-
-export default api;

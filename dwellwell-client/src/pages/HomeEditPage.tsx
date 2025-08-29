@@ -339,9 +339,6 @@ export default function HomeEditPage() {
         `%cPUT /homes/${homeId} ${err.response?.status} — payload below`,
         "color:#b00;font-weight:bold"
       );
-      console.log("payload:", payload);
-      console.log("server response:", data);
-      console.log("issues:", JSON.stringify(data?.issues, null, 2));
       console.groupEnd();
 
       const unrec = data?.issues?.find?.(

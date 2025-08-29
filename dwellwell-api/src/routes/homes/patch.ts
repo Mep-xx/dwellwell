@@ -13,9 +13,6 @@ router.patch("/:id", requireAuth, async (req, res) => {
         // Accept *any* subset of update fields
         const data = updateHomeSchema.parse(req.body);
 
-        console.log(id);
-        console.log(data);
-
         const updated = await prisma.home.update({ where: { id }, data });
         res.json(updated);
     } catch (err) {

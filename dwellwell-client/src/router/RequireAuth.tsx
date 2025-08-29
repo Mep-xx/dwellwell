@@ -1,16 +1,15 @@
 //dwellwell-client/src/router/RequireAuth.tsx
 import { PropsWithChildren } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
+import { useAuth } from '@/context/AuthContext';
 
 export default function RequireAuth({ children }: PropsWithChildren) {
   const location = useLocation();
-  const hasToken = !!localStorage.getItem('dwellwell-token');
+  const { user, loading } = useAuth();
 
-  if (!hasToken) {
-    // send them to login; preserve where they came from
+  if (loading) return <div className="p-8 text-center">Loading…</div>;
+  if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
-
-  // Support both wrapper style and <Route element> style
   return children ? <>{children}</> : <Outlet />;
 }

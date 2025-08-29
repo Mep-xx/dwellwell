@@ -3,13 +3,11 @@ import { RequestHandler } from 'express';
 
 export const requireAdmin: RequestHandler = (req, res, next) => {
   const user = (req as any).user;
-  const id = user?.userId;
-  const role = user?.role;
-
-  if (role !== 'admin') {
-    console.warn(`⛔ User ${id ?? 'unknown'} does not have admin role (found: ${role})`);
+  if (!user?.id) {
+    return res.status(401).json({ message: 'UNAUTHORIZED' });
+  }
+  if (user.role !== 'admin') {
     return res.status(403).json({ message: 'Admin access required' });
   }
-
   return next();
 };

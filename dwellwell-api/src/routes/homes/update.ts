@@ -9,7 +9,6 @@ const router = Router();
 
 router.put("/:id", requireAuth, async (req, res) => {
   try {
-    console.log('here');
     const { id } = homeIdParam.parse(req.params);
     const data = updateHomeSchema.parse(req.body);
 

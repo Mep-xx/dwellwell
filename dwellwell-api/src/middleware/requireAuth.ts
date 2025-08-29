@@ -20,7 +20,6 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
   const token = hdr.startsWith('Bearer ') ? hdr.slice(7) : undefined;
 
   if (!token) {
-    console.log('[auth] no Authorization header');
     return res.status(401).json({ error: 'UNAUTHORIZED' });
   }
 
@@ -30,16 +29,8 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
     const exp = decoded?.payload?.exp;
     const role = decoded?.payload?.role;
     const userId = decoded?.payload?.userId ?? decoded?.payload?.sub;
-    console.log('[auth] incoming token:', {
-      hasHeader: true,
-      userId,
-      role,
-      exp,
-      expISO: exp ? new Date(exp * 1000).toISOString() : null,
-      nowISO: new Date().toISOString(),
-    });
   } catch (e) {
-    console.log('[auth] decode failed:', (e as Error).message);
+    
   }
 
   try {
@@ -55,7 +46,6 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
   } catch (e: any) {
     const name = e?.name || 'VerifyError';
     const msg = e?.message || 'verify failed';
-    console.log('[auth] verify failed:', name, msg);
     if (e instanceof TokenExpiredError) {
       return res.status(401).json({ error: 'TOKEN_EXPIRED' });
     }

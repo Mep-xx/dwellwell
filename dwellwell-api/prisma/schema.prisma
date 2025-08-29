@@ -45,6 +45,8 @@ model User {
 
   profile UserProfile?
   comms   CommunicationPreferences?
+
+  refreshSessions RefreshSession[]
 }
 
 model LoginActivity {
@@ -54,6 +56,24 @@ model LoginActivity {
   userAgent String?
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// prisma/schema.prisma
+model RefreshSession {
+  id           String   @id @default(uuid())
+  userId       String
+  tokenHash    String
+  userAgent    String?
+  ip           String?
+  createdAt    DateTime @default(now())
+  lastUsedAt   DateTime @default(now())
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  replacedById String?
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
 }
 
 model Home {

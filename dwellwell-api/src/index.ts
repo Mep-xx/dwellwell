@@ -9,6 +9,8 @@ import path from 'path';
 
 const app = express();
 
+app.set('trust proxy', 1);
+
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN ?? 'http://localhost:5173';
 
 // Core middleware
@@ -84,6 +86,4 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
 
 const PORT = Number(process.env.PORT ?? 4000);
 app.listen(PORT, () => {
-  console.log(`API listening on http://localhost:${PORT}`);
-  console.log(`CORS allowed origins: ${CLIENT_ORIGIN}`);
 });
