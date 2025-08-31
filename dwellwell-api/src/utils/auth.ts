@@ -7,7 +7,7 @@ const ACCESS_SECRET = process.env.JWT_SECRET || 'dev-secret';
 const REFRESH_SECRET = process.env.REFRESH_TOKEN_SECRET || 'dev-refresh';
 
 // Short access, long refresh (adjust via env)
-const ACCESS_TTL = process.env.ACCESS_TOKEN_TTL || '15m';
+const ACCESS_TTL = process.env.ACCESS_TOKEN_TTL || '60m';
 const REFRESH_TTL = process.env.REFRESH_TOKEN_TTL || '180d'; // long-lived
 
 export function signAccess(p: { userId: string; role: string }) {
