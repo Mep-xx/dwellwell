@@ -33,19 +33,16 @@ export const SIDING_TYPES = [
 ] as const;
 
 export const FEATURE_SUGGESTIONS = [
+  "Garage",
   "Fireplace",
   "Hardwood Floors",
   "Fenced Yard",
   "Deck/Patio",
   "Central Air",
-  "Finished Basement",
-  "Walk-In Closet",
   "Granite Counters",
   "Stainless Appliances",
   "Solar Panels",
   "Irrigation System",
-  "Skylight",
-  "Mudroom",
   "Workshop",
   "EV Charger",
 ] as const;

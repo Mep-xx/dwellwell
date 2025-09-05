@@ -25,29 +25,42 @@ enum DiySkill {
   pro
 }
 
-model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  password  String
-  createdAt DateTime @default(now())
-
-  homes Home[] @relation("UserHomes")
-
-  loginActivities LoginActivity[]
-  billingAccount  BillingAccount?
-  userTasks       UserTask[]
-  aiQueries       AIQueryHistory[]
-  dismissedTasks  DismissedUserTask[]
-  role            String              @default("user")
-
-  defaultHomeId String?
-  defaultHome   Home?   @relation("UserDefaultHome", fields: [defaultHomeId], references: [id], onDelete: SetNull)
-
-  profile UserProfile?
-  comms   CommunicationPreferences?
-
-  refreshSessions RefreshSession[]
+enum AuthProvider {
+  local
+  google
 }
+
+model User {
+  id                String   @id @default(uuid())
+  email             String   @unique
+  passwordHash      String?   // null for SSO users
+  authProvider      AuthProvider @default(local)
+  passwordUpdatedAt DateTime?
+  failedLoginCount  Int      @default(0)
+  lockedUntil       DateTime?
+  createdAt         DateTime @default(now())
+
+  googleId          String?  @unique
+
+  homes             Home[] @relation("UserHomes")
+
+  loginActivities   LoginActivity[]
+  billingAccount    BillingAccount?
+  userTasks         UserTask[]
+  aiQueries         AIQueryHistory[]
+  dismissedTasks    DismissedUserTask[]
+  role              String              @default("user")
+
+  defaultHomeId     String?
+  defaultHome       Home?   @relation("UserDefaultHome", fields: [defaultHomeId], references: [id], onDelete: SetNull)
+
+  profile           UserProfile?
+  comms             CommunicationPreferences?
+
+  refreshSessions   RefreshSession[]
+}
+
+/* unchanged models below except where noted */
 
 model LoginActivity {
   id        String   @id @default(uuid())
@@ -58,7 +71,6 @@ model LoginActivity {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-// prisma/schema.prisma
 model RefreshSession {
   id           String   @id @default(uuid())
   userId       String
@@ -89,7 +101,7 @@ model Home {
 
   nickname           String?
   squareFeet         Int?
-  lotSize            Float?   // store in sqft; UI can show acres
+  lotSize            Float?
   yearBuilt          Int?
 
   hasCentralAir      Boolean  @default(false)
@@ -105,7 +117,6 @@ model Home {
 
   isChecked          Boolean  @default(true)
 
-  // Optional geodata (add now or later)
   latitude           Float?
   longitude          Float?
   timeZone           String?
@@ -131,14 +142,12 @@ model Room {
   hasSmokeDetector Boolean  @default(false)
   createdAt        DateTime @default(now())
 
-  // Persisted sort key
-  position Int @default(0)
+  position         Int @default(0)
 
-  // MATCH the "HomeRooms" relation name here
-  home       Home        @relation("HomeRooms", fields: [homeId], references: [id], onDelete: Cascade)
-  homeId     String
-  trackables Trackable[] @relation("RoomTrackables")
-  userTasks  UserTask[]  @relation("RoomTasks")
+  home             Home        @relation("HomeRooms", fields: [homeId], references: [id], onDelete: Cascade)
+  homeId           String
+  trackables       Trackable[] @relation("RoomTrackables")
+  userTasks        UserTask[]  @relation("RoomTasks")
 
   @@index([homeId, position])
 }
@@ -191,7 +200,7 @@ model ApplianceCatalog {
 model Trackable {
   id                 String    @id @default(uuid())
   homeId             String
-  roomId             String?          // null = home-level
+  roomId             String?
   applianceCatalogId String?
   userDefinedName    String?
   purchaseDate       DateTime?
@@ -200,16 +209,16 @@ model Trackable {
   notes              String?
   createdAt          DateTime  @default(now())
 
-  kind               String?          // e.g., "structure" | "system" | "appliance" | "fixture"
+  kind               String?
 
-  attributes         Json?            // e.g., { material: "wood", fuel: "wood", span: "12x20" }
+  attributes         Json?
 
-  home             Home              @relation("HomeTrackables", fields: [homeId], references: [id], onDelete: Cascade)
-  room             Room?             @relation("RoomTrackables", fields: [roomId], references: [id], onDelete: Cascade)
-  applianceCatalog ApplianceCatalog? @relation(fields: [applianceCatalogId], references: [id])
+  home               Home              @relation("HomeTrackables", fields: [homeId], references: [id], onDelete: Cascade)
+  room               Room?             @relation("RoomTrackables", fields: [roomId], references: [id], onDelete: Cascade)
+  applianceCatalog   ApplianceCatalog? @relation(fields: [applianceCatalogId], references: [id])
 
-  tasks             UserTask[]          @relation("TrackableTasks")
-  TrackableResource TrackableResource[]
+  tasks              UserTask[]          @relation("TrackableTasks")
+  TrackableResource  TrackableResource[]
 }
 
 model TaskTemplate {
@@ -258,52 +267,52 @@ enum UserTaskSourceType {
 }
 
 model UserTask {
-  id             String             @id @default(uuid())
-  userId         String
-  roomId         String?
-  trackableId    String?
-  taskTemplateId String?
-  sourceType     UserTaskSourceType
+  id                  String             @id @default(uuid())
+  userId              String
+  roomId              String?
+  trackableId         String?
+  taskTemplateId      String?
+  sourceType          UserTaskSourceType
 
-  title         String
-  description   String
-  dueDate       DateTime
-  completedDate DateTime?
-  status        TaskStatus
+  title               String
+  description         String
+  dueDate             DateTime
+  completedDate       DateTime?
+  status              TaskStatus
 
-  itemName String
-  category String
-  location String?
+  itemName            String
+  category            String
+  location            String?
 
   estimatedTimeMinutes Int             @default(0)
   estimatedCost        Int             @default(0)
   criticality          TaskCriticality @default(medium)
 
-  deferLimitDays  Int     @default(0)
-  canBeOutsourced Boolean @default(false)
-  canDefer        Boolean @default(true)
-  isTracking      Boolean @default(true)
+  deferLimitDays       Int     @default(0)
+  canBeOutsourced      Boolean @default(false)
+  canDefer             Boolean @default(true)
+  isTracking           Boolean @default(true)
 
-  recurrenceInterval String @default("")
+  recurrenceInterval   String @default("")
 
-  taskType TaskType @default(GENERAL)
+  taskType            TaskType @default(GENERAL)
 
-  dedupeKey String @unique
+  dedupeKey           String @unique
 
-  steps           Json?
-  equipmentNeeded Json?
-  resources       Json?
+  steps               Json?
+  equipmentNeeded     Json?
+  resources           Json?
 
-  imageUrl String?
-  icon     String?
+  imageUrl            String?
+  icon                String?
 
-  createdAt DateTime @default(now())
+  createdAt           DateTime @default(now())
 
-  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  room         Room?               @relation("RoomTasks", fields: [roomId], references: [id], onDelete: Cascade)
-  trackable    Trackable?          @relation("TrackableTasks", fields: [trackableId], references: [id], onDelete: Cascade)
-  taskTemplate TaskTemplate?       @relation(fields: [taskTemplateId], references: [id])
-  dismissals   DismissedUserTask[]
+  user                User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  room                Room?               @relation("RoomTasks", fields: [roomId], references: [id], onDelete: Cascade)
+  trackable           Trackable?          @relation("TrackableTasks", fields: [trackableId], references: [id], onDelete: Cascade)
+  taskTemplate        TaskTemplate?       @relation(fields: [taskTemplateId], references: [id])
+  dismissals          DismissedUserTask[]
 
   @@index([userId, status, dueDate], name: "idx_usertask_user_status_due")
   @@index([roomId], name: "idx_usertask_room")
@@ -407,12 +416,11 @@ model WhatsNew {
   description String
   createdAt   DateTime @default(now())
   published   Boolean  @default(true)
-  // Optional: audience targeting later (e.g., admins only, all users, etc.)
 }
 
 enum TrackableResourceType {
   pdf
-  video // (store URL or file path)
+  video
 }
 
 model TrackableResource {
@@ -421,9 +429,8 @@ model TrackableResource {
   trackableId String
   type        TrackableResourceType
   name        String
-  // Store one of: a file path (pdf) or a URL (video) — you can use both, but one is required
-  filePath    String? // e.g., "uploads/trackables/{id}/manuals/whatever.pdf"
-  url         String? // e.g., "https://youtube.com/…"
+  filePath    String?
+  url         String?
   createdAt   DateTime              @default(now())
 
   @@index([trackableId])

@@ -41,7 +41,6 @@ export default async function refresh(req: Request, res: Response) {
     return res.status(401).json({ error: 'UNAUTHORIZED' });
   }
 
-  // Optional idle timeout
   if (IDLE_MAX_DAYS > 0) {
     const idleMs = Date.now() - new Date(matched.lastUsedAt).getTime();
     const maxIdleMs = IDLE_MAX_DAYS * 24 * 60 * 60 * 1000;
@@ -53,7 +52,6 @@ export default async function refresh(req: Request, res: Response) {
     }
   }
 
-  // Reuse detection: already rotated once
   if (matched.replacedById) {
     await prisma.refreshSession.updateMany({
       where: { userId, revokedAt: null },
@@ -64,7 +62,6 @@ export default async function refresh(req: Request, res: Response) {
     return res.status(401).json({ error: 'UNAUTHORIZED' });
   }
 
-  // Rotate
   await prisma.refreshSession.update({
     where: { id: matched.id },
     data: { revokedAt: new Date() },
@@ -102,7 +99,6 @@ export default async function refresh(req: Request, res: Response) {
     path: REFRESH_COOKIE_PATH,
   });
 
-  // set/update the hint cookie too
   res.cookie(REFRESH_HINT_COOKIE, '1', {
     httpOnly: false,
     sameSite: COOKIE_SAMESITE,

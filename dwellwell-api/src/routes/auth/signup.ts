@@ -1,4 +1,4 @@
-//dwellwell-api/src/routes/auth/signup.ts
+// dwellwell-api/src/routes/auth/signup.ts
 import type { Request, Response } from 'express';
 import { prisma } from '../../db/prisma';
 import { hashPassword, hashToken, signAccess, signRefresh } from '../../utils/auth';
@@ -11,9 +11,15 @@ export default async function signup(req: Request, res: Response) {
   const exists = await prisma.user.findUnique({ where: { email } });
   if (exists) return res.status(409).json({ error: 'EMAIL_IN_USE' });
 
-  const hashed = await hashPassword(password);
+  const passwordHash = await hashPassword(password);
   const user = await prisma.user.create({
-    data: { email, password: hashed, role: 'user' },
+    data: {
+      email,
+      passwordHash,
+      authProvider: 'local',
+      role: 'user',
+      passwordUpdatedAt: new Date(),
+    },
   });
 
   const payload = { userId: user.id, role: user.role };
@@ -31,10 +37,10 @@ export default async function signup(req: Request, res: Response) {
 
   res.cookie('refreshToken', refreshToken, {
     httpOnly: true,
-    sameSite: COOKIE_SAMESITE,     // 'none' if cross-site; 'lax' if same-site
-    secure: COOKIE_SECURE,         // true in production
-    maxAge: REFRESH_MAX_AGE_MS,    // long-lived
-    path: REFRESH_COOKIE_PATH,     // limit scope to /api/auth
+    sameSite: COOKIE_SAMESITE,
+    secure: COOKIE_SECURE,
+    maxAge: REFRESH_MAX_AGE_MS,
+    path: REFRESH_COOKIE_PATH,
   });
 
   res.cookie(REFRESH_HINT_COOKIE, '1', {

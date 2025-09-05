@@ -1,0 +1,23 @@
+<!-- public/gsi-test.html -->
+<!doctype html>
+<html>
+  <body>
+    <div id="btn"></div>
+    <pre id="out"></pre>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script>
+      // Use the SAME client ID you log in main.tsx
+      const CLIENT_ID = '749601036723-49snut58temo0fujl560q7l9mkee6cmn.apps.googleusercontent.com';
+      window.addEventListener('load', () => {
+        document.body.insertAdjacentHTML('afterbegin',
+          `<div>origin: ${location.origin}</div><div>clientId: ${CLIENT_ID}</div>`);
+        google.accounts.id.initialize({
+          client_id: CLIENT_ID,
+          callback: (resp) => document.getElementById('out').textContent =
+            'Got credential length=' + (resp?.credential?.length || 0)
+        });
+        google.accounts.id.renderButton(document.getElementById('btn'), { type: 'standard' });
+      });
+    </script>
+  </body>
+</html>

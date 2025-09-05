@@ -5,6 +5,7 @@ import login from './login';
 import logout from './logout';
 import refresh from './refresh';
 import signup from './signup';
+import authGoogle from './authGoogle'
 
 const router = Router();
 
@@ -27,5 +28,6 @@ router.post('/signup', signup);
 router.post('/login', loginLimiter, login);
 router.post('/logout', logout);
 router.post('/refresh', refreshLimiter, refresh);
+router.post('/authGoogle', authGoogle);
 
 export default router;

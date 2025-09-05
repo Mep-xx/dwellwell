@@ -25,3 +25,6 @@ coverage/
 # Ignore uploads directory
 /uploads/
 dwellwell-api/uploads/homes/
+
+# Ignore secret directories
+/sensitive files
