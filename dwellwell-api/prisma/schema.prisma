@@ -31,36 +31,35 @@ enum AuthProvider {
 }
 
 model User {
-  id                String   @id @default(uuid())
-  email             String   @unique
-  passwordHash      String?   // null for SSO users
-  authProvider      AuthProvider @default(local)
+  id                String         @id @default(uuid())
+  email             String         @unique
+  passwordHash      String?        // null for SSO users
+  authProvider      AuthProvider   @default(local)
   passwordUpdatedAt DateTime?
-  failedLoginCount  Int      @default(0)
+  failedLoginCount  Int            @default(0)
   lockedUntil       DateTime?
-  createdAt         DateTime @default(now())
+  createdAt         DateTime       @default(now())
 
-  googleId          String?  @unique
+  googleId          String?        @unique
 
-  homes             Home[] @relation("UserHomes")
+  properties        Property[]     @relation("UserProperty")
 
   loginActivities   LoginActivity[]
   billingAccount    BillingAccount?
   userTasks         UserTask[]
   aiQueries         AIQueryHistory[]
   dismissedTasks    DismissedUserTask[]
-  role              String              @default("user")
+  role              String         @default("user")
 
-  defaultHomeId     String?
-  defaultHome       Home?   @relation("UserDefaultHome", fields: [defaultHomeId], references: [id], onDelete: SetNull)
+  // renamed: defaultHome* -> defaultProperty*
+  defaultPropertyId String?
+  defaultProperty   Property?      @relation("UserDefaultProperty", fields: [defaultPropertyId], references: [id], onDelete: SetNull)
 
   profile           UserProfile?
   comms             CommunicationPreferences?
 
   refreshSessions   RefreshSession[]
 }
-
-/* unchanged models below except where noted */
 
 model LoginActivity {
   id        String   @id @default(uuid())
@@ -88,10 +87,10 @@ model RefreshSession {
   @@index([userId, expiresAt])
 }
 
-model Home {
+model Property {
   id                 String   @id @default(cuid())
   userId             String
-  user               User     @relation("UserHomes", fields: [userId], references: [id])
+  user               User     @relation("UserProperty", fields: [userId], references: [id])
 
   address            String
   apartment          String?
@@ -124,12 +123,12 @@ model Home {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
-  rooms              Room[]      @relation("HomeRooms")
-  vehicles           Vehicle[]   @relation("HomeVehicles")
-  trackables         Trackable[] @relation("HomeTrackables")
+  rooms              Room[]           @relation("PropertyRooms")
+  vehicles           Vehicle[]        @relation("PropertyVehicles")
+  trackables         Trackable[]      @relation("PropertyTrackables")
   lawnProfile        LawnProfile?
 
-  usersDefaultingHere User[] @relation("UserDefaultHome")
+  usersDefaultingHere User[]          @relation("UserDefaultProperty")
 }
 
 model Room {
@@ -142,19 +141,21 @@ model Room {
   hasSmokeDetector Boolean  @default(false)
   createdAt        DateTime @default(now())
 
-  position         Int @default(0)
+  position         Int      @default(0)
 
-  home             Home        @relation("HomeRooms", fields: [homeId], references: [id], onDelete: Cascade)
-  homeId           String
+  // ✅ use camelCase propertyId consistently on both sides
+  propertyId       String
+  property         Property @relation("PropertyRooms", fields: [propertyId], references: [id], onDelete: Cascade)
+
   trackables       Trackable[] @relation("RoomTrackables")
   userTasks        UserTask[]  @relation("RoomTasks")
 
-  @@index([homeId, position])
+  @@index([propertyId, position])
 }
 
 model LawnProfile {
   id                  String   @id @default(uuid())
-  homeId              String   @unique
+  propertyId          String   @unique
   squareFeet          Int?
   usesLawnService     Boolean? @default(false)
   soilType            String?
@@ -162,23 +163,23 @@ model LawnProfile {
   irrigationInstalled Boolean? @default(false)
   createdAt           DateTime @default(now())
 
-  home Home @relation(fields: [homeId], references: [id], onDelete: Cascade)
+  property            Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 }
 
 model Vehicle {
-  id        String   @id @default(cuid())
-  homeId    String
-  nickname  String?
-  type      String
-  make      String?
-  model     String?
-  year      Int?
-  vin       String?
-  mileage   Int?
-  imageUrl  String?
-  createdAt DateTime @default(now())
+  id         String   @id @default(cuid())
+  propertyId String
+  nickname   String?
+  type       String
+  make       String?
+  model      String?
+  year       Int?
+  vin        String?
+  mileage    Int?
+  imageUrl   String?
+  createdAt  DateTime @default(now())
 
-  home Home @relation("HomeVehicles", fields: [homeId], references: [id], onDelete: Cascade)
+  property   Property @relation("PropertyVehicles", fields: [propertyId], references: [id], onDelete: Cascade)
 }
 
 model ApplianceCatalog {
@@ -199,7 +200,7 @@ model ApplianceCatalog {
 
 model Trackable {
   id                 String    @id @default(uuid())
-  homeId             String
+  propertyId         String
   roomId             String?
   applianceCatalogId String?
   userDefinedName    String?
@@ -210,27 +211,26 @@ model Trackable {
   createdAt          DateTime  @default(now())
 
   kind               String?
-
   attributes         Json?
 
-  home               Home              @relation("HomeTrackables", fields: [homeId], references: [id], onDelete: Cascade)
-  room               Room?             @relation("RoomTrackables", fields: [roomId], references: [id], onDelete: Cascade)
+  property           Property        @relation("PropertyTrackables", fields: [propertyId], references: [id], onDelete: Cascade)
+  room               Room?           @relation("RoomTrackables", fields: [roomId], references: [id], onDelete: Cascade)
   applianceCatalog   ApplianceCatalog? @relation(fields: [applianceCatalogId], references: [id])
 
-  tasks              UserTask[]          @relation("TrackableTasks")
+  tasks              UserTask[]        @relation("TrackableTasks")
   TrackableResource  TrackableResource[]
 }
 
 model TaskTemplate {
-  id                 String          @id @default(uuid())
-  title              String
-  description        String?
-  icon               String?
-  imageUrl           String?
-  category           String?
-  recurrenceInterval String
-  taskType           TaskType
-  criticality        TaskCriticality @default(medium)
+  id                   String          @id @default(uuid())
+  title                String
+  description          String?
+  icon                 String?
+  imageUrl             String?
+  category             String?
+  recurrenceInterval   String
+  taskType             TaskType
+  criticality          TaskCriticality @default(medium)
 
   canDefer             Boolean @default(true)
   deferLimitDays       Int     @default(0)
@@ -267,22 +267,22 @@ enum UserTaskSourceType {
 }
 
 model UserTask {
-  id                  String             @id @default(uuid())
-  userId              String
-  roomId              String?
-  trackableId         String?
-  taskTemplateId      String?
-  sourceType          UserTaskSourceType
+  id                   String             @id @default(uuid())
+  userId               String
+  roomId               String?
+  trackableId          String?
+  taskTemplateId       String?
+  sourceType           UserTaskSourceType
 
-  title               String
-  description         String
-  dueDate             DateTime
-  completedDate       DateTime?
-  status              TaskStatus
+  title                String
+  description          String
+  dueDate              DateTime
+  completedDate        DateTime?
+  status               TaskStatus
 
-  itemName            String
-  category            String
-  location            String?
+  itemName             String
+  category             String
+  location             String?
 
   estimatedTimeMinutes Int             @default(0)
   estimatedCost        Int             @default(0)
@@ -295,24 +295,24 @@ model UserTask {
 
   recurrenceInterval   String @default("")
 
-  taskType            TaskType @default(GENERAL)
+  taskType             TaskType @default(GENERAL)
 
-  dedupeKey           String @unique
+  dedupeKey            String @unique
 
-  steps               Json?
-  equipmentNeeded     Json?
-  resources           Json?
+  steps                Json?
+  equipmentNeeded      Json?
+  resources            Json?
 
-  imageUrl            String?
-  icon                String?
+  imageUrl             String?
+  icon                 String?
 
-  createdAt           DateTime @default(now())
+  createdAt            DateTime @default(now())
 
-  user                User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  room                Room?               @relation("RoomTasks", fields: [roomId], references: [id], onDelete: Cascade)
-  trackable           Trackable?          @relation("TrackableTasks", fields: [trackableId], references: [id], onDelete: Cascade)
-  taskTemplate        TaskTemplate?       @relation(fields: [taskTemplateId], references: [id])
-  dismissals          DismissedUserTask[]
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  room         Room?        @relation("RoomTasks", fields: [roomId], references: [id], onDelete: Cascade)
+  trackable    Trackable?   @relation("TrackableTasks", fields: [trackableId], references: [id], onDelete: Cascade)
+  taskTemplate TaskTemplate? @relation(fields: [taskTemplateId], references: [id])
+  dismissals   DismissedUserTask[]
 
   @@index([userId, status, dueDate], name: "idx_usertask_user_status_due")
   @@index([roomId], name: "idx_usertask_room")
