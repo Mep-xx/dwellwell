@@ -42,7 +42,7 @@ model User {
 
   googleId          String?        @unique
 
-  properties        Property[]     @relation("UserProperty")
+  homes             Home[]         @relation("UserHome")
 
   loginActivities   LoginActivity[]
   billingAccount    BillingAccount?
@@ -51,9 +51,8 @@ model User {
   dismissedTasks    DismissedUserTask[]
   role              String         @default("user")
 
-  // renamed: defaultHome* -> defaultProperty*
-  defaultPropertyId String?
-  defaultProperty   Property?      @relation("UserDefaultProperty", fields: [defaultPropertyId], references: [id], onDelete: SetNull)
+  defaultHomeId     String?        @map("defaultHomeId")
+  defaultHome       Home?          @relation("UserDefaultHome", fields: [defaultHomeId], references: [id], onDelete: SetNull)
 
   profile           UserProfile?
   comms             CommunicationPreferences?
@@ -87,10 +86,10 @@ model RefreshSession {
   @@index([userId, expiresAt])
 }
 
-model Property {
+model Home {
   id                 String   @id @default(cuid())
   userId             String
-  user               User     @relation("UserProperty", fields: [userId], references: [id])
+  user               User     @relation("UserHome", fields: [userId], references: [id])
 
   address            String
   apartment          String?
@@ -123,12 +122,12 @@ model Property {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
-  rooms              Room[]           @relation("PropertyRooms")
-  vehicles           Vehicle[]        @relation("PropertyVehicles")
-  trackables         Trackable[]      @relation("PropertyTrackables")
+  rooms              Room[]           @relation("HomeRooms")
+  vehicles           Vehicle[]        @relation("HomeVehicles")
+  trackables         Trackable[]      @relation("HomeTrackables")
   lawnProfile        LawnProfile?
 
-  usersDefaultingHere User[]          @relation("UserDefaultProperty")
+  usersDefaultingHere User[]          @relation("UserDefaultHome")
 }
 
 model Room {
@@ -143,19 +142,18 @@ model Room {
 
   position         Int      @default(0)
 
-  // ✅ use camelCase propertyId consistently on both sides
-  propertyId       String
-  property         Property @relation("PropertyRooms", fields: [propertyId], references: [id], onDelete: Cascade)
+  homeId           String   @map("homeId")
+  home             Home     @relation("HomeRooms", fields: [homeId], references: [id], onDelete: Cascade)
 
   trackables       Trackable[] @relation("RoomTrackables")
   userTasks        UserTask[]  @relation("RoomTasks")
 
-  @@index([propertyId, position])
+  @@index([homeId, position])
 }
 
 model LawnProfile {
   id                  String   @id @default(uuid())
-  propertyId          String   @unique
+  homeId              String   @unique @map("homeId")
   squareFeet          Int?
   usesLawnService     Boolean? @default(false)
   soilType            String?
@@ -163,12 +161,14 @@ model LawnProfile {
   irrigationInstalled Boolean? @default(false)
   createdAt           DateTime @default(now())
 
-  property            Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  home                Home     @relation(fields: [homeId], references: [id], onDelete: Cascade)
+
+  @@map("LawnProfile")
 }
 
 model Vehicle {
   id         String   @id @default(cuid())
-  propertyId String
+  homeId     String   @map("homeId")
   nickname   String?
   type       String
   make       String?
@@ -179,7 +179,9 @@ model Vehicle {
   imageUrl   String?
   createdAt  DateTime @default(now())
 
-  property   Property @relation("PropertyVehicles", fields: [propertyId], references: [id], onDelete: Cascade)
+  home       Home     @relation("HomeVehicles", fields: [homeId], references: [id], onDelete: Cascade)
+
+  @@map("Vehicle")
 }
 
 model ApplianceCatalog {
@@ -200,7 +202,7 @@ model ApplianceCatalog {
 
 model Trackable {
   id                 String    @id @default(uuid())
-  propertyId         String
+  homeId             String    @map("homeId")
   roomId             String?
   applianceCatalogId String?
   userDefinedName    String?
@@ -213,7 +215,7 @@ model Trackable {
   kind               String?
   attributes         Json?
 
-  property           Property        @relation("PropertyTrackables", fields: [propertyId], references: [id], onDelete: Cascade)
+  home               Home            @relation("HomeTrackables", fields: [homeId], references: [id], onDelete: Cascade)
   room               Room?           @relation("RoomTrackables", fields: [roomId], references: [id], onDelete: Cascade)
   applianceCatalog   ApplianceCatalog? @relation(fields: [applianceCatalogId], references: [id])
 

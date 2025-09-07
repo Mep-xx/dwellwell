@@ -95,7 +95,7 @@ try {
 
 // --- System prompt
 const SYSTEM_PROMPT = `
-You are a Property Enrichment Assistant for U.S. residential homes.
+You are a Home Enrichment Assistant for U.S. residential homes.
 
 Constraints:
 - You do not have web browsing. Rely only on the data provided here plus general U.S. real-estate knowledge.

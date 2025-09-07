@@ -1,7 +1,6 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
 import path from 'path';
 
@@ -40,9 +39,6 @@ app.options('*', cors()); // preflight
 // Core middleware
 app.use(express.json());
 app.use(cookieParser());
-
-// Morgan (combined)
-app.use(morgan('combined'));
 
 // ---- PUBLIC ROUTES ----
 

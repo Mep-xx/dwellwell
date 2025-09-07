@@ -12,9 +12,7 @@ router.use(requireAuth);
 
 router.get('/', list);
 router.post('/', create);
-
 router.put('/reorder', reorder);
-
 router.put('/:roomId', update);
 router.delete('/:roomId', remove);
 
