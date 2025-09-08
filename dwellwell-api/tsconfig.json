@@ -8,6 +8,6 @@
     "composite": true,
     "types": ["node"]
   },
-  "include": ["src", "../shared"],   // <— compile api/src + shared
+  "include": ["src", "../shared", "../dwellwell-client/src/utils/zillowUrl.ts"],   // <— compile api/src + shared
   "exclude": ["node_modules", "build", "../build-api"]
 }

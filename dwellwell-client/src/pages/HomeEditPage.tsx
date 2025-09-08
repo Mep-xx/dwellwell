@@ -9,6 +9,8 @@ import MapboxAddress from "@/components/MapboxAddress";
 import HomePhotoDropzone from "@/components/ui/HomePhotoDropzone";
 
 import { RoomsPanel } from "@/components/RoomsPanel";
+import { buildZillowUrl } from "@/utils/zillowUrl";
+
 
 import type { AxiosError } from "axios";
 import {
@@ -38,8 +40,8 @@ const toAbsoluteUrl = (url: string) =>
   !url
     ? url
     : /^(https?:)?\/\//i.test(url)
-    ? url
-    : `${window.location.origin}${url.startsWith("/") ? "" : "/"}${url}`;
+      ? url
+      : `${window.location.origin}${url.startsWith("/") ? "" : "/"}${url}`;
 
 const acresToSqft = (acres: number) => acres * 43560;
 const sqftToAcres = (sqft: number) => sqft / 43560;
@@ -78,8 +80,8 @@ function buildHomeUpdatePayload(
     home.lotSize == null
       ? undefined
       : lotUnit === "acres"
-      ? Math.round(Number(home.lotSize) * 43560)
-      : Number(home.lotSize);
+        ? Math.round(Number(home.lotSize) * 43560)
+        : Number(home.lotSize);
 
   const map = {
     nickname: home.nickname?.trim() || undefined,
@@ -189,9 +191,8 @@ function FeatureChip({
     <button
       type="button"
       onClick={onToggle}
-      className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs ${
-        selected ? "bg-muted" : "hover:bg-muted/60"
-      }`}
+      className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs ${selected ? "bg-muted" : "hover:bg-muted/60"
+        }`}
       title={selected ? "Remove" : "Add"}
     >
       <Icon className="h-3.5 w-3.5" />
@@ -436,7 +437,7 @@ export default function HomeEditPage() {
         <div className="text-sm text-muted-foreground">Loading home…</div>
       </div>
     );
-    }
+  }
 
   return (
     <div className="p-6 max-w-6xl">
@@ -454,6 +455,36 @@ export default function HomeEditPage() {
               />
               <span>Include in tasks</span>
             </label>
+
+            <Button
+              variant="secondary"
+              onClick={() => {
+                const url = buildZillowUrl({
+                  address: home.address,
+                  city: home.city,
+                  state: home.state,
+                  zip: home.zip,
+                });
+                if (!url) {
+                  toast({
+                    title: "Missing address",
+                    description: "Need address, city, state, and ZIP to open Zillow.",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+                window.open(url, "_blank", "noopener,noreferrer");
+              }}
+              className="flex items-center gap-2"
+            >
+              <img
+                src="/images/zillow-logo.png"
+                alt="Zillow"
+                className="h-5 w-5 object-contain"
+              />
+              <span>View on Zillow</span>
+            </Button>
+
             <Button variant="outline" onClick={() => navigate("/app/homes")}>
               Back
             </Button>
@@ -462,6 +493,7 @@ export default function HomeEditPage() {
             </Button>
           </div>
         </div>
+
         <div className="mt-1 text-sm text-muted-foreground">
           {home ? renderAddressLine(home) : "No address on file"}
         </div>

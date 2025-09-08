@@ -153,19 +153,38 @@ export default function HomesPage() {
         </button>
       </div>
 
-      <div className="flex flex-wrap gap-6">
-        {homes.map((home) => (
-          <div key={home.id} className="w-full md:w-[32%]">
-            <HomeCard
-              home={home}
-              summary={home.taskSummary}
-              onToggle={toggleHomeChecked}
-              onEdit={handleEdit}
-              onDelete={() => confirmDelete(home.id)}
-            />
+      {/* Empty state */}
+      {homes.length === 0 ? (
+        <div className="mt-16 flex flex-col items-center justify-center">
+          <div className="rounded-2xl border border-dashed p-10 text-center max-w-xl w-full bg-muted/20">
+            <div className="text-2xl font-semibold mb-2">No homes yet</div>
+            <p className="text-sm text-muted-foreground mb-6">
+              Add your first home to start tracking maintenance, rooms, and
+              features. You can always edit details later.
+            </p>
+            <button
+              className="rounded bg-brand-primary px-4 py-2 text-white hover:bg-blue-600"
+              onClick={() => setShowAddModal(true)}
+            >
+              + Add Home
+            </button>
           </div>
-        ))}
-      </div>
+        </div>
+      ) : (
+        <div className="flex flex-wrap gap-6">
+          {homes.map((home) => (
+            <div key={home.id} className="w-full md:w-[32%]">
+              <HomeCard
+                home={home}
+                summary={home.taskSummary}
+                onToggle={toggleHomeChecked}
+                onEdit={handleEdit}
+                onDelete={() => confirmDelete(home.id)}
+              />
+            </div>
+          ))}
+        </div>
+      )}
 
       <AddHomeWizard
         open={showAddModal}
