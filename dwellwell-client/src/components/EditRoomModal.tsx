@@ -12,7 +12,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 type Props = { room: Room | null; isOpen: boolean; onClose: () => void; onSave: () => void; };
-
 type RoomTask = { id: string; title: string; disabled: boolean; };
 
 type FloorKey = -1 | 0 | 1 | 2 | 3 | 99;

@@ -1,7 +1,6 @@
 
 export const featureSuggestions = [
   'fireplace',
-  'garage',
   'deck',
   'central air',
   'sunroom',

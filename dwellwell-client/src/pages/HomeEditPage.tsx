@@ -8,28 +8,22 @@ import { Input } from "@/components/ui/input";
 import MapboxAddress from "@/components/MapboxAddress";
 import HomePhotoDropzone from "@/components/ui/HomePhotoDropzone";
 
-import { EditRoomModal } from "@/components/EditRoomModal";
-import { RoomTypeSelect } from "@/components/RoomTypeSelect";
-import { SortableRoomCard } from "@/components/SortableRoomCard";
+import { RoomsPanel } from "@/components/RoomsPanel";
 
 import type { AxiosError } from "axios";
-
-import { Flame, PlugZap, Sun, Droplets, Waves, Bath, Zap, Sprout, Home as HomeIcon } from "lucide-react";
-
 import {
-  DndContext,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragEndEvent,
-} from "@dnd-kit/core";
-import {
-  SortableContext,
-  verticalListSortingStrategy,
-  arrayMove,
-} from "@dnd-kit/sortable";
+  Flame,
+  PlugZap,
+  Sun,
+  Droplets,
+  Waves,
+  Bath,
+  Zap,
+  Sprout,
+  Home as HomeIcon,
+} from "lucide-react";
 
-// Constants (re-exported from your @constants/index.ts)
+// Constants
 import {
   ROOF_TYPES,
   SIDING_TYPES,
@@ -38,16 +32,14 @@ import {
   HOUSE_ROOM_TEMPLATES,
 } from "@constants";
 
-import type { Room } from "@shared/types/room";
-
 /* ============================== Helpers =============================== */
 
 const toAbsoluteUrl = (url: string) =>
   !url
     ? url
     : /^(https?:)?\/\//i.test(url)
-      ? url
-      : `${window.location.origin}${url.startsWith("/") ? "" : "/"}${url}`;
+    ? url
+    : `${window.location.origin}${url.startsWith("/") ? "" : "/"}${url}`;
 
 const acresToSqft = (acres: number) => acres * 43560;
 const sqftToAcres = (sqft: number) => sqft / 43560;
@@ -63,7 +55,7 @@ function renderAddressLine(h: any) {
   const country = h.country;
 
   const compact = (xs: (string | null | undefined)[]) =>
-    xs.filter(Boolean) as string[];
+    (xs.filter(Boolean) as string[]);
   const upper = compact([line1, line2]).join(" · ");
   const lower = compact([
     compact([city, state].filter(Boolean) as string[]).join(", "),
@@ -86,8 +78,8 @@ function buildHomeUpdatePayload(
     home.lotSize == null
       ? undefined
       : lotUnit === "acres"
-        ? Math.round(Number(home.lotSize) * 43560)
-        : Number(home.lotSize);
+      ? Math.round(Number(home.lotSize) * 43560)
+      : Number(home.lotSize);
 
   const map = {
     nickname: home.nickname?.trim() || undefined,
@@ -137,7 +129,6 @@ type LoadedHome = {
   roofType?: string | null;
   sidingType?: string | null;
   architecturalStyle?: string | null;
-  numberOfRooms?: number | null;
 
   imageUrl?: string | null;
   apartment?: string | null;
@@ -151,14 +142,10 @@ type LoadedHome = {
   isChecked?: boolean;
 
   features: string[];
-  rooms?: Room[];
 };
 
 /* ========================== Suggestions =========================== */
-/**
- * A lightweight suggestions list that shows IF the feature isn’t present
- * and hasn’t been dismissed for this home. Dismissals are stored per-home.
- */
+
 const SUGGESTED_FEATURES = [
   "Solar Panels",
   "Irrigation System",
@@ -175,21 +162,17 @@ const SUGGESTED_FEATURES = [
 const dismissedKey = (homeId: string) =>
   `home:${homeId}:dismissed-feature-prompts`;
 
-
-
-// ---- Feature icon helpers ----
 const FEATURE_ICONS: Record<string, React.FC<{ className?: string }>> = {
-  "Fireplace": Flame,
+  Fireplace: Flame,
   "EV Charger": PlugZap,
   "Solar Panels": Sun,
-  "Irrigation System": Sprout,           // (sprinklers-ish)
+  "Irrigation System": Sprout,
   "Water Softener": Droplets,
-  "Pool": Waves,
+  Pool: Waves,
   "Hot Tub": Bath,
   "Whole-House Generator": Zap,
-  "Deck": HomeIcon,
+  Deck: HomeIcon,
   "Sump Pump": Droplets,
-  // keep a reasonable fallback
 };
 
 function FeatureChip({
@@ -206,8 +189,9 @@ function FeatureChip({
     <button
       type="button"
       onClick={onToggle}
-      className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs ${selected ? "bg-muted" : "hover:bg-muted/60"
-        }`}
+      className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs ${
+        selected ? "bg-muted" : "hover:bg-muted/60"
+      }`}
       title={selected ? "Remove" : "Add"}
     >
       <Icon className="h-3.5 w-3.5" />
@@ -223,7 +207,6 @@ export default function HomeEditPage() {
   const navigate = useNavigate();
 
   const [home, setHome] = useState<LoadedHome | null>(null);
-  const [rooms, setRooms] = useState<Room[]>([]);
   const [features, setFeatures] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -231,20 +214,10 @@ export default function HomeEditPage() {
   // Lot unit for UI: default to ACRES
   const [lotUnit, setLotUnit] = useState<"acres" | "sqft">("acres");
 
-  // Add-room mini dialog
-  const [showAddRoom, setShowAddRoom] = useState(false);
-  const [newRoomType, setNewRoomType] = useState("");
-  const [newRoomName, setNewRoomName] = useState("");
-  const [newRoomFloor, setNewRoomFloor] = useState<number | undefined>(1);
-
-  // Room editing modal
-  const [editingRoom, setEditingRoom] = useState<Room | null>(null);
-  const [isRoomModalOpen, setRoomModalOpen] = useState(false);
-
   // Dismissed suggestions (per-home)
   const [dismissed, setDismissed] = useState<string[]>([]);
 
-  // curated features (remove “Central Air” since it’s a boolean; add a clearly fake placeholder)
+  // curated features (remove “Central Air”; add extras)
   const FEATURE_SUGGESTIONS = useMemo(() => {
     const base = RAW_FEATURE_SUGGESTIONS.filter(
       (f) => f.toLowerCase() !== "central air"
@@ -255,13 +228,10 @@ export default function HomeEditPage() {
       "Irrigation System",
       "Solar Panels",
       "Whole-House Generator",
-      "Hangar Bay", // deliberately unreal placeholder
+      "Hangar Bay",
     ];
     return Array.from(new Set([...base, ...extras]));
   }, []);
-
-  // dnd sensors
-  const sensors = useSensors(useSensor(PointerSensor));
 
   /* ---------------------------- Load ---------------------------- */
 
@@ -286,11 +256,9 @@ export default function HomeEditPage() {
         };
 
         setHome(uiHome);
-        setRooms(db?.rooms ?? []);
         setFeatures(uiHome.features ?? []);
-        setLotUnit("acres"); // default UI view
+        setLotUnit("acres");
 
-        // Load per-home dismissed suggestions
         try {
           const raw = localStorage.getItem(dismissedKey(String(db?.id)));
           if (raw) setDismissed(JSON.parse(raw));
@@ -332,14 +300,8 @@ export default function HomeEditPage() {
       await api.put(`/homes/${homeId}`, payload);
       toast({ title: "Saved", description: "Home updated." });
     } catch (e: unknown) {
-      const err = e as AxiosError<any>;   // 👈 narrow here
+      const err = e as AxiosError<any>;
       const data = err.response?.data;
-
-      console.groupCollapsed(
-        `%cPUT /homes/${homeId} ${err.response?.status} — payload below`,
-        "color:#b00;font-weight:bold"
-      );
-      console.groupEnd();
 
       const unrec = data?.issues?.find?.(
         (i: any) => i?.code === "unrecognized_keys"
@@ -355,9 +317,8 @@ export default function HomeEditPage() {
           });
           setSaving(false);
           return;
-        } catch (e2: unknown) {
-          const err2 = e2 as AxiosError<any>;
-          console.warn("Retry failed:", err2.response?.data);
+        } catch {
+          /* fall through to error toast below */
         }
       }
 
@@ -371,11 +332,15 @@ export default function HomeEditPage() {
     }
   };
 
-  /* ----------------------------- Rooms ----------------------------- */
+  /* ------------------------ Template Room Helper ------------------------ */
 
-  const reloadRooms = async () => {
-    const { data } = await api.get(`/homes/${homeId}`);
-    setRooms(data?.rooms ?? []);
+  // When user changes architectural style, we can apply its template rooms.
+  // We fetch current rooms on demand (so this page doesn’t own the rooms state).
+  const fetchCurrentRooms = async (): Promise<
+    { id: string; name?: string; type?: string }[]
+  > => {
+    const { data } = await api.get("/rooms", { params: { homeId } });
+    return Array.isArray(data) ? data : [];
   };
 
   const createRoom = async (name: string, type: string, floor?: number) => {
@@ -386,20 +351,13 @@ export default function HomeEditPage() {
       floor: typeof floor === "number" ? floor : 1,
     };
     await api.post("/rooms", payload);
-    await reloadRooms();
   };
 
-  const openEditRoom = (room: Room) => {
-    setEditingRoom(room);
-    setRoomModalOpen(true);
-  };
-
-  // Apply style template rooms (skip duplicates)
   const applyTemplateRooms = async (style: string) => {
-    const template =
-      (ARCHITECTURAL_STYLES && (HOUSE_ROOM_TEMPLATES as any)?.[style]) || [];
+    const template = (HOUSE_ROOM_TEMPLATES as any)?.[style] || [];
+    const existing = await fetchCurrentRooms();
     const existingNames = new Set(
-      rooms.map((r) => (r.name || "").trim().toLowerCase())
+      existing.map((r) => (r.name || "").trim().toLowerCase())
     );
     for (const t of template) {
       if (!existingNames.has((t.name || "").trim().toLowerCase())) {
@@ -413,45 +371,17 @@ export default function HomeEditPage() {
     if (!home) return;
     setHome({ ...home, architecturalStyle: nextStyle || null });
 
-    if ((rooms?.length ?? 0) > 0) {
-      const proceed = window.confirm(
-        "Rooms already exist. Add rooms from the selected style template as well? (Existing rooms are kept; duplicates are skipped.)"
+    const proceed =
+      nextStyle &&
+      window.confirm(
+        "Add rooms from the selected style template? (Existing rooms are kept; duplicates are skipped.)"
       );
-      if (!proceed) return;
-    }
-    if (nextStyle) {
-      await applyTemplateRooms(nextStyle);
-      toast({
-        title: "Template rooms added",
-        description: `Applied template for ${nextStyle}.`,
-      });
-    }
-  };
+    if (!proceed || !nextStyle) return;
 
-  // outside component, tiny debounce helper
-  let reorderTimer: number | undefined;
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-
-    setRooms(prev => {
-      const oldIndex = prev.findIndex(r => String(r.id) === String(active.id));
-      const newIndex = prev.findIndex(r => String(r.id) === String(over.id));
-      const next = arrayMove(prev, oldIndex, newIndex);
-
-      if (reorderTimer) window.clearTimeout(reorderTimer);
-      reorderTimer = window.setTimeout(() => {
-        const roomIds = next.map(r => String(r.id));
-        api.put(`/rooms/reorder`, { homeId, roomIds }).catch((e: unknown) => {
-          const err = e as AxiosError<any>;
-          if (err.response?.status !== 404) {
-            console.warn("reorder failed", err.response?.data || err);
-          }
-        });
-      }, 150);
-
-      return next;
+    await applyTemplateRooms(nextStyle);
+    toast({
+      title: "Template rooms added",
+      description: `Applied template for ${nextStyle}.`,
     });
   };
 
@@ -474,7 +404,6 @@ export default function HomeEditPage() {
     );
   };
 
-  // Suggestions list derived from SUGGESTED_FEATURES minus selected and dismissed
   const suggestionsToShow = useMemo(() => {
     const selected = new Set(features.map((f) => f.toLowerCase()));
     const hidden = new Set(dismissed.map((d) => d.toLowerCase()));
@@ -489,7 +418,6 @@ export default function HomeEditPage() {
   };
 
   const dismissSuggestion = (s: string) => {
-    const lower = s.toLowerCase();
     const next = Array.from(new Set([...dismissed, s]));
     setDismissed(next);
     if (home?.id) {
@@ -509,7 +437,7 @@ export default function HomeEditPage() {
         <div className="text-sm text-muted-foreground">Loading home…</div>
       </div>
     );
-  }
+    }
 
   return (
     <div className="p-6 max-w-6xl">
@@ -669,7 +597,10 @@ export default function HomeEditPage() {
                 value={lotUnit}
                 onChange={(e) => {
                   const next = e.target.value as "acres" | "sqft";
-                  if (home.lotSize != null && !Number.isNaN(Number(home.lotSize))) {
+                  if (
+                    home.lotSize != null &&
+                    !Number.isNaN(Number(home.lotSize))
+                  ) {
                     const v = Number(home.lotSize);
                     const converted =
                       next === "sqft" ? Math.round(acresToSqft(v)) : sqftToAcres(v);
@@ -762,7 +693,7 @@ export default function HomeEditPage() {
         </div>
       </div>
 
-      {/* Features (selected summary + curated list + suggestion submit) */}
+      {/* Features */}
       <div className="mt-8 rounded-lg border p-4">
         <h2 className="mb-3 text-lg font-semibold">Features</h2>
 
@@ -781,13 +712,15 @@ export default function HomeEditPage() {
               ))}
             </div>
           ) : (
-            <div className="text-sm text-muted-foreground">No features yet. Pick from the list below or add your own.</div>
+            <div className="text-sm text-muted-foreground">
+              No features yet. Pick from the list below or add your own.
+            </div>
           )}
         </div>
 
         <div className="h-px bg-muted my-3" />
 
-        {/* Curated list with icons (click to toggle) */}
+        {/* Curated list */}
         <div className="mb-4">
           <div className="text-sm font-medium mb-2">Quick add</div>
           <div className="flex flex-wrap gap-2">
@@ -821,7 +754,9 @@ export default function HomeEditPage() {
           <Button
             variant="outline"
             onClick={async () => {
-              const el = document.getElementById("suggestFeature") as HTMLInputElement;
+              const el = document.getElementById(
+                "suggestFeature"
+              ) as HTMLInputElement;
               const val = el?.value.trim();
               if (val) {
                 await submitFeatureSuggestion(val);
@@ -834,141 +769,10 @@ export default function HomeEditPage() {
         </div>
       </div>
 
-      {/* Rooms */}
+      {/* Rooms (floor-bucket UI lives inside RoomsPanel) */}
       <div className="mt-8 rounded-lg border p-4">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">
-            Rooms {rooms.length ? `(${rooms.length})` : ""}
-          </h2>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setShowAddRoom(true)}>
-              + Add Room
-            </Button>
-          </div>
-        </div>
-
-        {rooms.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No rooms yet.</p>
-        ) : (
-          // HomeEditPage.tsx (inside the Rooms section)
-          <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-            <SortableContext
-              items={rooms.map(r => String(r.id))}
-              strategy={verticalListSortingStrategy}
-            >
-              <div className="grid gap-2">
-                {rooms.map((r) => (
-                  <div key={r.id} className="flex items-center gap-2">
-                    <div className="flex-1">
-                      <SortableRoomCard
-                        id={String(r.id)}                          // ← strings
-                        room={{
-                          name: r.name ?? "",
-                          type: r.type ?? "Other",
-                          floor: r.floor ?? undefined,
-                        }}
-                        onChange={updated => {
-                          setRooms(prev => prev.map(x => x.id === r.id ? { ...x, ...updated } : x));
-                        }}
-                        onRemove={async () => {
-                          await api.delete(`/rooms/${r.id}`);
-                          await reloadRooms();
-                        }}
-                      />
-                    </div>
-                    <Button size="sm" variant="outline" onClick={() => openEditRoom(r)}>
-                      Edit
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </SortableContext>
-          </DndContext>
-        )}
+        <RoomsPanel homeId={home.id} />
       </div>
-
-      {/* Add Room mini-dialog */}
-      {showAddRoom && (
-        <div className="fixed inset-0 bg-black/40 z-50 grid place-items-center">
-          <div className="bg-white rounded-2xl p-4 w-[420px] shadow-lg space-y-3">
-            <div className="text-lg font-semibold">Add a Room</div>
-            <div className="space-y-2">
-              <div>
-                <label className="mb-1 block text-sm font-medium">Type</label>
-                <RoomTypeSelect
-                  value={newRoomType}
-                  onChange={setNewRoomType}
-                  className="w-full"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium">
-                  Name (optional)
-                </label>
-                <Input
-                  value={newRoomName}
-                  onChange={(e) => setNewRoomName(e.target.value)}
-                  placeholder="e.g., Primary Bathroom"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium">Floor</label>
-                <select
-                  value={String(newRoomFloor ?? "")}
-                  onChange={(e) =>
-                    setNewRoomFloor(
-                      e.target.value === "" ? undefined : Number(e.target.value)
-                    )
-                  }
-                  className="border rounded px-2 py-1 text-sm w-full"
-                >
-                  <option value="">Floor</option>
-                  <option value={-1}>Basement</option>
-                  <option value={1}>1st Floor</option>
-                  <option value={2}>2nd Floor</option>
-                  <option value={3}>3rd Floor</option>
-                  <option value={99}>Attic</option>
-                  <option value={0}>Other</option>
-                </select>
-              </div>
-            </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={() => setShowAddRoom(false)}>
-                Cancel
-              </Button>
-              <Button
-                onClick={async () => {
-                  if (!newRoomType) {
-                    toast({
-                      title: "Pick a type",
-                      description: "Please choose a room type.",
-                    });
-                    return;
-                  }
-                  await createRoom(newRoomName.trim(), newRoomType, newRoomFloor);
-                  setNewRoomName("");
-                  setNewRoomType("");
-                  setNewRoomFloor(1);
-                  setShowAddRoom(false);
-                }}
-              >
-                Add
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Room editor modal */}
-      <EditRoomModal
-        room={editingRoom as any}
-        isOpen={isRoomModalOpen}
-        onClose={() => setRoomModalOpen(false)}
-        onSave={async () => {
-          await reloadRooms();
-          setRoomModalOpen(false);
-        }}
-      />
     </div>
   );
 }

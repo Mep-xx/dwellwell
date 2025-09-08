@@ -2,6 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Design tokens */
 @layer base {
   :root {
     --background: 0 0% 100%;
@@ -28,8 +29,9 @@
     --chart-3: 197 37% 24%;
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
-    --radius: 0.5rem
+    --radius: 0.5rem;
   }
+
   .dark {
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
@@ -54,15 +56,23 @@
     --chart-2: 160 60% 45%;
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%
+    --chart-5: 340 75% 55%;
   }
 }
 
+/* Base element resets that previously used @apply */
 @layer base {
   * {
-    @apply border-border;
+    /* replaces @apply border-border */
+    --tw-border-opacity: 1;
+    border-color: hsl(var(--border) / var(--tw-border-opacity));
   }
+
   body {
-    @apply bg-background text-foreground;
+    /* replaces @apply bg-background text-foreground */
+    --tw-bg-opacity: 1;
+    --tw-text-opacity: 1;
+    background-color: hsl(var(--background) / var(--tw-bg-opacity));
+    color: hsl(var(--foreground) / var(--tw-text-opacity));
   }
 }

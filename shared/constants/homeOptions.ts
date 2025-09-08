@@ -33,7 +33,6 @@ export const SIDING_TYPES = [
 ] as const;
 
 export const FEATURE_SUGGESTIONS = [
-  "Garage",
   "Fireplace",
   "Hardwood Floors",
   "Fenced Yard",
