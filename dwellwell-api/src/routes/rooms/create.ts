@@ -2,19 +2,15 @@ import { Request, Response } from 'express';
 import { asyncHandler } from '../../middleware/asyncHandler';
 import { prisma } from '../../db/prisma';
 
-export default asyncHandler(async (req: Request, res: Response) => {
+export default asyncHandler(async (req, res) => {
   const userId = (req as any).user?.id;
   const body = req.body ?? {};
 
-  if ('propertyId' in body) {
-    return res.status(400).json({ error: 'DO_NOT_USE_PROPERTY_ID' });
-  }
+  if ('propertyId' in body) return res.status(400).json({ error: 'DO_NOT_USE_PROPERTY_ID' });
 
-  const { homeId, type, name } = body;
-  const floor =
-    body.floor === undefined || body.floor === null || body.floor === ''
-      ? null
-      : Number(body.floor);
+  const { homeId, type, name, floor, details } = body;
+  const floorNum =
+    floor === undefined || floor === null || floor === '' ? null : Number(floor);
 
   if (!homeId || !type) {
     return res.status(400).json({
@@ -22,18 +18,13 @@ export default asyncHandler(async (req: Request, res: Response) => {
       details: { homeId: !!homeId, type: !!type },
     });
   }
-  if (floor !== null && Number.isNaN(floor)) {
-    return res.status(400).json({ error: 'INVALID_FLOOR', details: { floor: body.floor } });
+  if (floorNum !== null && Number.isNaN(floorNum)) {
+    return res.status(400).json({ error: 'INVALID_FLOOR', details: { floor } });
   }
 
-  // Verify ownership of Home
-  const home = await prisma.home.findFirst({
-    where: { id: homeId, userId },
-    select: { id: true },
-  });
+  const home = await prisma.home.findFirst({ where: { id: homeId, userId }, select: { id: true } });
   if (!home) return res.status(404).json({ error: 'HOME_NOT_FOUND' });
 
-  // Next position within this home's rooms
   const last = await prisma.room.findFirst({
     where: { homeId },
     orderBy: { position: 'desc' },
@@ -45,9 +36,13 @@ export default asyncHandler(async (req: Request, res: Response) => {
       homeId,
       type,
       name: name ?? type,
-      floor: floor ?? undefined,
+      floor: floorNum ?? undefined,
       position: (last?.position ?? -1) + 1,
+      detail: details && typeof details === 'object'
+        ? { create: { ...details } }
+        : { create: {} },
     },
+    include: { detail: true },
   });
 
   res.status(201).json(room);

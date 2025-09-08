@@ -8,9 +8,6 @@ type RoomPatch = {
   type?: string;
   floor?: number | null;
   position?: number;
-  hasFireplace?: boolean;
-  hasBoiler?: boolean;
-  hasSmokeDetector?: boolean;
 };
 
 type Payload = RoomPatch & { id: string };

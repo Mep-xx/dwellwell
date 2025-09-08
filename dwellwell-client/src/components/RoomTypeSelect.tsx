@@ -1,4 +1,4 @@
-// src/components/RoomTypeSelect.tsx
+// dwellwell-client/src/components/RoomTypeSelect.tsx
 import { ROOM_TYPES } from '@shared/constants';
 
 type Props = {
@@ -9,6 +9,10 @@ type Props = {
 };
 
 export function RoomTypeSelect({ value, onChange, className }: Props) {
+  const sortedTypes = [...ROOM_TYPES].sort((a, b) =>
+    a.localeCompare(b, undefined, { sensitivity: 'base' })
+  );
+
   return (
     <div className={className}>
       <select
@@ -17,7 +21,7 @@ export function RoomTypeSelect({ value, onChange, className }: Props) {
         className="w-full border rounded px-3 py-2 text-sm"
       >
         <option value="">Select a type...</option>
-        {ROOM_TYPES.map((type) => (
+        {sortedTypes.map((type) => (
           <option key={type} value={type}>
             {type}
           </option>

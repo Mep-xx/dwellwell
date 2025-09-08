@@ -1,4 +1,3 @@
-// src/components/RoomsPanel.tsx
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   DndContext,
@@ -48,7 +47,7 @@ function keyForFloor(f?: number | null): FloorKey {
 function groupByBucket(list: Room[]) {
   const map = new Map<FloorKey, Room[]>();
   BUCKETS.forEach(b => map.set(b.key, []));
-  list.forEach(r => map.get(keyForFloor(r.floor))!.push(r));
+  list.forEach(r => map.get(keyForFloor((r as any).floor))!.push(r));
   return map;
 }
 
@@ -63,14 +62,14 @@ function findInsertIndexForFloor(flat: Room[], floor: FloorKey): number {
   // 1) after the last item of this bucket, if any
   let lastIdx = -1;
   for (let i = 0; i < flat.length; i++) {
-    if (keyForFloor(flat[i].floor) === floor) lastIdx = i;
+    if (keyForFloor((flat[i] as any).floor) === floor) lastIdx = i;
   }
   if (lastIdx >= 0) return lastIdx + 1;
 
-  // 2) otherwise, before the first item of the next bucket (by bucket order)
+  // 2) before the first item of the next bucket (by bucket order)
   const thisOrder = bucketOrderIndex.get(floor)!;
   for (let i = 0; i < flat.length; i++) {
-    const order = bucketOrderIndex.get(keyForFloor(flat[i].floor))!;
+    const order = bucketOrderIndex.get(keyForFloor((flat[i] as any).floor))!;
     if (order > thisOrder) return i;
   }
 
@@ -175,12 +174,12 @@ export function RoomsPanel({ homeId }: Props) {
   const activeIdRef = useRef<UniqueIdentifier | null>(null);
   const fromContainerRef = useRef<string | null>(null);
 
-  // initial load (position order from server)
+  // initial load (include details for summary chips)
   useEffect(() => {
     (async () => {
       setLoading(true);
       try {
-        const { data } = await api.get('/rooms', { params: { homeId } });
+        const { data } = await api.get('/rooms', { params: { homeId, includeDetails: true } });
         setRooms(data);
       } finally {
         setLoading(false);
@@ -189,7 +188,7 @@ export function RoomsPanel({ homeId }: Props) {
   }, [homeId]);
 
   const reloadRooms = async () => {
-    const { data } = await api.get('/rooms', { params: { homeId } });
+    const { data } = await api.get('/rooms', { params: { homeId, includeDetails: true } });
     setRooms(data);
   };
 
@@ -200,7 +199,7 @@ export function RoomsPanel({ homeId }: Props) {
   function findContainerIdForItem(id: UniqueIdentifier): string | null {
     for (const { key, id: containerId } of BUCKETS) {
       const arr = buckets.get(key) ?? [];
-      if (arr.some(r => r.id === id)) return containerId;
+      if (arr.some(r => (r as any).id === id)) return containerId;
     }
     return null;
   }
@@ -221,7 +220,7 @@ export function RoomsPanel({ homeId }: Props) {
         const insertAt = findInsertIndexForFloor(prev, floor);
         next.splice(insertAt, 0, created);
         // persist order
-        api.put('/rooms/reorder', { homeId, roomIds: next.map(r => r.id) })
+        api.put('/rooms/reorder', { homeId, roomIds: next.map((r: any) => r.id) })
           .catch(() => {/* no-op */});
         return next;
       });
@@ -260,9 +259,9 @@ export function RoomsPanel({ homeId }: Props) {
 
     // remove from source
     const src = working.get(fromKey)!;
-    const fromIdx = src.findIndex(r => r.id === activeId);
+    const fromIdx = (src as any[]).findIndex((r) => (r as any).id === activeId);
     if (fromIdx < 0) return;
-    const [moved] = src.splice(fromIdx, 1);
+    const [moved] = (src as any[]).splice(fromIdx, 1);
 
     // compute destination index
     const dest = working.get(toKey)!;
@@ -270,12 +269,12 @@ export function RoomsPanel({ homeId }: Props) {
     if (bucketIdSet.has(overId)) {
       destIdx = dest.length; // empty area -> append
     } else {
-      const overIdx = dest.findIndex(r => r.id === overId);
+      const overIdx = (dest as any[]).findIndex((r) => (r as any).id === overId);
       destIdx = overIdx < 0 ? dest.length : overIdx;
     }
 
     // insert and update floor if bucket changed
-    dest.splice(destIdx, 0, { ...moved, floor: toKey });
+    (dest as any[]).splice(destIdx, 0, { ...(moved as any), floor: toKey });
 
     // flatten to global order and apply optimistically
     const nextFlat = flatten(working);
@@ -286,7 +285,7 @@ export function RoomsPanel({ homeId }: Props) {
       if (fromKey !== toKey) {
         await api.put(`/rooms/${activeId}`, { floor: toKey });
       }
-      await api.put('/rooms/reorder', { homeId, roomIds: nextFlat.map(r => r.id) });
+      await api.put('/rooms/reorder', { homeId, roomIds: nextFlat.map((r: any) => r.id) });
     } catch {
       toast({ title: 'Failed to save new order', variant: 'destructive' });
       await reloadRooms();
@@ -322,27 +321,27 @@ export function RoomsPanel({ homeId }: Props) {
                   roomCount={list.length}
                   onAdd={() => addRoomInFloor(key)}
                 >
-                  <SortableContext items={list.map(r => r.id)} strategy={verticalListSortingStrategy}>
+                  <SortableContext items={list.map((r: any) => r.id)} strategy={verticalListSortingStrategy}>
                     <div className="flex flex-col gap-2">
-                      {list.map(r => (
+                      {list.map((r: any) => (
                         <SortableRoomCard
                           key={r.id}
                           id={r.id}
                           room={r}
                           onChange={(patch) => {
                             // local patch; position left intact
-                            setRooms(prev => prev.map(x => (x.id === r.id ? { ...x, ...patch } : x)));
+                            setRooms(prev => prev.map((x: any) => (x.id === r.id ? { ...x, ...patch } : x)));
                           }}
                           onEdit={() => {
                             setEditing(r);
                             setModalOpen(true);
                           }}
                           onRemove={async () => {
-                            const prior = rooms;
-                            setRooms(pr => pr.filter(x => x.id !== r.id));
+                            const prior = rooms as any[];
+                            setRooms(pr => (pr as any[]).filter((x: any) => x.id !== r.id) as any);
                             try { await api.delete(`/rooms/${r.id}`); }
                             catch {
-                              setRooms(prior);
+                              setRooms(prior as any);
                               toast({ title: 'Failed to delete room', variant: 'destructive' });
                             }
                           }}

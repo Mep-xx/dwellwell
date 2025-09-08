@@ -228,7 +228,6 @@ export default function HomeEditPage() {
       "Irrigation System",
       "Solar Panels",
       "Whole-House Generator",
-      "Hangar Bay",
     ];
     return Array.from(new Set([...base, ...extras]));
   }, []);

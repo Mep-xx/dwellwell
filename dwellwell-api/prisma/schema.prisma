@@ -130,25 +130,125 @@ model Home {
   usersDefaultingHere User[]          @relation("UserDefaultHome")
 }
 
+enum FlooringType {
+  carpet
+  hardwood
+  laminate
+  tile
+  vinyl
+  stone
+  concrete
+  other
+}
+
+enum WallFinish {
+  painted_drywall
+  wallpaper
+  wood_paneling
+  plaster
+  other
+}
+
+enum CeilingType {
+  drywall
+  drop_ceiling
+  exposed_beams
+  skylight
+  other
+}
+
+enum WindowType {
+  none
+  single_hung
+  double_hung
+  casement
+  awning
+  bay
+  slider
+  fixed
+  skylight
+  other
+}
+
+enum CeilingFixture {
+  none
+  flushmount
+  chandelier
+  fan_only
+  fan_with_light
+  recessed
+  track
+  mixed
+}
+
 model Room {
-  id               String   @id @default(cuid())
-  name             String
-  type             String
-  floor            Int?
-  hasFireplace     Boolean  @default(false)
-  hasBoiler        Boolean  @default(false)
-  hasSmokeDetector Boolean  @default(false)
-  createdAt        DateTime @default(now())
+  id        String   @id @default(cuid())
+  name      String
+  type      String
+  floor     Int?
+  createdAt DateTime @default(now())
+  position  Int      @default(0)
 
-  position         Int      @default(0)
+  homeId String
+  home   Home     @relation("HomeRooms", fields: [homeId], references: [id], onDelete: Cascade)
 
-  homeId           String   @map("homeId")
-  home             Home     @relation("HomeRooms", fields: [homeId], references: [id], onDelete: Cascade)
+  detail RoomDetail?
 
-  trackables       Trackable[] @relation("RoomTrackables")
-  userTasks        UserTask[]  @relation("RoomTasks")
+  trackables Trackable[] @relation("RoomTrackables")
+  userTasks  UserTask[]  @relation("RoomTasks")
 
   @@index([homeId, position])
+}
+
+model RoomDetail {
+  roomId String @id
+  room   Room   @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  // Surfaces
+  flooring    FlooringType?
+  wallFinish  WallFinish?
+  ceilingType CeilingType?
+
+  // Openings
+  windowCount     Int?     @default(0)
+  windowType      WindowType?
+  hasExteriorDoor Boolean? @default(false)
+
+  // Heating & cooling
+  heatBaseboardHydronic Boolean? @default(false)
+  heatBaseboardElectric Boolean? @default(false)
+  heatRadiator          Boolean? @default(false)
+  hvacSupplyVents       Int?     @default(0)
+  hvacReturnVents       Int?     @default(0)
+  hasCeilingFan         Boolean? @default(false)
+  ceilingFixture        CeilingFixture?
+  recessedLightCount    Int?     @default(0)
+
+  // Electrical (light-touch)
+  approxOutletCount Int?     @default(0)
+  hasGfci           Boolean? @default(false)
+
+  // Safety
+  hasSmokeDetector  Boolean? @default(false)
+  hasCoDetector     Boolean? @default(false)
+  hasFireplace      Boolean? @default(false) // moved here from Room
+
+  // Plumbing (if applicable)
+  sinkCount           Int?     @default(0)
+  toiletCount         Int?     @default(0)
+  showerCount         Int?     @default(0)
+  tubCount            Int?     @default(0)
+  hasRadiantFloorHeat Boolean? @default(false)
+
+  // Access / misc
+  hasAtticAccess      Boolean? @default(false)
+  hasCrawlspaceAccess Boolean? @default(false)
+
+  // Long-tail
+  attributes Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model LawnProfile {
