@@ -173,13 +173,24 @@ export default function HomesPage() {
       ) : (
         <div className="flex flex-wrap gap-6">
           {homes.map((home) => (
-            <div key={home.id} className="w-full md:w-[32%]">
+            <div
+              key={home.id}
+              className="w-full md:w-[32%] cursor-pointer hover:shadow-md transition"
+              onClick={() => navigate(`/homes/${home.id}/edit`)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  navigate(`/homes/${home.id}/edit`);
+                }
+              }}
+            >
               <HomeCard
                 home={home}
                 summary={home.taskSummary}
                 onToggle={toggleHomeChecked}
-                onEdit={handleEdit}
-                onDelete={() => confirmDelete(home.id)}
+                onEdit={(h) => navigate(`/homes/${h.id}/edit`)}
+                onDelete={(id) => confirmDelete(id)}
               />
             </div>
           ))}
