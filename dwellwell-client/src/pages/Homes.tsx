@@ -115,7 +115,7 @@ export default function HomesPage() {
   };
 
   const handleEdit = (home: Home) => {
-    navigate(`/homes/${home.id}/edit`);
+    navigate(`/app/homes/${home.id}`); // ✅ correct route
   };
 
   const confirmDelete = (homeId: string) => setDeleteTargetId(homeId);
@@ -175,13 +175,13 @@ export default function HomesPage() {
           {homes.map((home) => (
             <div
               key={home.id}
-              className="w-full md:w-[32%] cursor-pointer hover:shadow-md transition"
-              onClick={() => navigate(`/homes/${home.id}/edit`)}
+              className="w-full md:w-[32%] cursor-pointer hover:shadow-md transition outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2 rounded-xl"
+              onClick={() => navigate(`/app/homes/${home.id}`)} // ✅ correct route
               role="button"
               tabIndex={0}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
-                  navigate(`/homes/${home.id}/edit`);
+                  navigate(`/app/homes/${home.id}`); // ✅ correct route
                 }
               }}
             >
@@ -189,7 +189,7 @@ export default function HomesPage() {
                 home={home}
                 summary={home.taskSummary}
                 onToggle={toggleHomeChecked}
-                onEdit={(h) => navigate(`/homes/${h.id}/edit`)}
+                onEdit={(h) => navigate(`/app/homes/${h.id}`)} // ✅ correct route
                 onDelete={(id) => confirmDelete(id)}
               />
             </div>
@@ -203,7 +203,7 @@ export default function HomesPage() {
         onFinished={(h) => {
           setShowAddModal(false);
           fetchHomes().finally(() => {
-            navigate(`/homes/${h.id}/edit`);
+            navigate(`/app/homes/${h.id}`); // ✅ correct route after create
           });
         }}
       />

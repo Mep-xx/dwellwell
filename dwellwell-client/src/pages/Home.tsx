@@ -1,4 +1,4 @@
-// src/pages/HomeEditPage.tsx
+//dwellwell-client/src/pages/Home.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api } from "@/utils/api";
@@ -202,7 +202,7 @@ function FeatureChip({
 }
 
 /* ============================== Component =============================== */
-export default function HomeEditPage() {
+export default function Home() {
   const { id: homeId } = useParams<{ id: string }>();
   const { toast } = useToast();
   const navigate = useNavigate();
