@@ -7,7 +7,7 @@ export type TrackableLookup = {
   imageUrl?: string;
 };
 
-const ApplianceCatalog: TrackableLookup[] = [
+export const ApplianceCatalog: TrackableLookup[] = [
   {
     model: 'SilencePlus 44 dBA',
     brand: 'Bosch',
@@ -58,5 +58,3 @@ const ApplianceCatalog: TrackableLookup[] = [
     notes: 'Flush quarterly, maintain pH balance weekly.',
   }
 ];
-
-module.exports = { ApplianceCatalog }

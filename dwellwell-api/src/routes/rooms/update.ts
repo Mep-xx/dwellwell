@@ -1,88 +1,61 @@
 // dwellwell-api/src/routes/rooms/update.ts
-import { Request, Response } from 'express';
-import { prisma } from '../../db/prisma';
-import { asyncHandler } from '../../middleware/asyncHandler';
+import { Request, Response } from "express";
+import { prisma } from "../../db/prisma";
+import { asyncHandler } from "../../middleware/asyncHandler";
 
-const DETAIL_KEYS = new Set([
-  // Surfaces
-  'flooring', 'wallFinish', 'ceilingType',
-  // Openings
-  'windowCount', 'windowType', 'hasExteriorDoor',
-  // Heating & cooling
-  'heatBaseboardHydronic', 'heatBaseboardElectric', 'heatRadiator',
-  'hvacSupplyVents', 'hvacReturnVents', 'hasCeilingFan', 'ceilingFixture', 'recessedLightCount',
-  // Electrical
-  'approxOutletCount', 'hasGfci',
-  // Safety
-  'hasSmokeDetector', 'hasCoDetector', 'hasFireplace',
-  // Plumbing
-  'sinkCount', 'toiletCount', 'showerCount', 'tubCount', 'hasRadiantFloorHeat',
-  // Access
-  'hasAtticAccess', 'hasCrawlspaceAccess',
-  // Long-tail
-  'attributes',
-] as const);
+function stripUndefined(obj: Record<string, any>) {
+  const out: Record<string, any> = {};
+  for (const [k, v] of Object.entries(obj)) if (v !== undefined) out[k] = v;
+  return out;
+}
 
-export default asyncHandler(async (req, res) => {
-  const userId = (req as any).user?.id;
+export default asyncHandler(async (req: Request, res: Response) => {
+  const userId = (req as any).user?.id as string;
   const { roomId } = req.params as any;
 
-  if ('propertyId' in (req.body ?? {})) {
-    return res.status(400).json({ error: 'DO_NOT_USE_PROPERTY_ID' });
-  }
+  const { name, type, floor, position, details } = (req.body ?? {}) as {
+    name?: string | null;
+    type?: string | null;
+    floor?: number | null;
+    position?: number | null;
+    details?: Record<string, any> | null;
+  };
 
-  const existing = await prisma.room.findFirst({
+  console.log("ROOM PATCH", roomId, req.body);
+  
+  // Ensure ownership
+  const room = await prisma.room.findFirst({
     where: { id: roomId, home: { userId } },
     select: { id: true },
   });
-  if (!existing) return res.status(404).json({ error: 'ROOM_NOT_FOUND' });
+  if (!room) return res.status(404).json({ error: "ROOM_NOT_FOUND" });
 
-  const body = req.body ?? {};
-  const { details, ...base } = body;
+  // Basic fields (only if we actually have something)
   const data: any = {};
+  if (name !== undefined) data.name = (name ?? "").trim();
+  if (type !== undefined) data.type = (type ?? "Other").trim();
+  if (floor !== undefined) data.floor = floor;
+  if (position !== undefined && position !== null) data.position = position;
 
-  // Strings (treat null/undefined as empty string for non-null columns)
-  if (base.type !== undefined) data.type = base.type == null ? '' : String(base.type);
-  if (base.name !== undefined) data.name = base.name == null ? '' : String(base.name);
+  if (Object.keys(data).length > 0) {
+    await prisma.room.update({ where: { id: roomId }, data });
+  }
 
-  // Floor
-  if (base.floor !== undefined) {
-    if (base.floor === null || base.floor === '') data.floor = null;
-    else {
-      const n = Number(base.floor);
-      if (Number.isNaN(n)) return res.status(400).json({ error: 'INVALID_FLOOR', details: { floor: base.floor } });
-      data.floor = n;
+  // Details (only if we actually have something)
+  if (details && typeof details === "object") {
+    const cleaned = stripUndefined(details);
+    if (Object.keys(cleaned).length > 0) {
+      await prisma.roomDetail.upsert({
+        where: { roomId },
+        create: { roomId, ...cleaned },
+        update: cleaned,
+      });
     }
   }
-  // Position (optional, used by reorders)
-  if (base.position !== undefined) {
-    const p = Number(base.position);
-    if (Number.isNaN(p)) return res.status(400).json({ error: 'INVALID_POSITION' });
-    data.position = p;
-  }
 
-  await prisma.room.update({
-    where: { id: roomId },
-    data,
-  });
-
-  if (details && typeof details === 'object') {
-    // Whitelist only known RoomDetail keys to avoid Prisma validation errors
-    const filtered: Record<string, any> = {};
-    for (const [k, v] of Object.entries(details)) {
-      if (DETAIL_KEYS.has(k as any)) filtered[k] = v;
-    }
-    await prisma.roomDetail.upsert({
-      where: { roomId },
-      create: { roomId, ...filtered },
-      update: { ...filtered },
-    });
-  }
-
-  // return with detail for convenience
-  const withDetail = await prisma.room.findUnique({
+  const updated = await prisma.room.findUnique({
     where: { id: roomId },
     include: { detail: true },
   });
-  res.json(withDetail);
+  res.json(updated);
 });

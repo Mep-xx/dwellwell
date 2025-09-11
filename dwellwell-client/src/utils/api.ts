@@ -31,6 +31,27 @@ export function clearToken() {
   } catch {}
 }
 
+if (import.meta.env.DEV) {
+  api.interceptors.request.use((cfg) => {
+    // small and safe
+    console.debug("API →", cfg.method?.toUpperCase(), cfg.url, cfg.data ?? "");
+    return cfg;
+  });
+  api.interceptors.response.use(
+    (r) => {
+      console.debug("API ←", r.status, r.config.url);
+      return r;
+    },
+    (e) => {
+      const s = e?.response?.status;
+      const u = e?.config?.url;
+      console.warn("API ←", s, u, e?.response?.data ?? "");
+      return Promise.reject(e);
+    }
+  );
+}
+
+
 // ----------------------------------------------------------------------------
 // Attach token to requests
 // ----------------------------------------------------------------------------

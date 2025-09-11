@@ -1,3 +1,4 @@
+//dwellwell-api/src/routes/rooms/show.ts
 import { Request, Response } from "express";
 import { prisma } from "../../db/prisma";
 import { asyncHandler } from "../../middleware/asyncHandler";

@@ -1,5 +1,6 @@
+// prisma/seed.ts
 import { PrismaClient, TaskType, TaskCriticality } from '@prisma/client';
-const { ApplianceCatalog } = require('./mockApplianceCatalog');
+import { ApplianceCatalog } from './mockApplianceCatalog'; // <-- ESM import
 
 const prisma = new PrismaClient();
 
@@ -7,6 +8,7 @@ async function seedApplianceCatalog() {
   for (const appliance of ApplianceCatalog) {
     await prisma.applianceCatalog.upsert({
       where: {
+        // uses @@unique([brand, model]) from your schema
         brand_model: {
           brand: appliance.brand,
           model: appliance.model,
@@ -19,17 +21,16 @@ async function seedApplianceCatalog() {
         type: appliance.type,
         category: appliance.category,
         notes: appliance.notes || '',
-        imageUrl: appliance.image || null,
+        imageUrl: appliance.imageUrl || null,
       },
     });
   }
-
   console.log('✅ Seeded ApplianceCatalog');
 }
 
 async function seedTaskTemplates() {
   const templates = [
-    // Room-Based Tasks
+    // ---- Room-based tasks ----
     {
       title: 'Clean Bathroom Mirror',
       description: 'Wipe down mirrors with glass cleaner.',
@@ -80,7 +81,7 @@ async function seedTaskTemplates() {
       steps: [
         'Visually inspect shower, tub, and sink areas',
         'Note any cracking or mold',
-        'Clean small areas or schedule re-caulking if needed'
+        'Clean small areas or schedule re-caulking if needed',
       ],
       equipmentNeeded: ['Flashlight', 'Cleaning cloth'],
       resources: [],
@@ -101,7 +102,7 @@ async function seedTaskTemplates() {
       steps: [
         'Mix water and mild detergent',
         'Wipe down tiled and painted wall surfaces',
-        'Dry with a clean towel'
+        'Dry with a clean towel',
       ],
       equipmentNeeded: ['Bucket', 'Sponge', 'Mild cleaner'],
       resources: [],
@@ -123,7 +124,7 @@ async function seedTaskTemplates() {
         'Turn off the fan',
         'Remove the vent cover',
         'Wipe or vacuum dust buildup',
-        'Reattach the cover'
+        'Reattach the cover',
       ],
       equipmentNeeded: ['Screwdriver', 'Vacuum', 'Cloth'],
       resources: [],
@@ -143,16 +144,13 @@ async function seedTaskTemplates() {
       taskType: TaskType.GENERAL,
       steps: [
         'Use duster or microfiber cloth to remove dust from fan blades or lights',
-        'Vacuum fallen debris if needed'
+        'Vacuum fallen debris if needed',
       ],
       equipmentNeeded: ['Duster', 'Ladder', 'Vacuum'],
       resources: [],
     },
 
-
-
-
-    // Trackable-Based Tasks
+    // ---- Trackable-based tasks ----
     {
       title: 'Clean Dishwasher Filter',
       description: 'Remove and rinse the dishwasher filter to prevent clogging.',
@@ -173,9 +171,7 @@ async function seedTaskTemplates() {
         'Replace the filter and lock it back in',
       ],
       equipmentNeeded: ['Sponge', 'Old toothbrush'],
-      resources: [
-        { label: 'How to clean a dishwasher filter', url: 'https://example.com/clean-dishwasher' },
-      ],
+      resources: [{ label: 'How to clean a dishwasher filter', url: 'https://example.com/clean-dishwasher' }],
     },
     {
       title: 'Change HVAC Filter',
@@ -196,18 +192,26 @@ async function seedTaskTemplates() {
         'Insert new filter facing airflow direction arrows',
       ],
       equipmentNeeded: ['New air filter', 'Gloves'],
-      resources: [
-        { label: 'Filter Sizing Guide', url: 'https://example.com/hvac-filters' },
-      ],
+      resources: [{ label: 'Filter Sizing Guide', url: 'https://example.com/hvac-filters' }],
     },
   ];
 
-  for (const template of templates) {
-    await prisma.taskTemplate.upsert({
-      where: { title: template.title },
-      update: {},
-      create: template,
+  // Because `title` isn’t unique in your schema, we can’t use `upsert({ where: { title }})`.
+  // Do a safe find-or-create/update instead.
+  for (const tpl of templates) {
+    const existing = await prisma.taskTemplate.findFirst({
+      where: { title: tpl.title },
+      select: { id: true },
     });
+
+    if (existing) {
+      await prisma.taskTemplate.update({
+        where: { id: existing.id },
+        data: tpl,
+      });
+    } else {
+      await prisma.taskTemplate.create({ data: tpl });
+    }
   }
 
   console.log('✅ Seeded TaskTemplates');
@@ -221,6 +225,9 @@ async function main() {
 main()
   .catch((e) => {
     console.error(e);
+    // `process` is typed once @types/node is installed
     process.exit(1);
   })
-  .finally(() => prisma.$disconnect());
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

@@ -283,6 +283,7 @@ function RoomsArrangePanel({
     }
   };
 
+
   if (loading) {
     return <div className="text-sm text-muted-foreground">Loading rooms…</div>;
   }
@@ -430,6 +431,14 @@ export default function Home() {
     [home.address, home.apartment, `${home.city}, ${home.state} ${home.zip}`]
       .filter(Boolean)
       .join(", ");
+
+  // ---- Handlers ----
+  const handleStyleChange = (value: string) => {
+    setHome(prev =>
+      prev ? { ...prev, architecturalStyle: value || undefined } : prev
+    );
+  };
+
 
   /* --------------------------- Save (explicit) --------------------------- */
 
@@ -582,8 +591,8 @@ export default function Home() {
               role="tab"
               aria-selected={activeTab === t.key}
               className={`px-3 py-2 text-sm -mb-px border-b-2 ${activeTab === t.key
-                  ? "border-blue-600 text-blue-700 font-semibold"
-                  : "border-transparent text-gray-600 hover:text-blue-700"
+                ? "border-blue-600 text-blue-700 font-semibold"
+                : "border-transparent text-gray-600 hover:text-blue-700"
                 }`}
               onClick={() => setTab(t.key)}
             >

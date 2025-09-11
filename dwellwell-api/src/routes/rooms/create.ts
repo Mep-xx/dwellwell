@@ -1,49 +1,59 @@
-import { Request, Response } from 'express';
-import { asyncHandler } from '../../middleware/asyncHandler';
-import { prisma } from '../../db/prisma';
+import { Request, Response } from "express";
+import { prisma } from "../../db/prisma";
+import { asyncHandler } from "../../middleware/asyncHandler";
 
-export default asyncHandler(async (req, res) => {
-  const userId = (req as any).user?.id;
-  const body = req.body ?? {};
+function stripUndefined(obj: Record<string, any>) {
+  const out: Record<string, any> = {};
+  for (const [k, v] of Object.entries(obj)) if (v !== undefined) out[k] = v;
+  return out;
+}
 
-  if ('propertyId' in body) return res.status(400).json({ error: 'DO_NOT_USE_PROPERTY_ID' });
+export default asyncHandler(async (req: Request, res: Response) => {
+  const userId = (req as any).user?.id as string;
+  const { roomId } = req.params as any;
 
-  const { homeId, type, name, floor, details } = body;
-  const floorNum =
-    floor === undefined || floor === null || floor === '' ? null : Number(floor);
+  const { name, type, floor, position, details } = (req.body ?? {}) as {
+    name?: string | null;
+    type?: string | null;
+    floor?: number | null;
+    position?: number | null;
+    details?: Record<string, any> | null;
+  };
 
-  if (!homeId || !type) {
-    return res.status(400).json({
-      error: 'VALIDATION_FAILED',
-      details: { homeId: !!homeId, type: !!type },
-    });
-  }
-  if (floorNum !== null && Number.isNaN(floorNum)) {
-    return res.status(400).json({ error: 'INVALID_FLOOR', details: { floor } });
-  }
-
-  const home = await prisma.home.findFirst({ where: { id: homeId, userId }, select: { id: true } });
-  if (!home) return res.status(404).json({ error: 'HOME_NOT_FOUND' });
-
-  const last = await prisma.room.findFirst({
-    where: { homeId },
-    orderBy: { position: 'desc' },
-    select: { position: true },
+  // Make sure this room belongs to the user
+  const room = await prisma.room.findFirst({
+    where: { id: roomId, home: { userId } },
+    select: { id: true },
   });
+  if (!room) return res.status(404).json({ error: "ROOM_NOT_FOUND" });
 
-  const room = await prisma.room.create({
-    data: {
-      homeId,
-      type,
-      name: name ?? type,
-      floor: floorNum ?? undefined,
-      position: (last?.position ?? -1) + 1,
-      detail: details && typeof details === 'object'
-        ? { create: { ...details } }
-        : { create: {} },
-    },
+  // ----- Basic fields (only if something actually changed) -----
+  const data: any = {};
+  if (name !== undefined) data.name = (name ?? "").trim();
+  if (type !== undefined) data.type = (type ?? "Other").trim();
+  if (floor !== undefined) data.floor = floor;
+  if (position !== undefined && position !== null) data.position = position;
+
+  if (Object.keys(data).length > 0) {
+    await prisma.room.update({ where: { id: roomId }, data });
+  }
+
+  // ----- Details (upsert, but only with real keys) -----
+  if (details && typeof details === "object") {
+    const cleaned = stripUndefined(details);
+    if (Object.keys(cleaned).length > 0) {
+      await prisma.roomDetail.upsert({
+        where: { roomId },
+        create: { roomId, ...cleaned },
+        update: cleaned,
+      });
+    }
+  }
+
+  const updated = await prisma.room.findUnique({
+    where: { id: roomId },
     include: { detail: true },
   });
 
-  res.status(201).json(room);
+  res.json(updated);
 });

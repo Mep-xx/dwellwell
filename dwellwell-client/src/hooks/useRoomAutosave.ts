@@ -1,60 +1,115 @@
-// src/hooks/useRoomAutosave.ts
-import { useEffect, useRef, useState } from "react";
+// dwellwell-client/src/hooks/useRoomAutosave.ts
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/utils/api";
 
+type SaveStatus = "idle" | "saving" | "ok" | "error";
+
 type RoomPatch = {
-  // no `id` here; we inject it from the hook arg
   name?: string | null;
   type?: string | null;
   floor?: number | null;
-  position?: number;
-  // allow nested detail saves
   details?: Record<string, any>;
 };
 
-type Payload = RoomPatch & { id: string };
+function stripUndefined(obj: Record<string, any>) {
+  const out: Record<string, any> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v !== undefined) out[k] = v;
+  }
+  return out;
+}
 
-export function useRoomAutosave(roomId: string) {
-  const timer = useRef<number | null>(null);
-  const lastPayload = useRef<Payload | null>(null);
-  const [saving, setSaving] = useState<"idle" | "saving" | "ok" | "error">("idle");
+/**
+ * Debounced autosave with patch coalescing and "green glow" signal support.
+ */
+export function useRoomAutosave(roomId: string | undefined) {
+  const [status, setStatus] = useState<SaveStatus>("idle");
+  const [savedPulse, setSavedPulse] = useState(false);
 
-  // If the roomId changes (e.g., param resolves), clear any pending send that used the old id
+  const bufferRef = useRef<RoomPatch>({});
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inflightRef = useRef(false);
+  const mountedRef = useRef(true);
+
   useEffect(() => {
-    if (timer.current !== null) {
-      window.clearTimeout(timer.current);
-      timer.current = null;
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
+
+  const flush = useCallback(async () => {
+    if (!roomId) {
+      if (import.meta.env.DEV) {
+        console.warn("[useRoomAutosave] no roomId; skipping flush");
+      }
+      return;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const patch = bufferRef.current;
+    bufferRef.current = {};
+    if (!Object.keys(patch).length) return;
+
+    try {
+      inflightRef.current = true;
+      setStatus("saving");
+
+      // Only send defined keys; allow `null` to clear
+      const body: any = stripUndefined(patch);
+      if ("details" in body && body.details && typeof body.details === "object") {
+        body.details = stripUndefined(body.details);
+      }
+
+      if (import.meta.env.DEV) {
+        console.log("[useRoomAutosave] PUT /rooms/%s", roomId, body);
+      }
+
+      await api.put(`/rooms/${roomId}`, body);
+
+      if (!mountedRef.current) return;
+      setStatus("ok");
+      setSavedPulse(true);
+      // brief pulse
+      setTimeout(() => mountedRef.current && setSavedPulse(false), 900);
+    } catch (err) {
+      if (!mountedRef.current) return;
+      if (import.meta.env.DEV) {
+        console.error("[useRoomAutosave] save failed", err);
+      }
+      setStatus("error");
+    } finally {
+      inflightRef.current = false;
+    }
   }, [roomId]);
 
-  function scheduleSave(patch: RoomPatch, delay = 450) {
-    if (!roomId) return; // nothing to do until we know the id
-    // Clean undefined keys so we don't trip server validators
-    const cleaned: Record<string, any> = {};
-    Object.entries(patch).forEach(([k, v]) => {
-      if (v !== undefined) cleaned[k] = v;
-    });
+  const scheduleSave = useCallback(
+    (patch: RoomPatch) => {
+      // Merge into buffer
+      bufferRef.current = {
+        ...bufferRef.current,
+        ...stripUndefined(patch),
+        ...(patch.details
+          ? { details: { ...(bufferRef.current.details || {}), ...stripUndefined(patch.details) } }
+          : {}),
+      };
 
-    lastPayload.current = { id: roomId, ...(cleaned as RoomPatch) };
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => {
+        if (!inflightRef.current) {
+          flush();
+        } else {
+          // try again soon after inflight returns
+          timerRef.current = setTimeout(flush, 250);
+        }
+      }, 600); // debounce
+    },
+    [flush]
+  );
 
-    if (timer.current !== null) window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(async () => {
-      try {
-        setSaving("saving");
-        await api.put(`/rooms/${roomId}`, lastPayload.current);
-        setSaving("ok");
-        window.setTimeout(() => setSaving("idle"), 800);
-      } catch {
-        setSaving("error");
-      }
-    }, delay);
-  }
-
-  function cancelPending() {
-    if (timer.current !== null) window.clearTimeout(timer.current);
-    timer.current = null;
-  }
-
-  return { saving, scheduleSave, cancelPending };
+  return {
+    saving: status,
+    savedPulse, // true momentarily after save
+    scheduleSave,
+    flushNow: flush, // handy for an explicit "Save" button
+  };
 }
