@@ -1,28 +1,19 @@
-//dwellwell-client/src/pages/Home.tsx
+// dwellwell-client/src/pages/Home.tsx
 import React, { useEffect, useMemo, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "@/utils/api";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import MapboxAddress from "@/components/MapboxAddress";
 import HomePhotoDropzone from "@/components/ui/HomePhotoDropzone";
-
-import { RoomsPanel } from "@/components/RoomsPanel";
 import { buildZillowUrl } from "@/utils/zillowUrl";
-
+import { RoomsPanel } from "@/components/RoomsPanel";
 
 import type { AxiosError } from "axios";
 import {
-  Flame,
-  PlugZap,
-  Sun,
-  Droplets,
-  Waves,
-  Bath,
-  Zap,
-  Sprout,
-  Home as HomeIcon,
+  Flame, PlugZap, Sun, Droplets, Waves, Bath, Zap, Sprout, Home as HomeIcon,
+  GripVertical, Pencil, Plus, MoveUpRight
 } from "lucide-react";
 
 // Constants
@@ -116,7 +107,6 @@ function buildHomeUpdatePayload(
 
 /* ============================== Types =============================== */
 
-// Define the fields we actually use here to avoid front-end type drift
 type LoadedHome = {
   id: string;
   nickname?: string | null;
@@ -144,6 +134,14 @@ type LoadedHome = {
   isChecked?: boolean;
 
   features: string[];
+};
+
+type RoomLite = {
+  id: string;
+  name?: string | null;
+  type?: string | null;
+  floor?: number | null;
+  order?: number | null;
 };
 
 /* ========================== Suggestions =========================== */
@@ -201,11 +199,169 @@ function FeatureChip({
   );
 }
 
+/* ======================= Tiny Tabs (URL-synced) ======================== */
+
+const TABS = [
+  { key: "overview", label: "Overview" },
+  { key: "features", label: "Features" },
+  { key: "rooms", label: "Rooms" },
+  { key: "lawn", label: "Lawn & Exterior" },
+  { key: "services", label: "Services" },
+  { key: "docs", label: "Photos & Docs" },
+] as const;
+type TabKey = typeof TABS[number]["key"];
+
+/* ===================== Rooms Arrange Panel (inline) ==================== */
+
+function RoomsArrangePanel({
+  homeId,
+}: {
+  homeId: string;
+}) {
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const [rooms, setRooms] = useState<RoomLite[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        setLoading(true);
+        const { data } = await api.get("/rooms", { params: { homeId } });
+        if (!mounted) return;
+        const list: RoomLite[] = Array.isArray(data) ? data : [];
+        // stable sort by (order ?? 0), then floor, then name
+        list.sort((a, b) => {
+          const ao = a.order ?? 0, bo = b.order ?? 0;
+          if (ao !== bo) return ao - bo;
+          const af = a.floor ?? 0, bf = b.floor ?? 0;
+          if (af !== bf) return af - bf;
+          const an = (a.name || "").toLowerCase(), bn = (b.name || "").toLowerCase();
+          return an.localeCompare(bn);
+        });
+        setRooms(list);
+      } catch (e) {
+        // noop
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [homeId]);
+
+  const move = (idx: number, dir: -1 | 1) => {
+    setRooms((prev) => {
+      const next = [...prev];
+      const j = idx + dir;
+      if (j < 0 || j >= next.length) return prev;
+      [next[idx], next[j]] = [next[j], next[idx]];
+      return next.map((r, i) => ({ ...r, order: i }));
+    });
+  };
+
+  const persistOrder = async () => {
+    try {
+      await api.post(`/rooms/reorder`, {
+        homeId,
+        orders: rooms.map((r, i) => ({ id: r.id, order: i })),
+      });
+      toast({ title: "Order saved", description: "Room order updated." });
+    } catch {
+      toast({ title: "Save failed", description: "Couldn’t persist order.", variant: "destructive" });
+    }
+  };
+
+  const createRoom = async () => {
+    try {
+      const payload = { homeId, name: "New Room", type: "Other", floor: 1 };
+      const { data } = await api.post("/rooms", payload);
+      const newRoom: RoomLite = data;
+      setRooms((r) => [...r, { ...newRoom, order: r.length }]);
+    } catch {
+      toast({ title: "Create failed", description: "Couldn’t add a room.", variant: "destructive" });
+    }
+  };
+
+  if (loading) {
+    return <div className="text-sm text-muted-foreground">Loading rooms…</div>;
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="text-sm text-muted-foreground">
+          Drag not required—use ↑/↓ to arrange. Click ✏️ to edit a room.
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={createRoom}>
+            <Plus className="h-4 w-4" /> Add Room
+          </Button>
+          <Button onClick={persistOrder}>Save Order</Button>
+        </div>
+      </div>
+
+      <ul className="divide-y rounded-lg border">
+        {rooms.map((r, idx) => (
+          <li key={r.id} className="flex items-center gap-3 p-3">
+            <GripVertical className="h-4 w-4 text-muted-foreground" />
+            <div className="flex-1">
+              <div className="font-medium">
+                {r.name || "Untitled Room"} {r.floor ? <span className="text-xs text-muted-foreground">· Floor {r.floor}</span> : null}
+              </div>
+              {r.type ? <div className="text-xs text-muted-foreground">{r.type}</div> : null}
+            </div>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => move(idx, -1)}
+                disabled={idx === 0}
+                title="Move up"
+              >
+                ↑
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => move(idx, +1)}
+                disabled={idx === rooms.length - 1}
+                title="Move down"
+              >
+                ↓
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => navigate(`/app/rooms/${r.id}`)}
+                title="Edit room"
+              >
+                <Pencil className="mr-1 h-4 w-4" />
+                Edit
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate(`/app/rooms/${r.id}#add-trackable`)}
+                title="Add trackable to this room"
+              >
+                <MoveUpRight className="mr-1 h-4 w-4" />
+                Add Trackable
+              </Button>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 /* ============================== Component =============================== */
 export default function Home() {
   const { id: homeId } = useParams<{ id: string }>();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const [search, setSearch] = useSearchParams();
 
   const [home, setHome] = useState<LoadedHome | null>(null);
   const [features, setFeatures] = useState<string[]>([]);
@@ -218,18 +374,11 @@ export default function Home() {
   // Dismissed suggestions (per-home)
   const [dismissed, setDismissed] = useState<string[]>([]);
 
-  // curated features (remove “Central Air”; add extras)
   const FEATURE_SUGGESTIONS = useMemo(() => {
     const base = RAW_FEATURE_SUGGESTIONS.filter(
       (f) => f.toLowerCase() !== "central air"
     );
-    const extras = [
-      "Fireplace",
-      "EV Charger",
-      "Irrigation System",
-      "Solar Panels",
-      "Whole-House Generator",
-    ];
+    const extras = ["Fireplace", "EV Charger", "Irrigation System", "Solar Panels", "Whole-House Generator"];
     return Array.from(new Set([...base, ...extras]));
   }, []);
 
@@ -241,11 +390,9 @@ export default function Home() {
       try {
         setLoading(true);
         const { data } = await api.get(`/homes/${homeId}`);
-
         if (!mounted) return;
         const db = data as any;
 
-        // Map DB lotSize (sqft) → UI (acres)
         const uiHome: LoadedHome = {
           ...db,
           lotSize:
@@ -262,24 +409,19 @@ export default function Home() {
         try {
           const raw = localStorage.getItem(dismissedKey(String(db?.id)));
           if (raw) setDismissed(JSON.parse(raw));
-        } catch {
-          /* ignore */
-        }
+        } catch { /* ignore */ }
       } catch (e: any) {
         toast({
           title: "Load failed",
-          description:
-            e?.response?.data?.message || "Could not load this home.",
+          description: e?.response?.data?.message || "Could not load this home.",
           variant: "destructive",
         });
-        navigate("/homes");
+        navigate("/app/homes");
       } finally {
         if (mounted) setLoading(false);
       }
     })();
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [homeId]);
 
@@ -303,23 +445,16 @@ export default function Home() {
       const err = e as AxiosError<any>;
       const data = err.response?.data;
 
-      const unrec = data?.issues?.find?.(
-        (i: any) => i?.code === "unrecognized_keys"
-      );
+      const unrec = data?.issues?.find?.((i: any) => i?.code === "unrecognized_keys");
       if (unrec?.keys?.length) {
         const cleaned = { ...payload };
         for (const k of unrec.keys) delete cleaned[k];
         try {
           await api.put(`/homes/${homeId}`, cleaned);
-          toast({
-            title: "Saved",
-            description: "Home updated (after removing extra keys).",
-          });
+          toast({ title: "Saved", description: "Home updated (after removing extra keys)." });
           setSaving(false);
           return;
-        } catch {
-          /* fall through to error toast below */
-        }
+        } catch { /* fall through */ }
       }
 
       toast({
@@ -330,59 +465,6 @@ export default function Home() {
     } finally {
       setSaving(false);
     }
-  };
-
-  /* ------------------------ Template Room Helper ------------------------ */
-
-  // When user changes architectural style, we can apply its template rooms.
-  // We fetch current rooms on demand (so this page doesn’t own the rooms state).
-  const fetchCurrentRooms = async (): Promise<
-    { id: string; name?: string; type?: string }[]
-  > => {
-    const { data } = await api.get("/rooms", { params: { homeId } });
-    return Array.isArray(data) ? data : [];
-  };
-
-  const createRoom = async (name: string, type: string, floor?: number) => {
-    const payload = {
-      homeId,
-      name: name || "New Room",
-      type: type || "Other",
-      floor: typeof floor === "number" ? floor : 1,
-    };
-    await api.post("/rooms", payload);
-  };
-
-  const applyTemplateRooms = async (style: string) => {
-    const template = (HOUSE_ROOM_TEMPLATES as any)?.[style] || [];
-    const existing = await fetchCurrentRooms();
-    const existingNames = new Set(
-      existing.map((r) => (r.name || "").trim().toLowerCase())
-    );
-    for (const t of template) {
-      if (!existingNames.has((t.name || "").trim().toLowerCase())) {
-        // eslint-disable-next-line no-await-in-loop
-        await createRoom(t.name, t.type, t.floor);
-      }
-    }
-  };
-
-  const handleStyleChange = async (nextStyle: string) => {
-    if (!home) return;
-    setHome({ ...home, architecturalStyle: nextStyle || null });
-
-    const proceed =
-      nextStyle &&
-      window.confirm(
-        "Add rooms from the selected style template? (Existing rooms are kept; duplicates are skipped.)"
-      );
-    if (!proceed || !nextStyle) return;
-
-    await applyTemplateRooms(nextStyle);
-    toast({
-      title: "Template rooms added",
-      description: `Applied template for ${nextStyle}.`,
-    });
   };
 
   /* ----------------------------- Features ----------------------------- */
@@ -412,21 +494,11 @@ export default function Home() {
     );
   }, [features, dismissed]);
 
-  const acceptSuggestion = (s: string) => {
-    toggleCuratedFeature(s);
-    toast({ title: "Added", description: `"${s}" added to features.` });
-  };
-
-  const dismissSuggestion = (s: string) => {
-    const next = Array.from(new Set([...dismissed, s]));
-    setDismissed(next);
-    if (home?.id) {
-      try {
-        localStorage.setItem(dismissedKey(home.id), JSON.stringify(next));
-      } catch {
-        /* ignore */
-      }
-    }
+  const activeTab = (search.get("tab") as TabKey) || "overview";
+  const setTab = (t: TabKey) => {
+    const n = new URLSearchParams(search);
+    n.set("tab", t);
+    setSearch(n, { replace: true });
   };
 
   /* ------------------------------- UI -------------------------------- */
@@ -442,16 +514,18 @@ export default function Home() {
   return (
     <div className="p-6 max-w-6xl">
       {/* Header + Address */}
-      <div className="mb-6">
+      <div className="mb-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold">Edit Home</h1>
-          <div className="space-x-2 flex items-center">
+          <h1 className="text-2xl font-bold">🏡 Home</h1>
+          <div className="flex items-center space-x-2">
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
                 className="h-4 w-4"
                 checked={!!home.isChecked}
-                onChange={(e) => setHome({ ...home, isChecked: e.target.checked })}
+                onChange={(e) =>
+                  setHome({ ...home, isChecked: e.target.checked })
+                }
               />
               <span>Include in tasks</span>
             </label>
@@ -495,315 +569,335 @@ export default function Home() {
         </div>
 
         <div className="mt-1 text-sm text-muted-foreground">
-          {home ? renderAddressLine(home) : "No address on file"}
+          {renderAddressLine(home) || "No address on file"}
         </div>
       </div>
 
-      {/* Photo + uploader + map */}
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-        <div className="md:col-span-1">
-          <div className="rounded-lg border p-3 space-y-3">
-            <HomePhotoDropzone
-              homeId={home.id}
-              imageUrl={home.imageUrl || undefined}
-              onUploaded={(abs) => {
-                setHome({ ...home, imageUrl: abs });
-                toast({ title: "Photo updated", description: "Main photo replaced." });
-              }}
-              className="aspect-[4/3] w-full rounded overflow-hidden bg-muted/40"
-            />
-
-            <MapboxAddress
-              addressLine={fullAddress || ""}
-              className="h-56 w-full rounded-lg border"
-            />
-          </div>
-        </div>
-
-        {/* Basics */}
-        <div className="md:col-span-2 grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div>
-            <label htmlFor="nickname" className="block text-sm font-medium mb-1">
-              Nickname
-            </label>
-            <Input
-              id="nickname"
-              value={home.nickname || ""}
-              onChange={(e) => setHome({ ...home, nickname: e.target.value })}
-              autoComplete="off"
-              spellCheck={false}
-            />
-          </div>
-
-          <div>
-            <label htmlFor="apartment" className="block text-sm font-medium mb-1">
-              Apartment / Unit
-            </label>
-            <Input
-              id="apartment"
-              value={home.apartment || ""}
-              onChange={(e) => setHome({ ...home, apartment: e.target.value })}
-              autoComplete="off"
-              spellCheck={false}
-            />
-          </div>
-
-          <div>
-            <label htmlFor="style" className="block text-sm font-medium mb-1">
-              Architectural Style
-            </label>
-            <select
-              id="style"
-              value={home.architecturalStyle || ""}
-              onChange={(e) => handleStyleChange(e.target.value)}
-              className="w-full border rounded px-3 py-2 text-sm"
+      {/* Tabs */}
+      <div className="mb-4">
+        <div role="tablist" aria-label="Home sections" className="flex flex-wrap gap-2 border-b">
+          {TABS.map((t) => (
+            <button
+              key={t.key}
+              role="tab"
+              aria-selected={activeTab === t.key}
+              className={`px-3 py-2 text-sm -mb-px border-b-2 ${activeTab === t.key
+                  ? "border-blue-600 text-blue-700 font-semibold"
+                  : "border-transparent text-gray-600 hover:text-blue-700"
+                }`}
+              onClick={() => setTab(t.key)}
             >
-              <option value="">(Select style)</option>
-              {Object.entries(ARCHITECTURAL_STYLES).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {String(label)}
-                </option>
-              ))}
-            </select>
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Tab Panels */}
+      {activeTab === "overview" && (
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+          {/* Photo + map */}
+          <div className="md:col-span-1">
+            <div className="space-y-3 rounded-lg border p-3">
+              <HomePhotoDropzone
+                homeId={home.id}
+                imageUrl={home.imageUrl || undefined}
+                onUploaded={(abs) => {
+                  setHome({ ...home, imageUrl: abs });
+                  toast({ title: "Photo updated", description: "Main photo replaced." });
+                }}
+                className="aspect-[4/3] w-full overflow-hidden rounded bg-muted/40"
+              />
+
+              <MapboxAddress
+                addressLine={fullAddress || ""}
+                className="h-56 w-full rounded-lg border"
+              />
+            </div>
           </div>
 
-          <div>
-            <label htmlFor="yearBuilt" className="block text-sm font-medium mb-1">
-              Year Built
-            </label>
-            <Input
-              id="yearBuilt"
-              type="number"
-              inputMode="numeric"
-              value={home.yearBuilt ?? ""}
-              onChange={(e) =>
-                setHome({
-                  ...home,
-                  yearBuilt: e.target.value ? Number(e.target.value) : undefined,
-                })
-              }
-              placeholder="e.g., 1997"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="squareFeet" className="block text-sm font-medium mb-1">
-              Square Feet
-            </label>
-            <Input
-              id="squareFeet"
-              type="number"
-              inputMode="numeric"
-              value={home.squareFeet ?? ""}
-              onChange={(e) =>
-                setHome({
-                  ...home,
-                  squareFeet: e.target.value ? Number(e.target.value) : undefined,
-                })
-              }
-              placeholder="e.g., 2500"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="lotSize" className="block text-sm font-medium mb-1">
-              Lot Size ({lotUnit === "acres" ? "acres" : "sqft"})
-            </label>
-            <div className="flex gap-2">
+          {/* Basics */}
+          <div className="grid grid-cols-1 gap-4 md:col-span-2 md:grid-cols-2">
+            <div>
+              <label htmlFor="nickname" className="mb-1 block text-sm font-medium">Nickname</label>
               <Input
-                id="lotSize"
+                id="nickname"
+                value={home.nickname || ""}
+                onChange={(e) => setHome({ ...home, nickname: e.target.value })}
+                autoComplete="off"
+                spellCheck={false}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="apartment" className="mb-1 block text-sm font-medium">Apartment / Unit</label>
+              <Input
+                id="apartment"
+                value={home.apartment || ""}
+                onChange={(e) => setHome({ ...home, apartment: e.target.value })}
+                autoComplete="off"
+                spellCheck={false}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="style" className="mb-1 block text-sm font-medium">Architectural Style</label>
+              <select
+                id="style"
+                value={home.architecturalStyle || ""}
+                onChange={(e) => handleStyleChange(e.target.value)}
+                className="w-full rounded border px-3 py-2 text-sm"
+              >
+                <option value="">(Select style)</option>
+                {Object.entries(ARCHITECTURAL_STYLES).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {String(label)}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="yearBuilt" className="mb-1 block text-sm font-medium">Year Built</label>
+              <Input
+                id="yearBuilt"
                 type="number"
                 inputMode="numeric"
-                value={home.lotSize ?? ""}
+                value={home.yearBuilt ?? ""}
                 onChange={(e) =>
                   setHome({
                     ...home,
-                    lotSize: e.target.value ? Number(e.target.value) : undefined,
+                    yearBuilt: e.target.value ? Number(e.target.value) : undefined,
                   })
                 }
-                placeholder={lotUnit === "acres" ? "e.g., 0.5" : "e.g., 20000"}
+                placeholder="e.g., 1997"
               />
-              <select
-                className="border rounded px-2 text-sm"
-                value={lotUnit}
-                onChange={(e) => {
-                  const next = e.target.value as "acres" | "sqft";
-                  if (
-                    home.lotSize != null &&
-                    !Number.isNaN(Number(home.lotSize))
-                  ) {
-                    const v = Number(home.lotSize);
-                    const converted =
-                      next === "sqft" ? Math.round(acresToSqft(v)) : sqftToAcres(v);
-                    setHome({ ...home, lotSize: converted });
+            </div>
+
+            <div>
+              <label htmlFor="squareFeet" className="mb-1 block text-sm font-medium">Square Feet</label>
+              <Input
+                id="squareFeet"
+                type="number"
+                inputMode="numeric"
+                value={home.squareFeet ?? ""}
+                onChange={(e) =>
+                  setHome({
+                    ...home,
+                    squareFeet: e.target.value ? Number(e.target.value) : undefined,
+                  })
+                }
+                placeholder="e.g., 2500"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="lotSize" className="mb-1 block text-sm font-medium">
+                Lot Size ({lotUnit === "acres" ? "acres" : "sqft"})
+              </label>
+              <div className="flex gap-2">
+                <Input
+                  id="lotSize"
+                  type="number"
+                  inputMode="numeric"
+                  value={home.lotSize ?? ""}
+                  onChange={(e) =>
+                    setHome({
+                      ...home,
+                      lotSize: e.target.value ? Number(e.target.value) : undefined,
+                    })
                   }
-                  setLotUnit(next);
-                }}
+                  placeholder={lotUnit === "acres" ? "e.g., 0.5" : "e.g., 20000"}
+                />
+                <select
+                  className="rounded border px-2 text-sm"
+                  value={lotUnit}
+                  onChange={(e) => {
+                    const next = e.target.value as "acres" | "sqft";
+                    if (home.lotSize != null && !Number.isNaN(Number(home.lotSize))) {
+                      const v = Number(home.lotSize);
+                      const converted = next === "sqft" ? Math.round(acresToSqft(v)) : sqftToAcres(v);
+                      setHome({ ...home, lotSize: converted });
+                    }
+                    setLotUnit(next);
+                  }}
+                >
+                  <option value="acres">acres</option>
+                  <option value="sqft">sqft</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium">Roof Type</label>
+              <select
+                value={home.roofType || ""}
+                onChange={(e) => setHome({ ...home, roofType: e.target.value || undefined })}
+                className="w-full rounded border px-3 py-2 text-sm"
               >
-                <option value="acres">acres</option>
-                <option value="sqft">sqft</option>
+                <option value="">(Select…)</option>
+                {ROOF_TYPES.map((x) => (
+                  <option key={x} value={x}>{x}</option>
+                ))}
               </select>
             </div>
-          </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-1">Roof Type</label>
-            <select
-              value={home.roofType || ""}
-              onChange={(e) =>
-                setHome({ ...home, roofType: e.target.value || undefined })
-              }
-              className="w-full border rounded px-3 py-2 text-sm"
-            >
-              <option value="">(Select…)</option>
-              {ROOF_TYPES.map((x) => (
-                <option key={x} value={x}>
-                  {x}
-                </option>
-              ))}
-            </select>
-          </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium">Siding Type</label>
+              <select
+                value={home.sidingType || ""}
+                onChange={(e) => setHome({ ...home, sidingType: e.target.value || undefined })}
+                className="w-full rounded border px-3 py-2 text-sm"
+              >
+                <option value="">(Select…)</option>
+                {SIDING_TYPES.map((x) => (
+                  <option key={x} value={x}>{x}</option>
+                ))}
+              </select>
+            </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-1">Siding Type</label>
-            <select
-              value={home.sidingType || ""}
-              onChange={(e) =>
-                setHome({ ...home, sidingType: e.target.value || undefined })
-              }
-              className="w-full border rounded px-3 py-2 text-sm"
-            >
-              <option value="">(Select…)</option>
-              {SIDING_TYPES.map((x) => (
-                <option key={x} value={x}>
-                  {x}
-                </option>
-              ))}
-            </select>
-          </div>
+            <div className="col-span-full">
+              <div className="mt-3 flex flex-wrap gap-6 text-sm">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4"
+                    checked={!!home.hasCentralAir}
+                    onChange={(e) => setHome({ ...home, hasCentralAir: e.target.checked })}
+                  />
+                  <span>Central Air</span>
+                </label>
 
-          <div className="col-span-full">
-            <div className="mt-3 flex flex-wrap gap-6 text-sm">
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4"
-                  checked={!!home.hasCentralAir}
-                  onChange={(e) =>
-                    setHome({ ...home, hasCentralAir: e.target.checked })
-                  }
-                />
-                <span>Central Air</span>
-              </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4"
+                    checked={!!home.hasBaseboard}
+                    onChange={(e) => setHome({ ...home, hasBaseboard: e.target.checked })}
+                  />
+                  <span>Baseboard Heating</span>
+                </label>
 
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4"
-                  checked={!!home.hasBaseboard}
-                  onChange={(e) =>
-                    setHome({ ...home, hasBaseboard: e.target.checked })
-                  }
-                />
-                <span>Baseboard Heating</span>
-              </label>
-
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4"
-                  checked={!!home.hasHeatPump}
-                  onChange={(e) =>
-                    setHome({ ...home, hasHeatPump: e.target.checked })
-                  }
-                />
-                <span>Heat Pump</span>
-              </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4"
+                    checked={!!home.hasHeatPump}
+                    onChange={(e) => setHome({ ...home, hasHeatPump: e.target.checked })}
+                  />
+                  <span>Heat Pump</span>
+                </label>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Features */}
-      <div className="mt-8 rounded-lg border p-4">
-        <h2 className="mb-3 text-lg font-semibold">Features</h2>
+      {activeTab === "features" && (
+        <div className="rounded-lg border p-4">
+          <h2 className="mb-3 text-lg font-semibold">Features</h2>
 
-        {/* Selected features summary */}
-        <div className="mb-3">
-          <div className="text-sm font-medium mb-2">Selected</div>
-          {features.length ? (
+          {/* Selected */}
+          <div className="mb-3">
+            <div className="mb-2 text-sm font-medium">Selected</div>
+            {features.length ? (
+              <div className="flex flex-wrap gap-2">
+                {features.map((f) => (
+                  <FeatureChip
+                    key={`sel-${f}`}
+                    label={f}
+                    selected={true}
+                    onToggle={() => toggleCuratedFeature(f)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="text-sm text-muted-foreground">
+                No features yet. Pick from the list below or add your own.
+              </div>
+            )}
+          </div>
+
+          <div className="my-3 h-px bg-muted" />
+
+          {/* Curated list */}
+          <div className="mb-4">
+            <div className="mb-2 text-sm font-medium">Quick add</div>
             <div className="flex flex-wrap gap-2">
-              {features.map((f) => (
+              {FEATURE_SUGGESTIONS.map((f) => (
                 <FeatureChip
-                  key={`sel-${f}`}
+                  key={`cur-${f}`}
                   label={f}
-                  selected={true}
+                  selected={features.includes(f)}
                   onToggle={() => toggleCuratedFeature(f)}
                 />
               ))}
             </div>
-          ) : (
-            <div className="text-sm text-muted-foreground">
-              No features yet. Pick from the list below or add your own.
-            </div>
-          )}
-        </div>
-
-        <div className="h-px bg-muted my-3" />
-
-        {/* Curated list */}
-        <div className="mb-4">
-          <div className="text-sm font-medium mb-2">Quick add</div>
-          <div className="flex flex-wrap gap-2">
-            {FEATURE_SUGGESTIONS.map((f) => (
-              <FeatureChip
-                key={`cur-${f}`}
-                label={f}
-                selected={features.includes(f)}
-                onToggle={() => toggleCuratedFeature(f)}
-              />
-            ))}
           </div>
-        </div>
 
-        {/* Suggest a feature */}
-        <div className="mt-4 flex gap-2 items-center">
-          <Input
-            id="suggestFeature"
-            placeholder='Suggest a feature (e.g., "Greenhouse", "Hangar Bay")'
-            onKeyDown={async (e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                const val = (e.target as HTMLInputElement).value.trim();
+          {/* Suggest a feature */}
+          <div className="mt-4 flex items-center gap-2">
+            <Input
+              id="suggestFeature"
+              placeholder='Suggest a feature (e.g., "Greenhouse", "Hangar Bay")'
+              onKeyDown={async (e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  const val = (e.target as HTMLInputElement).value.trim();
+                  if (val) {
+                    await submitFeatureSuggestion(val);
+                    (e.target as HTMLInputElement).value = "";
+                  }
+                }
+              }}
+            />
+            <Button
+              variant="outline"
+              onClick={async () => {
+                const el = document.getElementById("suggestFeature") as HTMLInputElement;
+                const val = el?.value.trim();
                 if (val) {
                   await submitFeatureSuggestion(val);
-                  (e.target as HTMLInputElement).value = "";
+                  el.value = "";
                 }
-              }
-            }}
-          />
-          <Button
-            variant="outline"
-            onClick={async () => {
-              const el = document.getElementById(
-                "suggestFeature"
-              ) as HTMLInputElement;
-              const val = el?.value.trim();
-              if (val) {
-                await submitFeatureSuggestion(val);
-                el.value = "";
-              }
-            }}
-          >
-            Submit
-          </Button>
+              }}
+            >
+              Submit
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Rooms (floor-bucket UI lives inside RoomsPanel) */}
-      <div className="mt-8 rounded-lg border p-4">
-        <RoomsPanel homeId={home.id} />
-      </div>
+      {activeTab === "rooms" && (
+        <div className="space-y-4 rounded-lg border p-4">
+          <h2 className="text-lg font-semibold">Rooms</h2>
+          <p className="text-sm text-muted-foreground">
+            Drag to move between floors and reorder. Click a room to edit on its own page.
+          </p>
+          <RoomsPanel homeId={home.id} />
+        </div>
+      )}
+
+      {activeTab === "lawn" && (
+        <div className="rounded-lg border p-4">
+          <h2 className="text-lg font-semibold">Lawn & Exterior</h2>
+          <p className="text-sm text-muted-foreground">Coming soon—tie lawn schedules and exterior items to this home.</p>
+        </div>
+      )}
+
+      {activeTab === "services" && (
+        <div className="rounded-lg border p-4">
+          <h2 className="text-lg font-semibold">Services</h2>
+          <p className="text-sm text-muted-foreground">Keep your HVAC, boiler, and other service providers here. (MVP item.)</p>
+        </div>
+      )}
+
+      {activeTab === "docs" && (
+        <div className="rounded-lg border p-4">
+          <h2 className="text-lg font-semibold">Photos & Docs</h2>
+          <p className="text-sm text-muted-foreground">Upload invoices, warranties, manuals, etc. (MVP item.)</p>
+        </div>
+      )}
     </div>
   );
 }

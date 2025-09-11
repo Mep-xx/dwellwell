@@ -14,8 +14,6 @@ if (!clientId) {
   console.error('VITE_GOOGLE_CLIENT_ID is not set');
 }
 
-console.log('GIS clientId:', import.meta.env.VITE_GOOGLE_CLIENT_ID, 'origin:', window.location.origin);
-
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <GoogleOAuthProvider clientId={clientId!}>

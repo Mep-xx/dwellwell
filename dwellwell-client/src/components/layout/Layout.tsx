@@ -1,4 +1,4 @@
-//dwellwell-client/src/components/layout/Layout.tsx
+// dwellwell-client/src/components/layout/Layout.tsx
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';

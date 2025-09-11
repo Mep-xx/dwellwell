@@ -1,4 +1,4 @@
-// src/middleware/requireAuth.ts
+//dwellwell-api/src/middleware/requireAuth.ts
 import type { Request, Response, NextFunction } from 'express';
 import jwt, { JwtPayload, TokenExpiredError } from 'jsonwebtoken';
 

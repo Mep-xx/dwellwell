@@ -1,4 +1,4 @@
-//dwellwell-client/src/router/AppRoutes.tsx
+// dwellwell-client/src/router/AppRoutes.tsx
 import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 
@@ -8,11 +8,13 @@ import Login from '@/pages/Login';
 import Signup from '@/pages/Signup';
 import Dashboard from '@/pages/Dashboard';
 import Homes from '@/pages/Homes';
-import Home from "@/pages/Home";
+import Home from '@/pages/Home';
 import Trackables from '@/pages/Trackables';
-import Lawn from '@/pages/Lawn';
 import Vehicles from '@/pages/Vehicles';
 import AdminUsers from '@/pages/admin/AdminUsers';
+import Billing from '@/pages/Billing';
+import Settings from '@/pages/Settings';
+import Room from '@/pages/Room';
 
 // layouts
 import Layout from '@/components/layout/Layout';
@@ -21,8 +23,6 @@ import AdminDashboard from '@/pages/admin/AdminDashboard';
 import AdminTaskTemplates from '@/pages/admin/AdminTaskTemplates';
 import AdminHomes from '@/pages/admin/AdminHomes';
 import AdminTrackables from '@/pages/admin/AdminTrackables';
-import Billing from '@/pages/Billing';
-import Settings from '@/pages/Settings';
 
 import RequireAuth from './RequireAuth';
 
@@ -53,9 +53,13 @@ export default function AppRoutes() {
           <Route path="/app" element={<Dashboard />} />
           <Route path="/app/homes" element={<Homes />} />
           <Route path="/app/homes/:id" element={<Home />} />
+          <Route path="/app/rooms/:roomId" element={<Room />} />
           <Route path="/app/trackables" element={<Trackables />} />
-          <Route path="/app/lawn" element={<Lawn />} />
           <Route path="/app/vehicles" element={<Vehicles />} />
+
+          {/* Account */}
+          <Route path="/app/settings" element={<Settings />} />
+          <Route path="/app/billing" element={<Billing />} />
 
           {/* Admin */}
           <Route path="/admin/AdminDashboard" element={<AdminDashboard />} />
@@ -64,9 +68,11 @@ export default function AppRoutes() {
           <Route path="/admin/AdminHomes" element={<AdminHomes />} />
           <Route path="/admin/AdminTrackables" element={<AdminTrackables />} />
 
-          {/* Account */}
-          <Route path="/app/Settings" element={<Settings />} />
-          <Route path="/app/Billing" element={<Billing />} />
+          {/* Legacy redirects */}
+          <Route path="/app/homes/:id/edit" element={<Navigate to="/app/homes/:id" replace />} />
+          <Route path="/homes/:id/edit" element={<Navigate to="/app/homes/:id" replace />} />
+          <Route path="/homes" element={<Navigate to="/app/homes" replace />} />
+          <Route path="/app/room/:id" element={<Navigate to="/app/rooms/:id" replace />} />
         </Route>
       </Route>
 

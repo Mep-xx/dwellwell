@@ -1,3 +1,4 @@
+// src/components/RoomsPanel.tsx
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   DndContext,
@@ -15,12 +16,12 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { SortableRoomCard } from '@/components/SortableRoomCard';
-import { EditRoomModal } from '@/components/EditRoomModal';
 import { api } from '@/utils/api';
 import type { Room } from '@shared/types/room';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import clsx from 'clsx';
+import { useNavigate } from 'react-router-dom';
 
 /* ================= Floor buckets (Basement→Other) ================= */
 
@@ -28,11 +29,11 @@ type FloorKey = -1 | 1 | 2 | 3 | 99 | 0;
 
 const BUCKETS: { key: FloorKey; id: string; label: string; hint?: string }[] = [
   { key: -1, id: 'floor:-1', label: 'Basement' },
-  { key: 1,  id: 'floor:1',  label: '1st Floor' },
-  { key: 2,  id: 'floor:2',  label: '2nd Floor' },
-  { key: 3,  id: 'floor:3',  label: '3rd Floor' },
+  { key: 1, id: 'floor:1', label: '1st Floor' },
+  { key: 2, id: 'floor:2', label: '2nd Floor' },
+  { key: 3, id: 'floor:3', label: '3rd Floor' },
   { key: 99, id: 'floor:99', label: 'Attic' },
-  { key: 0,  id: 'floor:0',  label: 'Other', hint: 'Garage, exterior, etc.' },
+  { key: 0, id: 'floor:0', label: 'Other', hint: 'Garage, exterior, etc.' },
 ];
 
 const bucketIdSet = new Set(BUCKETS.map(b => b.id));
@@ -59,21 +60,17 @@ function flatten(map: Map<FloorKey, Room[]>) {
 
 /** Find the index to insert a new room (for a given floor) in the flat array. */
 function findInsertIndexForFloor(flat: Room[], floor: FloorKey): number {
-  // 1) after the last item of this bucket, if any
   let lastIdx = -1;
   for (let i = 0; i < flat.length; i++) {
     if (keyForFloor((flat[i] as any).floor) === floor) lastIdx = i;
   }
   if (lastIdx >= 0) return lastIdx + 1;
 
-  // 2) before the first item of the next bucket (by bucket order)
   const thisOrder = bucketOrderIndex.get(floor)!;
   for (let i = 0; i < flat.length; i++) {
     const order = bucketOrderIndex.get(keyForFloor((flat[i] as any).floor))!;
     if (order > thisOrder) return i;
   }
-
-  // 3) otherwise append to end
   return flat.length;
 }
 
@@ -124,7 +121,6 @@ function DroppableSection({
         )}
       >
         {roomCount === 0 ? (
-          // Big dashed CTA when empty (centered)
           <button
             type="button"
             onClick={onAdd}
@@ -137,7 +133,6 @@ function DroppableSection({
         ) : (
           <>
             {children}
-            {/* Subtle dashed “add” strip at bottom when section already has items */}
             <button
               type="button"
               onClick={onAdd}
@@ -159,22 +154,17 @@ type Props = { homeId: string };
 
 export function RoomsPanel({ homeId }: Props) {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
-
-  // Edit modal state
-  const [editing, setEditing] = useState<Room | null>(null);
-  const [modalOpen, setModalOpen] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
   );
 
-  // drag bookkeeping
   const activeIdRef = useRef<UniqueIdentifier | null>(null);
   const fromContainerRef = useRef<string | null>(null);
 
-  // initial load (include details for summary chips)
   useEffect(() => {
     (async () => {
       setLoading(true);
@@ -192,10 +182,8 @@ export function RoomsPanel({ homeId }: Props) {
     setRooms(data);
   };
 
-  // group into buckets (in current list order)
   const buckets = useMemo(() => groupByBucket(rooms), [rooms]);
 
-  // helpers to locate a container for an item
   function findContainerIdForItem(id: UniqueIdentifier): string | null {
     for (const { key, id: containerId } of BUCKETS) {
       const arr = buckets.get(key) ?? [];
@@ -203,8 +191,6 @@ export function RoomsPanel({ homeId }: Props) {
     }
     return null;
   }
-
-  /* ----- Create in bucket ----- */
 
   const addRoomInFloor = async (floor: FloorKey) => {
     try {
@@ -219,7 +205,6 @@ export function RoomsPanel({ homeId }: Props) {
         const next = [...prev];
         const insertAt = findInsertIndexForFloor(prev, floor);
         next.splice(insertAt, 0, created);
-        // persist order
         api.put('/rooms/reorder', { homeId, roomIds: next.map((r: any) => r.id) })
           .catch(() => {/* no-op */});
         return next;
@@ -228,8 +213,6 @@ export function RoomsPanel({ homeId }: Props) {
       toast({ title: 'Could not add room', variant: 'destructive' });
     }
   };
-
-  /* ----- DnD handlers ----- */
 
   const onDragStart = (e: DragStartEvent) => {
     activeIdRef.current = e.active.id;
@@ -253,34 +236,28 @@ export function RoomsPanel({ homeId }: Props) {
     const fromKey = bucketKeyById.get(fromContainer)!;
     const toKey = bucketKeyById.get(toContainer)!;
 
-    // clone working buckets
     const working = new Map<FloorKey, Room[]>();
     BUCKETS.forEach(({ key }) => working.set(key, [...(buckets.get(key) ?? [])]));
 
-    // remove from source
     const src = working.get(fromKey)!;
     const fromIdx = (src as any[]).findIndex((r) => (r as any).id === activeId);
     if (fromIdx < 0) return;
     const [moved] = (src as any[]).splice(fromIdx, 1);
 
-    // compute destination index
     const dest = working.get(toKey)!;
     let destIdx = 0;
     if (bucketIdSet.has(overId)) {
-      destIdx = dest.length; // empty area -> append
+      destIdx = dest.length;
     } else {
       const overIdx = (dest as any[]).findIndex((r) => (r as any).id === overId);
       destIdx = overIdx < 0 ? dest.length : overIdx;
     }
 
-    // insert and update floor if bucket changed
     (dest as any[]).splice(destIdx, 0, { ...(moved as any), floor: toKey });
 
-    // flatten to global order and apply optimistically
     const nextFlat = flatten(working);
     setRooms(nextFlat);
 
-    // persist: (1) floor (if bucket changed) (2) global order
     try {
       if (fromKey !== toKey) {
         await api.put(`/rooms/${activeId}`, { floor: toKey });
@@ -295,13 +272,10 @@ export function RoomsPanel({ homeId }: Props) {
     }
   };
 
-  /* ----- Render ----- */
-
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold">Rooms ({rooms.length})</h3>
-        {/* keep a global add (defaults to 1st floor) */}
         <Button onClick={() => addRoomInFloor(1)}>+ Add Room</Button>
       </div>
 
@@ -329,13 +303,10 @@ export function RoomsPanel({ homeId }: Props) {
                           id={r.id}
                           room={r}
                           onChange={(patch) => {
-                            // local patch; position left intact
                             setRooms(prev => prev.map((x: any) => (x.id === r.id ? { ...x, ...patch } : x)));
                           }}
-                          onEdit={() => {
-                            setEditing(r);
-                            setModalOpen(true);
-                          }}
+                          // Edit button -> go straight to Room page
+                          onEdit={() => navigate(`/app/rooms/${r.id}`, { state: { room: r } })}
                           onRemove={async () => {
                             const prior = rooms as any[];
                             setRooms(pr => (pr as any[]).filter((x: any) => x.id !== r.id) as any);
@@ -355,17 +326,6 @@ export function RoomsPanel({ homeId }: Props) {
           </div>
         </DndContext>
       )}
-
-      {/* Edit modal (opens from card) */}
-      <EditRoomModal
-        room={editing as any}
-        isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
-        onSave={async () => {
-          await reloadRooms();
-          setModalOpen(false);
-        }}
-      />
     </div>
   );
 }

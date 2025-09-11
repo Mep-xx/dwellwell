@@ -25,7 +25,7 @@ type Props = {
   onDelete: (homeId: string) => void;
 };
 
-function resolveHomeImageUrl(v?: string) {
+function resolveHomeImageUrl(v?: string | null ) {
   const PLACEHOLDER = "/images/home_placeholder.png";
   if (!v) return PLACEHOLDER;
 

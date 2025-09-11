@@ -1,4 +1,4 @@
-//dwellwell-client/src/components/layout/ProtectedLayout.tsx
+// dwellwell-client/src/components/layout/ProtectedLayout.tsx
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useMemo } from 'react';
 import { useAuth } from '@/context/AuthContext';
@@ -39,16 +39,13 @@ export default function ProtectedLayout() {
           {/* Main nav (use /app/* paths) */}
           <nav className="p-4 space-y-2 flex-1">
             <NavLink to="/app" className={({ isActive }) => navLinkClasses(isActive)}>
-              Dashboard
+              🏠 Dashboard
             </NavLink>
             <NavLink to="/app/homes" className={({ isActive }) => navLinkClasses(isActive)}>
-              🏠 Homes
+              🏡 Homes
             </NavLink>
             <NavLink to="/app/trackables" className={({ isActive }) => navLinkClasses(isActive)}>
               🔧 Trackables
-            </NavLink>
-            <NavLink to="/app/lawn" className={({ isActive }) => navLinkClasses(isActive)}>
-              🌿 Lawn
             </NavLink>
             <NavLink to="/app/vehicles" className={({ isActive }) => navLinkClasses(isActive)}>
               🚗 Vehicles
@@ -60,18 +57,6 @@ export default function ProtectedLayout() {
                 <p className="text-xs uppercase text-gray-400">Admin</p>
                 <NavLink to="/admin/AdminDashboard" className={({ isActive }) => navLinkClasses(isActive)}>
                   📊 Admin Dashboard
-                </NavLink>
-                <NavLink to="/admin/AdminTaskTemplates" className={({ isActive }) => navLinkClasses(isActive)}>
-                  🗂 Task Templates
-                </NavLink>
-                <NavLink to="/admin/AdminUsers" className={({ isActive }) => navLinkClasses(isActive)}>
-                  👥 Users
-                </NavLink>
-                <NavLink to="/admin/AdminHomes" className={({ isActive }) => navLinkClasses(isActive)}>
-                  🏘 Homes
-                </NavLink>
-                <NavLink to="/admin/AdminTrackables" className={({ isActive }) => navLinkClasses(isActive)}>
-                  📚 Trackables (Resources)
                 </NavLink>
               </div>
             )}
