@@ -154,7 +154,20 @@ export default function RoomPage() {
   const [newType, setNewType] = useState("");
 
   /* ------------------------------- Autosave ------------------------------- */
-  const { saving: autosaveStatus, savedPulse, scheduleSave } = useRoomAutosave(roomId);
+  const { saving: autosaveStatus, savedPulse, scheduleSave, flushNow } =
+    useRoomAutosave(roomId);
+
+  // Bind Cmd/Ctrl+S to flush immediately
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        void flushNow();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [flushNow]);
 
   /* ------------------------------- Load ------------------------------- */
 
@@ -373,6 +386,11 @@ export default function RoomPage() {
                 ].join(" ")}
               >
                 {savingBadge}
+                {autosaveStatus === "error" ? (
+                  <button className="ml-2 underline" onClick={() => void flushNow()}>
+                    Retry
+                  </button>
+                ) : null}
               </span>
             ) : null}
 
@@ -406,9 +424,9 @@ export default function RoomPage() {
                   placeholder="New trackable name (e.g., Air Filter)"
                 />
                 <Input
-                  value={newType}
-                  onChange={(e) => setNewType(e.target.value)}
-                  placeholder="Type (optional)"
+                    value={newType}
+                    onChange={(e) => setNewType(e.target.value)}
+                    placeholder="Type (optional)"
                 />
                 <Button onClick={addTrackable}>
                   <Plus className="mr-1 h-4 w-4" />
@@ -465,6 +483,7 @@ export default function RoomPage() {
                 setRoom({ ...room, name: val });
                 scheduleSave({ name: val });
               }}
+              onBlur={() => void flushNow()}
               placeholder="e.g., Primary Bathroom"
               className="mb-3"
             />
@@ -477,6 +496,7 @@ export default function RoomPage() {
                 setRoom({ ...room, type: val });
                 scheduleSave({ type: val });
               }}
+              onBlur={() => void flushNow()}
               placeholder="e.g., Bathroom"
               className="mb-3"
             />
@@ -491,6 +511,7 @@ export default function RoomPage() {
                 setRoom({ ...room, floor: num });
                 scheduleSave({ floor: num });
               }}
+              onBlur={() => void flushNow()}
               placeholder="1"
             />
           </div>
@@ -507,6 +528,7 @@ export default function RoomPage() {
                 setRoom((r) => ({ ...(r as Room), detail: { ...(r?.detail || {}), flooring: v } }));
                 scheduleSave({ details: { flooring: v } });
               }}
+              onBlur={() => void flushNow()}
               className="mb-3 w-full rounded border px-3 py-2 text-sm"
             >
               <option value="">(Select…)</option>
@@ -528,6 +550,7 @@ export default function RoomPage() {
                 setRoom((r) => ({ ...(r as Room), detail: { ...(r?.detail || {}), wallFinish: v } }));
                 scheduleSave({ details: { wallFinish: v } });
               }}
+              onBlur={() => void flushNow()}
               className="mb-3 w-full rounded border px-3 py-2 text-sm"
             >
               <option value="">(Select…)</option>
@@ -546,6 +569,7 @@ export default function RoomPage() {
                 setRoom((r) => ({ ...(r as Room), detail: { ...(r?.detail || {}), ceilingType: v } }));
                 scheduleSave({ details: { ceilingType: v } });
               }}
+              onBlur={() => void flushNow()}
               className="w-full rounded border px-3 py-2 text-sm"
             >
               <option value="">(Select…)</option>
@@ -569,6 +593,7 @@ export default function RoomPage() {
                 setRoom((r) => ({ ...(r as Room), detail: { ...(r?.detail || {}), windowType: v } }));
                 scheduleSave({ details: { windowType: v } });
               }}
+              onBlur={() => void flushNow()}
               className="mb-3 w-full rounded border px-3 py-2 text-sm"
             >
               <option value="">(Select…)</option>
@@ -594,6 +619,7 @@ export default function RoomPage() {
                 setRoom((r) => ({ ...(r as Room), detail: { ...(r?.detail || {}), windowCount: v } }));
                 scheduleSave({ details: { windowCount: v } });
               }}
+              onBlur={() => void flushNow()}
               className="mb-3"
             />
 
@@ -608,6 +634,7 @@ export default function RoomPage() {
                   setRoom((r) => ({ ...(r as Room), detail: { ...(r?.detail || {}), hasExteriorDoor: v } }));
                   scheduleSave({ details: { hasExteriorDoor: v } });
                 }}
+                onBlur={() => void flushNow()}
               />
               <span className="text-sm text-muted-foreground">Has exterior door</span>
             </div>
@@ -635,6 +662,7 @@ export default function RoomPage() {
                     }));
                     scheduleSave({ details: { [key]: v } as any });
                   }}
+                  onBlur={() => void flushNow()}
                 />
                 <span>{label}</span>
               </label>
@@ -655,6 +683,7 @@ export default function RoomPage() {
                     }));
                     scheduleSave({ details: { hvacSupplyVents: v } });
                   }}
+                  onBlur={() => void flushNow()}
                 />
               </div>
               <div>
@@ -671,6 +700,7 @@ export default function RoomPage() {
                     }));
                     scheduleSave({ details: { hvacReturnVents: v } });
                   }}
+                  onBlur={() => void flushNow()}
                 />
               </div>
             </div>
@@ -686,6 +716,7 @@ export default function RoomPage() {
                 }));
                 scheduleSave({ details: { ceilingFixture: v } });
               }}
+              onBlur={() => void flushNow()}
               className="w-full rounded border px-3 py-2 text-sm"
             >
               <option value="">(Select…)</option>

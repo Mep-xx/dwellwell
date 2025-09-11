@@ -21,6 +21,7 @@ function stripUndefined(obj: Record<string, any>) {
 
 /**
  * Debounced autosave with patch coalescing and "green glow" signal support.
+ * Adds optional debug logs (DEV only) and a visibility-change safety flush.
  */
 export function useRoomAutosave(roomId: string | undefined) {
   const [status, setStatus] = useState<SaveStatus>("idle");
@@ -38,6 +39,19 @@ export function useRoomAutosave(roomId: string | undefined) {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, []);
+
+  // Safety: try to flush when tab becomes hidden (route changes / tab switches)
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === "hidden") {
+        // fire-and-forget; ignore result
+        void flush();
+      }
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomId]);
 
   const flush = useCallback(async () => {
     if (!roomId) {
@@ -110,6 +124,6 @@ export function useRoomAutosave(roomId: string | undefined) {
     saving: status,
     savedPulse, // true momentarily after save
     scheduleSave,
-    flushNow: flush, // handy for an explicit "Save" button
+    flushNow: flush, // handy for an explicit "Save" button or onBlur
   };
 }

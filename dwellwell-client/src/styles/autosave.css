@@ -1,0 +1,22 @@
+/* Softer emerald glow that fades out smoothly */
+@keyframes dw-autosave-glow {
+  0% {
+    box-shadow:
+      0 0 0 0 rgba(16, 185, 129, 0.28),
+      0 0 0 6px rgba(16, 185, 129, 0.18);
+  }
+  60% {
+    box-shadow:
+      0 0 0 0 rgba(16, 185, 129, 0.18),
+      0 0 0 3px rgba(16, 185, 129, 0.12);
+  }
+  100% {
+    box-shadow:
+      0 0 0 0 rgba(16, 185, 129, 0),
+      0 0 0 0 rgba(16, 185, 129, 0);
+  }
+}
+
+.autosave-pulse {
+  animation: dw-autosave-glow 1.4s ease-out;
+}
