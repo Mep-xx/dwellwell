@@ -15,6 +15,7 @@ import {
   Warehouse,
 } from "lucide-react";
 import { useRoomAutosave } from "@/hooks/useRoomAutosave";
+import { getRoomVisual } from "@/utils/roomVisuals";
 
 /* ============================== Types =============================== */
 type Room = {
@@ -72,7 +73,7 @@ type Trackable = {
   homeId?: string;
 };
 
-/* ============================== Icon banner =============================== */
+/* ============================== Legacy meta (examples only) =============================== */
 
 const ROOM_META: Record<
   string,
@@ -208,7 +209,6 @@ export default function RoomPage() {
                 description: "Missing room or you don’t have access.",
                 variant: "destructive",
               });
-              // Keep us on the page so user sees the error state instead of silent redirect.
               setRoom(null);
             }
             return;
@@ -241,11 +241,8 @@ export default function RoomPage() {
     }
   }, []);
 
-  const title = useMemo(
-    () => (room?.name?.trim() ? room.name!.trim() : room?.type || "Room"),
-    [room]
-  );
   const meta = metaFor(room?.type);
+  const visual = useMemo(() => getRoomVisual(room?.type), [room?.type]);
 
   /* ----------------------------- Trackables ---------------------------- */
 
@@ -325,11 +322,13 @@ export default function RoomPage() {
               : "Missing room id in the URL."}
           </p>
           <div className="mt-3 flex gap-2">
-            <Button variant="outline" onClick={() => navigate(-1)}>Go Back</Button>
+            <Button variant="outline" onClick={() => navigate(-1)}>
+              Go Back
+            </Button>
             <Button onClick={() => navigate("/app/homes")}>Back to Homes</Button>
           </div>
           <pre className="mt-4 rounded bg-muted p-2 text-xs overflow-auto">
-{`debug:
+            {`debug:
   pathname: ${window.location.pathname}
   roomId: ${roomId ?? "(none)"}
 `}
@@ -343,61 +342,102 @@ export default function RoomPage() {
     autosaveStatus === "saving"
       ? "Saving…"
       : autosaveStatus === "error"
-      ? "⚠ Save failed"
-      : autosaveStatus === "ok"
-      ? "✓ Saved"
-      : "";
+        ? "⚠ Save failed"
+        : autosaveStatus === "ok"
+          ? "✓ Saved"
+          : "";
 
   return (
     <div className="p-6 max-w-6xl">
-      {/* Banner */}
+      {/* ---------- HERO HEADER (Option A) ---------- */}
       <div
         className={[
-          "relative overflow-hidden rounded-xl border mb-4",
-          "bg-gradient-to-br",
-          meta.gradient,
-          savedPulse ? "ring-2 ring-emerald-400/60 shadow-[0_0_0_4px_rgba(16,185,129,0.25)]" : "ring-0",
-          autosaveStatus === "saving" ? "animate-pulse" : "",
+          "relative mb-4 overflow-hidden rounded-xl border",
+          savedPulse
+            ? "ring-2 ring-emerald-400/60 shadow-[0_0_0_4px_rgba(16,185,129,0.25)]"
+            : "",
         ].join(" ")}
       >
-        <div className="flex items-center justify-between px-4 py-4">
-          <div className="flex items-center gap-3">
-            <meta.Icon className="h-8 w-8 opacity-80" />
-            <div>
-              <h1 className="text-2xl font-bold leading-tight">
-                {room.name?.trim() || room.type || "Room"}
-              </h1>
-              <div className="text-xs text-slate-600">
-                {room.type || "Room"} · {room.floor ? `Floor ${room.floor}` : "No floor set"}
-              </div>
+        {/* Hero image (fallback to a subtle gradient if missing) */}
+        {/* Hero image – prefers WebP, falls back to JPEG */}
+        <picture>
+          <source
+            type="image/webp"
+            srcSet={[
+              `${visual.image1x.replace('.jpg', '.webp')} 1x`,
+              visual.image2x ? `${visual.image2x.replace('.jpg', '.webp')} 2x` : undefined,
+            ].filter(Boolean).join(', ')}
+            sizes="100vw"
+          />
+          <img
+            src={visual.image1x}
+            srcSet={visual.image2x ? `${visual.image2x} 2x` : undefined}
+            alt={`${visual.label} photo`}
+            className="h-48 w-full object-cover md:h-64"
+            loading="eager"
+            fetchPriority="high"
+          />
+        </picture>
+
+
+        {/* tinted readability overlay */}
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background:
+              `linear-gradient(to top, rgba(0,0,0,.38), rgba(0,0,0,.08) 40%, transparent),
+       linear-gradient(to right, ${visual.accent}22, ${visual.accent}00 55%)`,
+          }}
+        />
+
+        {/* Title + meta (bottom-left) */}
+        <div className="absolute bottom-3 left-4 flex items-start gap-3">
+          <visual.Icon className="h-8 w-8 text-white/80 drop-shadow-sm" />
+          <div>
+            <h1 className="text-2xl font-bold leading-tight text-white drop-shadow-sm">
+              {room.name?.trim() || room.type || "Room"}
+            </h1>
+            <div className="text-xs text-white/85 drop-shadow-sm">
+              {(room.type || visual.label) +
+                " · " +
+                (room.floor ? `Floor ${room.floor}` : "No floor set")}
             </div>
-          </div>
 
-          <div className="flex items-center gap-2">
-            {savingBadge ? (
-              <span
-                className={[
-                  "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium border",
+            {/* Accent bar (varies by room type) */}
+            <div
+              className="mt-1 h-1.5 w-24 rounded-full"
+              style={{ backgroundColor: visual.accent }}
+            />
+          </div>
+        </div>
+
+        {/* Utilities (top-right): Saved badge + Back */}
+        <div className="absolute right-3 top-3 flex items-center gap-2">
+          {savingBadge ? (
+            <span
+              className="inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium backdrop-blur"
+              style={{
+                color: "white",
+                background:
                   autosaveStatus === "error"
-                    ? "bg-rose-50 text-rose-700 border-rose-200"
+                    ? "rgba(244,63,94,.55)" // rose-ish
                     : autosaveStatus === "saving"
-                    ? "bg-amber-50 text-amber-700 border-amber-200"
-                    : "bg-emerald-50 text-emerald-700 border-emerald-200",
-                ].join(" ")}
-              >
-                {savingBadge}
-                {autosaveStatus === "error" ? (
-                  <button className="ml-2 underline" onClick={() => void flushNow()}>
-                    Retry
-                  </button>
-                ) : null}
-              </span>
-            ) : null}
+                      ? "rgba(245,158,11,.55)" // amber-ish
+                      : "rgba(16,185,129,.55)", // emerald-ish
+                borderColor: "rgba(255,255,255,.25)",
+              }}
+            >
+              {savingBadge}
+            </span>
+          ) : null}
 
-            <Button variant="outline" onClick={() => navigate(`/app/homes/${room.homeId}?tab=rooms`)}>
-              Back to Rooms
-            </Button>
-          </div>
+          <Button
+            variant="secondary"
+            className="bg-white/80 text-slate-900 hover:bg-white border"
+            onClick={() => navigate(`/app/homes/${room.homeId}?tab=rooms`)}
+          >
+            Back to Rooms
+          </Button>
         </div>
       </div>
 
@@ -424,9 +464,9 @@ export default function RoomPage() {
                   placeholder="New trackable name (e.g., Air Filter)"
                 />
                 <Input
-                    value={newType}
-                    onChange={(e) => setNewType(e.target.value)}
-                    placeholder="Type (optional)"
+                  value={newType}
+                  onChange={(e) => setNewType(e.target.value)}
+                  placeholder="Type (optional)"
                 />
                 <Button onClick={addTrackable}>
                   <Plus className="mr-1 h-4 w-4" />
@@ -435,22 +475,33 @@ export default function RoomPage() {
               </div>
 
               {trackables.length === 0 ? (
-                <div className="mt-3 text-sm text-muted-foreground">No trackables yet.</div>
+                <div className="mt-3 text-sm text-muted-foreground">
+                  No trackables yet.
+                </div>
               ) : (
                 <ul className="mt-3 divide-y rounded border">
                   {trackables.map((t) => {
                     const display = t.userDefinedName || t.name || "(Unnamed)";
                     const subtype = t.kind || t.type || "";
                     return (
-                      <li key={t.id} className="flex items-center justify-between p-3">
+                      <li
+                        key={t.id}
+                        className="flex items-center justify-between p-3"
+                      >
                         <div>
                           <div className="font-medium">{display}</div>
                           {subtype ? (
-                            <div className="text-xs text-muted-foreground">{subtype}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {subtype}
+                            </div>
                           ) : null}
                         </div>
                         <div className="flex items-center gap-2">
-                          <Button variant="outline" size="sm" onClick={() => removeTrackable(t.id)}>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => removeTrackable(t.id)}
+                          >
                             Delete
                           </Button>
                         </div>
@@ -465,7 +516,9 @@ export default function RoomPage() {
           {/* Tasks */}
           <div className="rounded-lg border">
             <div className="px-4 py-2 border-b font-semibold">Tasks</div>
-            <div className="p-4 text-sm text-muted-foreground">No tasks yet for this room.</div>
+            <div className="p-4 text-sm text-muted-foreground">
+              No tasks yet for this room.
+            </div>
           </div>
         </div>
 
@@ -525,7 +578,10 @@ export default function RoomPage() {
               value={room.detail?.flooring || ""}
               onChange={(e) => {
                 const v = e.target.value || null;
-                setRoom((r) => ({ ...(r as Room), detail: { ...(r?.detail || {}), flooring: v } }));
+                setRoom((r) => ({
+                  ...(r as Room),
+                  detail: { ...(r?.detail || {}), flooring: v },
+                }));
                 scheduleSave({ details: { flooring: v } });
               }}
               onBlur={() => void flushNow()}
@@ -547,7 +603,10 @@ export default function RoomPage() {
               value={room.detail?.wallFinish || ""}
               onChange={(e) => {
                 const v = e.target.value || null;
-                setRoom((r) => ({ ...(r as Room), detail: { ...(r?.detail || {}), wallFinish: v } }));
+                setRoom((r) => ({
+                  ...(r as Room),
+                  detail: { ...(r?.detail || {}), wallFinish: v },
+                }));
                 scheduleSave({ details: { wallFinish: v } });
               }}
               onBlur={() => void flushNow()}
@@ -566,7 +625,10 @@ export default function RoomPage() {
               value={room.detail?.ceilingType || ""}
               onChange={(e) => {
                 const v = e.target.value || null;
-                setRoom((r) => ({ ...(r as Room), detail: { ...(r?.detail || {}), ceilingType: v } }));
+                setRoom((r) => ({
+                  ...(r as Room),
+                  detail: { ...(r?.detail || {}), ceilingType: v },
+                }));
                 scheduleSave({ details: { ceilingType: v } });
               }}
               onBlur={() => void flushNow()}
@@ -590,7 +652,10 @@ export default function RoomPage() {
               value={room.detail?.windowType || ""}
               onChange={(e) => {
                 const v = e.target.value || null;
-                setRoom((r) => ({ ...(r as Room), detail: { ...(r?.detail || {}), windowType: v } }));
+                setRoom((r) => ({
+                  ...(r as Room),
+                  detail: { ...(r?.detail || {}), windowType: v },
+                }));
                 scheduleSave({ details: { windowType: v } });
               }}
               onBlur={() => void flushNow()}
@@ -616,7 +681,10 @@ export default function RoomPage() {
               value={room.detail?.windowCount ?? 0}
               onChange={(e) => {
                 const v = e.target.value ? Number(e.target.value) : 0;
-                setRoom((r) => ({ ...(r as Room), detail: { ...(r?.detail || {}), windowCount: v } }));
+                setRoom((r) => ({
+                  ...(r as Room),
+                  detail: { ...(r?.detail || {}), windowCount: v },
+                }));
                 scheduleSave({ details: { windowCount: v } });
               }}
               onBlur={() => void flushNow()}
@@ -631,7 +699,10 @@ export default function RoomPage() {
                 checked={!!room.detail?.hasExteriorDoor}
                 onChange={(e) => {
                   const v = e.target.checked;
-                  setRoom((r) => ({ ...(r as Room), detail: { ...(r?.detail || {}), hasExteriorDoor: v } }));
+                  setRoom((r) => ({
+                    ...(r as Room),
+                    detail: { ...(r?.detail || {}), hasExteriorDoor: v },
+                  }));
                   scheduleSave({ details: { hasExteriorDoor: v } });
                 }}
                 onBlur={() => void flushNow()}
@@ -670,7 +741,9 @@ export default function RoomPage() {
 
             <div className="grid grid-cols-2 gap-3 mt-2">
               <div>
-                <label className="mb-1 block text-sm font-medium">HVAC Supply Vents</label>
+                <label className="mb-1 block text-sm font-medium">
+                  HVAC Supply Vents
+                </label>
                 <Input
                   type="number"
                   inputMode="numeric"
@@ -687,7 +760,9 @@ export default function RoomPage() {
                 />
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium">HVAC Return Vents</label>
+                <label className="mb-1 block text-sm font-medium">
+                  HVAC Return Vents
+                </label>
                 <Input
                   type="number"
                   inputMode="numeric"
@@ -705,7 +780,9 @@ export default function RoomPage() {
               </div>
             </div>
 
-            <label className="mt-3 mb-1 block text-sm font-medium">Ceiling Fixture</label>
+            <label className="mt-3 mb-1 block text-sm font-medium">
+              Ceiling Fixture
+            </label>
             <select
               value={room.detail?.ceilingFixture || ""}
               onChange={(e) => {
