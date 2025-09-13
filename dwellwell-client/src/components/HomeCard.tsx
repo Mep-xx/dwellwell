@@ -7,7 +7,6 @@ import { ROOM_TYPE_ICONS } from "@shared/constants";
 import { Switch } from "@/components/ui/switch";
 import { Pencil, Trash2, ChevronDown, ChevronUp, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { EditRoomModal } from "@/components/EditRoomModal";
 import { api } from "@/utils/api";
 
 type TaskSummary = {
@@ -238,18 +237,6 @@ export function HomeCard({ home, summary, onToggle, onEdit, onDelete }: Props) {
           </button>
         </div>
       </div>
-
-      {/* Room Edit Modal */}
-      {editingRoom && (
-        <EditRoomModal
-          room={editingRoom}
-          isOpen={true}
-          onClose={() => setEditingRoom(null)}
-          onSave={() => {
-            setEditingRoom(null);
-          }}
-        />
-      )}
     </div>
   );
 }

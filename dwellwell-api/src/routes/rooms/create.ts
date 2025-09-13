@@ -1,3 +1,4 @@
+//dwellwell-api\src\routes\rooms\create.ts
 import { Request, Response } from "express";
 import { prisma } from "../../db/prisma";
 import { asyncHandler } from "../../middleware/asyncHandler";
@@ -10,9 +11,9 @@ function stripUndefined(obj: Record<string, any>) {
 
 export default asyncHandler(async (req: Request, res: Response) => {
   const userId = (req as any).user?.id as string;
-  const { roomId } = req.params as any;
 
-  const { name, type, floor, position, details } = (req.body ?? {}) as {
+  const { homeId, name, type, floor, position, details } = (req.body ?? {}) as {
+    homeId?: string;
     name?: string | null;
     type?: string | null;
     floor?: number | null;
@@ -20,40 +21,48 @@ export default asyncHandler(async (req: Request, res: Response) => {
     details?: Record<string, any> | null;
   };
 
-  // Make sure this room belongs to the user
-  const room = await prisma.room.findFirst({
-    where: { id: roomId, home: { userId } },
-    select: { id: true },
-  });
-  if (!room) return res.status(404).json({ error: "ROOM_NOT_FOUND" });
-
-  // ----- Basic fields (only if something actually changed) -----
-  const data: any = {};
-  if (name !== undefined) data.name = (name ?? "").trim();
-  if (type !== undefined) data.type = (type ?? "Other").trim();
-  if (floor !== undefined) data.floor = floor;
-  if (position !== undefined && position !== null) data.position = position;
-
-  if (Object.keys(data).length > 0) {
-    await prisma.room.update({ where: { id: roomId }, data });
+  if (!homeId) {
+    return res.status(400).json({ error: "BAD_REQUEST", message: "homeId is required" });
   }
 
-  // ----- Details (upsert, but only with real keys) -----
+  // Ensure the home belongs to the user
+  const home = await prisma.home.findFirst({
+    where: { id: homeId, userId },
+    select: { id: true },
+  });
+  if (!home) return res.status(404).json({ error: "HOME_NOT_FOUND" });
+
+  // Append by default
+  const nextPosition =
+    typeof position === "number"
+      ? position
+      : await prisma.room.count({ where: { homeId } });
+
+  const created = await prisma.room.create({
+    data: {
+      homeId,
+      name: (name ?? "").trim(),
+      type: (type ?? "Other").trim(),
+      floor: floor ?? null,
+      position: nextPosition,
+    },
+  });
+
   if (details && typeof details === "object") {
     const cleaned = stripUndefined(details);
     if (Object.keys(cleaned).length > 0) {
       await prisma.roomDetail.upsert({
-        where: { roomId },
-        create: { roomId, ...cleaned },
+        where: { roomId: created.id },
+        create: { roomId: created.id, ...cleaned },
         update: cleaned,
       });
     }
   }
 
-  const updated = await prisma.room.findUnique({
-    where: { id: roomId },
+  const full = await prisma.room.findUnique({
+    where: { id: created.id },
     include: { detail: true },
   });
 
-  res.json(updated);
+  return res.status(201).json(full);
 });

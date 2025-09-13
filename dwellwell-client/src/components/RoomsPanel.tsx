@@ -22,28 +22,14 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import clsx from 'clsx';
 import { useNavigate } from 'react-router-dom';
-
-/* ================= Floor buckets (Basement→Other) ================= */
-
-type FloorKey = -1 | 1 | 2 | 3 | 99 | 0;
-
-const BUCKETS: { key: FloorKey; id: string; label: string; hint?: string }[] = [
-  { key: -1, id: 'floor:-1', label: 'Basement' },
-  { key: 1, id: 'floor:1', label: '1st Floor' },
-  { key: 2, id: 'floor:2', label: '2nd Floor' },
-  { key: 3, id: 'floor:3', label: '3rd Floor' },
-  { key: 99, id: 'floor:99', label: 'Attic' },
-  { key: 0, id: 'floor:0', label: 'Other', hint: 'Garage, exterior, etc.' },
-];
-
-const bucketIdSet = new Set(BUCKETS.map(b => b.id));
-const bucketKeyById = new Map<string, FloorKey>(BUCKETS.map(b => [b.id, b.key]));
-const bucketOrderIndex = new Map<FloorKey, number>(BUCKETS.map((b, i) => [b.key, i]));
-
-function keyForFloor(f?: number | null): FloorKey {
-  if (f === -1 || f === 1 || f === 2 || f === 3 || f === 99) return f;
-  return 0;
-}
+import {
+  BUCKETS,
+  FloorKey,
+  bucketIdSet,
+  bucketKeyById,
+  bucketOrderIndex,
+  keyForFloor,
+} from '@shared/constants/floors';
 
 function groupByBucket(list: Room[]) {
   const map = new Map<FloorKey, Room[]>();

@@ -5,6 +5,7 @@ import { api } from "@/utils/api";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import {
   Plus,
   BedDouble,
@@ -16,6 +17,11 @@ import {
 } from "lucide-react";
 import { useRoomAutosave } from "@/hooks/useRoomAutosave";
 import { getRoomVisual } from "@/utils/roomVisuals";
+import {
+  floorOptionsWithOther as FLOOR_OPTIONS,
+  floorLabel,
+  FloorKey,
+} from "@shared/constants/floors";
 
 /* ============================== Types =============================== */
 type Room = {
@@ -328,7 +334,7 @@ export default function RoomPage() {
             <Button onClick={() => navigate("/app/homes")}>Back to Homes</Button>
           </div>
           <pre className="mt-4 rounded bg-muted p-2 text-xs overflow-auto">
-            {`debug:
+{`debug:
   pathname: ${window.location.pathname}
   roomId: ${roomId ?? "(none)"}
 `}
@@ -342,10 +348,10 @@ export default function RoomPage() {
     autosaveStatus === "saving"
       ? "Saving…"
       : autosaveStatus === "error"
-        ? "⚠ Save failed"
-        : autosaveStatus === "ok"
-          ? "✓ Saved"
-          : "";
+      ? "⚠ Save failed"
+      : autosaveStatus === "ok"
+      ? "✓ Saved"
+      : "";
 
   return (
     <div className="p-6 max-w-6xl">
@@ -358,15 +364,16 @@ export default function RoomPage() {
             : "",
         ].join(" ")}
       >
-        {/* Hero image (fallback to a subtle gradient if missing) */}
         {/* Hero image – prefers WebP, falls back to JPEG */}
         <picture>
           <source
             type="image/webp"
             srcSet={[
-              `${visual.image1x.replace('.jpg', '.webp')} 1x`,
-              visual.image2x ? `${visual.image2x.replace('.jpg', '.webp')} 2x` : undefined,
-            ].filter(Boolean).join(', ')}
+              `${visual.image1x.replace(".jpg", ".webp")} 1x`,
+              visual.image2x ? `${visual.image2x.replace(".jpg", ".webp")} 2x` : undefined,
+            ]
+              .filter(Boolean)
+              .join(", ")}
             sizes="100vw"
           />
           <img
@@ -379,13 +386,11 @@ export default function RoomPage() {
           />
         </picture>
 
-
         {/* tinted readability overlay */}
         <div
           className="pointer-events-none absolute inset-0"
           style={{
-            background:
-              `linear-gradient(to top, rgba(0,0,0,.38), rgba(0,0,0,.08) 40%, transparent),
+            background: `linear-gradient(to top, rgba(0,0,0,.38), rgba(0,0,0,.08) 40%, transparent),
        linear-gradient(to right, ${visual.accent}22, ${visual.accent}00 55%)`,
           }}
         />
@@ -398,9 +403,7 @@ export default function RoomPage() {
               {room.name?.trim() || room.type || "Room"}
             </h1>
             <div className="text-xs text-white/85 drop-shadow-sm">
-              {(room.type || visual.label) +
-                " · " +
-                (room.floor ? `Floor ${room.floor}` : "No floor set")}
+              {(room.type || visual.label) + " · " + floorLabel(room.floor)}
             </div>
 
             {/* Accent bar (varies by room type) */}
@@ -420,10 +423,10 @@ export default function RoomPage() {
                 color: "white",
                 background:
                   autosaveStatus === "error"
-                    ? "rgba(244,63,94,.55)" // rose-ish
+                    ? "rgba(244,63,94,.55)"
                     : autosaveStatus === "saving"
-                      ? "rgba(245,158,11,.55)" // amber-ish
-                      : "rgba(16,185,129,.55)", // emerald-ish
+                    ? "rgba(245,158,11,.55)"
+                    : "rgba(16,185,129,.55)",
                 borderColor: "rgba(255,255,255,.25)",
               }}
             >
@@ -555,18 +558,27 @@ export default function RoomPage() {
             />
 
             <label className="mb-1 block text-sm font-medium">Floor</label>
-            <Input
-              type="number"
-              inputMode="numeric"
-              value={room.floor ?? ""}
+            <select
+              value={
+                room.floor === null || room.floor === undefined
+                  ? ""
+                  : String(room.floor)
+              }
               onChange={(e) => {
-                const num = e.target.value ? Number(e.target.value) : null;
-                setRoom({ ...room, floor: num });
-                scheduleSave({ floor: num });
+                const v = e.target.value === "" ? null : Number(e.target.value);
+                setRoom({ ...room, floor: v });
+                scheduleSave({ floor: v });
               }}
               onBlur={() => void flushNow()}
-              placeholder="1"
-            />
+              className="w-full rounded border px-3 py-2 text-sm"
+            >
+              <option value="">(Select…)</option>
+              {FLOOR_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Surfaces */}
@@ -691,23 +703,19 @@ export default function RoomPage() {
               className="mb-3"
             />
 
-            <label className="mb-1 block text-sm font-medium">Exterior Door</label>
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                className="h-4 w-4"
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium">Exterior Door</label>
+              <Switch
                 checked={!!room.detail?.hasExteriorDoor}
-                onChange={(e) => {
-                  const v = e.target.checked;
+                onCheckedChange={(v) => {
                   setRoom((r) => ({
                     ...(r as Room),
                     detail: { ...(r?.detail || {}), hasExteriorDoor: v },
                   }));
                   scheduleSave({ details: { hasExteriorDoor: v } });
                 }}
-                onBlur={() => void flushNow()}
+                aria-label="Has exterior door"
               />
-              <span className="text-sm text-muted-foreground">Has exterior door</span>
             </div>
           </div>
 
@@ -715,28 +723,27 @@ export default function RoomPage() {
           <div className="rounded-lg border p-4">
             <div className="mb-2 font-semibold">Heating & Cooling</div>
 
-            {[
-              ["Baseboard (hydronic)", "heatBaseboardHydronic"],
-              ["Baseboard (electric)", "heatBaseboardElectric"],
-              ["Radiators", "heatRadiator"],
-            ].map(([label, key]) => (
-              <label key={key} className="mb-2 flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4"
+            {(
+              [
+                ["Baseboard (hydronic)", "heatBaseboardHydronic"],
+                ["Baseboard (electric)", "heatBaseboardElectric"],
+                ["Radiators", "heatRadiator"],
+              ] as const
+            ).map(([label, key]) => (
+              <div key={key} className="mb-2 flex items-center justify-between">
+                <span className="text-sm">{label}</span>
+                <Switch
                   checked={!!(room.detail as any)?.[key]}
-                  onChange={(e) => {
-                    const v = e.target.checked;
+                  onCheckedChange={(v) => {
                     setRoom((r) => ({
                       ...(r as Room),
                       detail: { ...(r?.detail || {}), [key]: v } as any,
                     }));
                     scheduleSave({ details: { [key]: v } as any });
                   }}
-                  onBlur={() => void flushNow()}
+                  aria-label={label}
                 />
-                <span>{label}</span>
-              </label>
+              </div>
             ))}
 
             <div className="grid grid-cols-2 gap-3 mt-2">

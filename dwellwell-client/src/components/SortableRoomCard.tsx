@@ -3,7 +3,12 @@ import { CSS } from '@dnd-kit/utilities';
 import { Input } from './ui/input';
 import { RoomTypeSelect } from './RoomTypeSelect';
 import { ROOM_TYPE_ICONS } from '@constants';
-import { floorToLabel, labelToFloor } from '@/utils/floorHelpers';
+// ⬇️ replace the old floorHelpers import with the shared floors constants
+import {
+  floorOptionsWithOther as FLOOR_OPTIONS,
+  keyForFloor,
+  FloorKey,
+} from '@shared/constants/floors';
 import { useRoomAutosave } from '@/hooks/useRoomAutosave';
 import { useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
@@ -159,19 +164,22 @@ export function SortableRoomCard({ id, room, onChange, onRemove, onEdit }: Props
           className="flex-1"
         />
 
-        {/* Floor */}
+        {/* Floor (shared constants) */}
         <select
-          value={floorToLabel(local.floor ?? undefined)}
-          onChange={(e) => commit({ floor: labelToFloor(e.target.value) ?? null })}
+          value={String(keyForFloor(local.floor ?? null))}
+          onChange={(e) => {
+            const v = e.target.value === '' ? null : (Number(e.target.value) as FloorKey);
+            commit({ floor: v });
+          }}
           className="border rounded px-2 py-1 text-sm"
           title="Floor"
         >
-          <option value="Basement">Basement</option>
-          <option value="1st Floor">1st Floor</option>
-          <option value="2nd Floor">2nd Floor</option>
-          <option value="3rd Floor">3rd Floor</option>
-          <option value="Attic">Attic</option>
-          <option value="Other">Other</option>
+          <option value="">(Select…)</option>
+          {FLOOR_OPTIONS.map((opt) => (
+            <option key={opt.value} value={String(opt.value)}>
+              {opt.label}
+            </option>
+          ))}
         </select>
 
         {/* Status feedback */}
