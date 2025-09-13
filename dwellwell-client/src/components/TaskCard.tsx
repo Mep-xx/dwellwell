@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { api } from '@/utils/api';
 import { Task } from '@shared/types/task';
 import { categoryGradients } from '../data/mockTasks';
 
@@ -24,14 +25,14 @@ const categoryIcons: Record<string, string> = {
 };
 
 export default function TaskCard({ task, onStatusChange }: Props) {
-  const icon = task.category ? categoryIcons[task.category] : '📌';
+  const icon = task.category ? categoryIcons[task.category] ?? '📌' : '📌';
   const [showDetails, setShowDetails] = useState(false);
 
   const statusStyles = {
     PENDING: 'border-blue-400',
     COMPLETED: 'border-green-500 text-green-700',
     SKIPPED: 'border-yellow-500 text-yellow-700 italic',
-  };
+  } as const;
 
   const handleAndCollapse = (newStatus: Task['status'] | 'remind', days?: number) => {
     setShowDetails(false);
@@ -39,6 +40,47 @@ export default function TaskCard({ task, onStatusChange }: Props) {
   };
 
   const gradient = categoryGradients[task.category || 'general'];
+
+  // Lifecycle helpers (pause/resume/archive/unarchive). After API call, we reuse onStatusChange
+  // to trigger parent refresh logic without changing task status directly here.
+  const pauseTask = async () => {
+    try {
+      await api.post(`/tasks/${task.id}/pause`);
+      onStatusChange(task.id, task.status); // trigger refresh in parent
+    } catch (e) {
+      console.error('Failed to pause task', e);
+    }
+  };
+
+  const resumeTask = async () => {
+    try {
+      await api.post(`/tasks/${task.id}/resume`, { mode: 'forward' });
+      onStatusChange(task.id, task.status);
+    } catch (e) {
+      console.error('Failed to resume task', e);
+    }
+  };
+
+  const archiveTask = async () => {
+    try {
+      await api.post(`/tasks/${task.id}/archive`);
+      onStatusChange(task.id, task.status);
+    } catch (e) {
+      console.error('Failed to archive task', e);
+    }
+  };
+
+  const unarchiveTask = async () => {
+    try {
+      await api.post(`/tasks/${task.id}/unarchive`, { mode: 'forward' });
+      onStatusChange(task.id, task.status);
+    } catch (e) {
+      console.error('Failed to unarchive task', e);
+    }
+  };
+
+  const pausedAt = (task as any).pausedAt as string | undefined;
+  const archivedAt = (task as any).archivedAt as string | undefined;
 
   return (
     <div
@@ -51,31 +93,45 @@ export default function TaskCard({ task, onStatusChange }: Props) {
           <h3 className={`text-lg font-semibold ${task.status === 'COMPLETED' ? 'line-through' : ''}`}>
             {task.title}
           </h3>
+
+          {/* Lifecycle chips */}
+          {pausedAt && (
+            <span className="ml-2 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+              Paused
+            </span>
+          )}
+          {archivedAt && (
+            <span className="ml-2 text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full">
+              Archived
+            </span>
+          )}
         </div>
+
         {task.itemName && (
           <p className="text-sm text-gray-500 mt-1">🛠 {task.itemName}</p>
         )}
+
         <div className="mt-2 text-sm text-gray-600 space-y-1">
-          <div>📅 Finish by <span className="font-medium">{task.dueDate}</span></div>
-          {task.estimatedTimeMinutes && (
+          <div>
+            📅 Finish by <span className="font-medium">{task.dueDate}</span>
+          </div>
+          {task.estimatedTimeMinutes ? (
             <div>⏱ {task.estimatedTimeMinutes} min task</div>
-          )}
+          ) : null}
         </div>
       </div>
 
       <div
-        className={`transition-all duration-300 overflow-hidden ${showDetails ? 'max-h-[1000px] opacity-100 mt-3' : 'max-h-0 opacity-0'
-          }`}
+        className={`transition-all duration-300 overflow-hidden ${
+          showDetails ? 'max-h-[1000px] opacity-100 mt-3' : 'max-h-0 opacity-0'
+        }`}
       >
         <div className="bg-gray-50 border border-gray-200 p-3 rounded text-sm space-y-2 text-gray-700">
           {task.description && <p>{task.description}</p>}
 
           {task.recurrenceInterval && (
             <p>
-              🔁 <strong>Recommended Frequency:</strong>{' '}
-              {task.recurrenceInterval === 'every_n_days'
-                ? `Every ${task.recurrenceInterval} days`
-                : `Once per ${task.recurrenceInterval.replace('ly', '')}`}
+              🔁 <strong>Recommended Frequency:</strong> {task.recurrenceInterval}
             </p>
           )}
 
@@ -110,7 +166,7 @@ export default function TaskCard({ task, onStatusChange }: Props) {
             </p>
           )}
 
-          {task.steps && (
+          {task.steps && task.steps.length > 0 && (
             <div>
               <p className="font-medium mb-1">Steps:</p>
               <ol className="list-decimal list-inside space-y-1">
@@ -121,7 +177,7 @@ export default function TaskCard({ task, onStatusChange }: Props) {
             </div>
           )}
 
-          {task.equipmentNeeded && (
+          {task.equipmentNeeded && task.equipmentNeeded.length > 0 && (
             <div>
               <p className="font-medium mb-1">You'll Need:</p>
               <ul className="list-disc list-inside space-y-1">
@@ -132,7 +188,7 @@ export default function TaskCard({ task, onStatusChange }: Props) {
             </div>
           )}
 
-          {task.resources && (
+          {task.resources && task.resources.length > 0 && (
             <div>
               <p className="font-medium mb-1">Helpful Links:</p>
               <ul className="list-disc list-inside space-y-1">
@@ -166,14 +222,15 @@ export default function TaskCard({ task, onStatusChange }: Props) {
         className="flex flex-wrap gap-2 mt-4"
         onClick={e => e.stopPropagation()}
       >
-        {task.status === 'PENDING' && (
+        {/* Primary status actions */}
+        {task.status === 'PENDING' && !pausedAt && !archivedAt && (
           <>
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                e.currentTarget.classList.add('scale-105');
+                (e.currentTarget as HTMLButtonElement).classList.add('scale-105');
                 setTimeout(() => {
-                  e.currentTarget.classList.remove('scale-105');
+                  (e.currentTarget as HTMLButtonElement).classList.remove('scale-105');
                 }, 150);
                 handleAndCollapse('COMPLETED');
               }}
@@ -196,12 +253,47 @@ export default function TaskCard({ task, onStatusChange }: Props) {
           </>
         )}
 
-        {(task.status === 'COMPLETED' || task.status === 'SKIPPED') && (
+        {(task.status === 'COMPLETED' || task.status === 'SKIPPED') && !archivedAt && (
           <button
             onClick={() => onStatusChange(task.id, 'PENDING')}
             className="px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 text-sm"
           >
             🔄 Reopen Task
+          </button>
+        )}
+
+        {/* Lifecycle controls */}
+        {!archivedAt && !pausedAt && (
+          <button
+            onClick={pauseTask}
+            className="px-3 py-1 bg-amber-100 text-amber-700 rounded hover:bg-amber-200 text-sm"
+          >
+            ⏸ Pause
+          </button>
+        )}
+
+        {pausedAt && !archivedAt && (
+          <button
+            onClick={resumeTask}
+            className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200 text-sm"
+          >
+            ▶️ Resume
+          </button>
+        )}
+
+        {!archivedAt ? (
+          <button
+            onClick={archiveTask}
+            className="px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-sm"
+          >
+            🗄 Archive
+          </button>
+        ) : (
+          <button
+            onClick={unarchiveTask}
+            className="px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 text-sm"
+          >
+            ♻️ Unarchive
           </button>
         )}
       </div>

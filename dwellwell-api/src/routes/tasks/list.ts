@@ -23,15 +23,24 @@ export default asyncHandler(async (req: Request, res: Response) => {
     statusFilter = match as TaskStatus;
   }
 
+  const showPaused = req.query.showPaused === '1';
+  const showArchived = req.query.showArchived === '1';
+  const trackableId = (req.query.trackableId as string) || undefined;
+
+  const where: any = {
+    userId,
+    ...(statusFilter ? { status: statusFilter } : {}),
+    ...(trackableId ? { trackableId } : {}),
+  };
+
+  // Hide archived by default
+  if (!showArchived) where.archivedAt = null;
+  // Hide paused unless requested
+  if (!showPaused) where.pausedAt = null;
+
   const tasks = await prisma.userTask.findMany({
-    where: {
-      userId,
-      ...(statusFilter ? { status: statusFilter } : {}),
-    },
-    orderBy: [
-      { dueDate: 'asc' },   // if your model doesn't have dueDate, remove this line
-      { createdAt: 'desc' },
-    ],
+    where,
+    orderBy: [{ dueDate: 'asc' }, { createdAt: 'desc' }],
   });
 
   res.json(tasks);

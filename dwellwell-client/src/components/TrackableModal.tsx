@@ -1,16 +1,15 @@
+// dwellwell-client/src/components/TrackableModal.tsx
 import { useState, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { api } from '../utils/api';
 import { sanitize } from '../utils/sanitize';
-import type { Trackable, TrackableCategory } from '@shared/types/trackable';
-
-// Props and types
+import type { TrackableCategory } from '@shared/types/trackable';
 
 type Props = {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (trackable: Trackable) => void;
-  initialData?: Trackable | null;
+  onSave: (trackable: CreateTrackableDTO) => void; // <-- use a creation DTO
+  initialData?: CreateTrackableDTO | null;
 };
 
 type ApplianceLookup = {
@@ -20,6 +19,21 @@ type ApplianceLookup = {
   category: string;
   notes?: string;
   imageUrl?: string;
+};
+
+type CreateTrackableDTO = {
+  // id optional for client; server generates real id
+  id?: string;
+  userDefinedName: string;
+  brand?: string;
+  model?: string;
+  type?: string;
+  category?: TrackableCategory | string;
+  serialNumber?: string;
+  imageUrl?: string;
+  notes?: string;
+  applianceCatalogId?: string;
+  roomId?: string | null;
 };
 
 const categories: { label: string; value: TrackableCategory }[] = [
@@ -36,16 +50,16 @@ const categories: { label: string; value: TrackableCategory }[] = [
 ];
 
 export default function TrackableModal({ isOpen, onClose, onSave, initialData }: Props) {
-  const [form, setForm] = useState<Trackable>({
+  const [form, setForm] = useState<CreateTrackableDTO>({
     id: uuidv4(),
     userDefinedName: '',
     brand: '',
     model: '',
     type: '',
-    category: 'GENERAL',
+    category: 'general',
     serialNumber: '',
     imageUrl: '',
-    notes: ''
+    notes: '',
   });
 
   const [suggestions, setSuggestions] = useState<ApplianceLookup[]>([]);
@@ -54,7 +68,19 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
 
   useEffect(() => {
     if (initialData) {
-      setForm(initialData);
+      setForm(prev => ({
+        id: prev.id || uuidv4(),
+        userDefinedName: initialData.userDefinedName ?? '',
+        brand: initialData.brand ?? '',
+        model: initialData.model ?? '',
+        type: initialData.type ?? '',
+        category: (initialData.category as TrackableCategory) ?? 'general',
+        serialNumber: initialData.serialNumber ?? '',
+        imageUrl: initialData.imageUrl ?? '',
+        notes: initialData.notes ?? '',
+        applianceCatalogId: initialData.applianceCatalogId,
+        roomId: initialData.roomId ?? undefined,
+      }));
     } else {
       resetForm();
     }
@@ -69,13 +95,13 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
   const resetForm = () => {
     setForm({
       id: uuidv4(),
-      name: '',
+      userDefinedName: '',
       type: '',
       category: 'general',
       brand: '',
       model: '',
       serialNumber: '',
-      image: '',
+      imageUrl: '',
       notes: '',
     });
     setSuggestions([]);
@@ -85,18 +111,17 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setForm(prev => ({ ...prev, [name]: value }));
-  
-    if (name === 'name' && value.length >= 3) {
+
+    // Trigger suggestions when typing the userDefinedName (what user sees)
+    if (name === 'userDefinedName' && value.length >= 3) {
       if (lookupTimer) clearTimeout(lookupTimer);
       const timer = setTimeout(async () => {
         try {
           const res = await api.get('/lookup/appliances', { params: { q: value } });
-  
           if (Array.isArray(res.data) && res.data.length > 0) {
             setSuggestions(res.data);
             setShowSuggestions(true);
           } else {
-            // Fallback to AI suggestion if DB returned nothing
             const aiRes = await api.get('/ai/lookup-appliance', { params: { q: value } });
             if (Array.isArray(aiRes.data)) {
               setSuggestions(aiRes.data);
@@ -118,18 +143,17 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
       setShowSuggestions(false);
     }
   };
-  
 
   const applySuggestion = (sugg: ApplianceLookup) => {
     setForm(prev => ({
       ...prev,
-      name: `${sugg.brand} ${sugg.model}`,
+      userDefinedName: `${sugg.brand} ${sugg.model}`,
       brand: sugg.brand,
       model: sugg.model,
       type: sugg.type,
       category: sugg.category as TrackableCategory,
       notes: sugg.notes || '',
-      image: sugg.imageUrl || '',
+      imageUrl: sugg.imageUrl || '',
     }));
     setSuggestions([]);
     setShowSuggestions(false);
@@ -137,13 +161,13 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name.trim()) return;
+    if (!form.userDefinedName.trim()) return;
 
-    const cleanedForm = {
+    const cleanedForm: CreateTrackableDTO = {
       ...form,
-      name: sanitize(form.name),
-      brand: sanitize(form.brand),
-      model: sanitize(form.model),
+      userDefinedName: sanitize(form.userDefinedName),
+      brand: sanitize(form.brand ?? ''),
+      model: sanitize(form.model ?? ''),
       serialNumber: sanitize(form.serialNumber ?? ''),
       notes: sanitize(form.notes ?? ''),
     };
@@ -171,9 +195,9 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="relative">
             <input
-              name="name"
+              name="userDefinedName"
               autoComplete="off"
-              value={form.name}
+              value={form.userDefinedName}
               onChange={handleChange}
               placeholder="Name (e.g., Bosch SilencePlus)"
               required
@@ -196,7 +220,7 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
 
           <select
             name="category"
-            value={form.category}
+            value={form.category as string}
             onChange={handleChange}
             className="w-full border rounded px-3 py-2"
           >
@@ -210,7 +234,7 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
           <input
             name="type"
             autoComplete="off"
-            value={form.type}
+            value={form.type ?? ''}
             onChange={handleChange}
             placeholder="Type (e.g., Dishwasher)"
             className="w-full border rounded px-3 py-2"
@@ -219,7 +243,7 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
           <input
             name="brand"
             autoComplete="off"
-            value={form.brand}
+            value={form.brand ?? ''}
             onChange={handleChange}
             placeholder="Brand"
             className="w-full border rounded px-3 py-2"
@@ -228,7 +252,7 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
           <input
             name="model"
             autoComplete="off"
-            value={form.model}
+            value={form.model ?? ''}
             onChange={handleChange}
             placeholder="Model"
             className="w-full border rounded px-3 py-2"
@@ -237,7 +261,7 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
           <input
             name="serialNumber"
             autoComplete="off"
-            value={form.serialNumber}
+            value={form.serialNumber ?? ''}
             onChange={handleChange}
             placeholder="Serial Number"
             className="w-full border rounded px-3 py-2"
@@ -245,7 +269,7 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
 
           <textarea
             name="notes"
-            value={form.notes}
+            value={form.notes ?? ''}
             onChange={handleChange}
             placeholder="Notes"
             rows={3}

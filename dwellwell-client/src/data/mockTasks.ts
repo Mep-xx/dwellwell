@@ -1,3 +1,4 @@
+//dwellwell-client/src/data/mockTasks.ts
 import { Task } from '@shared/types/task';
 
 export const categoryGradients: Record<string, string> = {
