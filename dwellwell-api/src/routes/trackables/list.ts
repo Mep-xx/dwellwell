@@ -6,7 +6,6 @@ export default asyncHandler(async (req: Request, res: Response) => {
   const userId = (req as any).user?.id;
   const homeId = (req.query.homeId as string) || undefined;
 
-  // Only return the current user's trackables; optionally filter by current home pointer
   const where: any = { ownerUserId: userId };
   if (homeId) where.homeId = homeId;
 

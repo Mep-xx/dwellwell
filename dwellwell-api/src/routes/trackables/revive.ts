@@ -1,57 +1,48 @@
-//dwellwell-api/src/routes/trackables/revive.ts
 import { Request, Response } from 'express';
 import { asyncHandler } from '../../middleware/asyncHandler';
 import { prisma } from '../../db/prisma';
-import { TrackableStatus } from '@prisma/client';
+import { getOwnedTrackable } from './_getOwned';
+
+function nextFromToday(rec: string) {
+  const d = new Date();
+  const r = (rec || '').toLowerCase();
+  const n = parseInt(r.match(/\d+/)?.[0] ?? '1', 10);
+  if (r.includes('day')) d.setDate(d.getDate() + n);
+  else if (r.includes('week')) d.setDate(d.getDate() + 7 * n);
+  else if (r.includes('month')) d.setMonth(d.getMonth() + n);
+  else if (r.includes('year')) d.setFullYear(d.getFullYear() + n);
+  else d.setDate(d.getDate() + 30);
+  return d;
+}
 
 export default asyncHandler(async (req: Request, res: Response) => {
   const userId = (req as any).user?.id;
   const { trackableId } = req.params as any;
-  const { mode = 'forward' } = req.body ?? {};
 
-  const t = await prisma.trackable.findFirst({
-    where: { id: trackableId, home: { userId } },
-  });
+  const t = await getOwnedTrackable(userId, trackableId);
   if (!t) return res.status(404).json({ error: 'TRACKABLE_NOT_FOUND' });
-  if (t.status !== 'RETIRED') return res.status(400).json({ error: 'NOT_RETIRED' });
 
   await prisma.trackable.update({
-    where: { id: t.id },
-    data: { status: TrackableStatus.IN_USE, retiredAt: null, retiredReason: null },
+    where: { id: trackableId },
+    data: { status: 'IN_USE', retiredAt: null, retiredReason: null },
   });
 
-  // Reactivate tasks (previously archived)
-  const archived = await prisma.userTask.findMany({
-    where: { trackableId: t.id, NOT: { archivedAt: null } },
+  const tasks = await prisma.userTask.findMany({
+    where: { trackableId, userId },
+    select: { id: true, archivedAt: true, dueDate: true, recurrenceInterval: true },
   });
 
   const now = new Date();
-  for (const ut of archived) {
-    await prisma.userTask.update({
-      where: { id: ut.id },
-      data: {
-        archivedAt: null,
-        pausedAt: null,
-        isTracking: true,
-        dueDate: mode === 'forward' ? addDefaultCadence(now, ut.recurrenceInterval) : now,
-      },
-    });
-  }
+  const tx = tasks.map((x) => {
+    const data: any = { archivedAt: null, pausedAt: null, isTracking: true };
+    if (x.dueDate < now) data.dueDate = nextFromToday(x.recurrenceInterval);
+    return prisma.userTask.update({ where: { id: x.id }, data });
+  });
+  if (tx.length) await prisma.$transaction(tx);
 
   await prisma.lifecycleEvent.create({
-    data: { userId, entity: 'trackable', entityId: t.id, action: 'revived', metadata: { mode } },
+    data: { userId, entity: 'trackable', entityId: trackableId, action: 'revived' },
   });
 
   res.json({ ok: true });
-
-  function addDefaultCadence(base: Date, rec: string) {
-    const d = new Date(base);
-    const r = (rec || '').toLowerCase();
-    if (r.includes('day')) d.setDate(d.getDate() + parseInt(r));
-    else if (r.includes('week')) d.setDate(d.getDate() + 7 * parseInt(r));
-    else if (r.includes('month')) d.setMonth(d.getMonth() + parseInt(r));
-    else if (r.includes('year')) d.setFullYear(d.getFullYear() + parseInt(r));
-    else d.setDate(d.getDate() + 30);
-    return d;
-  }
 });

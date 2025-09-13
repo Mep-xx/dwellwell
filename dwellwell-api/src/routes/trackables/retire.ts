@@ -1,36 +1,28 @@
-//dwellwell-api/src/routes/trackables/retire.ts
 import { Request, Response } from 'express';
 import { asyncHandler } from '../../middleware/asyncHandler';
 import { prisma } from '../../db/prisma';
-import { TrackableStatus, RetiredReason } from '@prisma/client';
+import { getOwnedTrackable } from './_getOwned';
 
 export default asyncHandler(async (req: Request, res: Response) => {
   const userId = (req as any).user?.id;
   const { trackableId } = req.params as any;
-  const { reason = 'OTHER' } = req.body ?? {};
+  const { reason } = req.body ?? {};
 
-  const t = await prisma.trackable.findFirst({
-    where: { id: trackableId, home: { userId } },
-  });
+  const t = await getOwnedTrackable(userId, trackableId);
   if (!t) return res.status(404).json({ error: 'TRACKABLE_NOT_FOUND' });
 
   await prisma.trackable.update({
-    where: { id: t.id },
-    data: {
-      status: TrackableStatus.RETIRED,
-      retiredAt: new Date(),
-      retiredReason: (reason in RetiredReason ? reason : 'OTHER') as RetiredReason,
-    },
+    where: { id: trackableId },
+    data: { status: 'RETIRED', retiredAt: new Date(), retiredReason: reason ?? 'OTHER' },
   });
 
-  // Archive associated tasks
   await prisma.userTask.updateMany({
-    where: { trackableId: t.id, archivedAt: null },
+    where: { trackableId, userId, archivedAt: null },
     data: { archivedAt: new Date(), isTracking: false, pausedAt: null },
   });
 
   await prisma.lifecycleEvent.create({
-    data: { userId, entity: 'trackable', entityId: t.id, action: 'retired', metadata: { reason } },
+    data: { userId, entity: 'trackable', entityId: trackableId, action: 'retired', metadata: { reason: reason ?? 'OTHER' } },
   });
 
   res.json({ ok: true });

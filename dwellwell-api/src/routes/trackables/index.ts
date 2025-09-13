@@ -1,10 +1,11 @@
+//dwellwell-api/src/routes/trackables/index.ts
 import { Router } from 'express';
 import { requireAuth } from '../../middleware/requireAuth';
 import list from './list';
 import create from './create';
 import update from './update';
-import remove from './remove';
 import pause from './pause';
+import remove from './remove';
 import resume from './resume';
 import retire from './retire';
 import replace from './replace';
