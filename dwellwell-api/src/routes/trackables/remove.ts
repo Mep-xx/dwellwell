@@ -1,3 +1,4 @@
+//dwellwell-api/src/routes/trackables/remove.ts
 import { Request, Response } from 'express';
 import { asyncHandler } from '../../middleware/asyncHandler';
 import { prisma } from '../../db/prisma';

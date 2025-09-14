@@ -1,3 +1,4 @@
+// dwellwell-api/src/routes/trackables/_getOwned.ts
 import { prisma } from '../../db/prisma';
 
 export async function getOwnedTrackable(userId: string, trackableId: string) {

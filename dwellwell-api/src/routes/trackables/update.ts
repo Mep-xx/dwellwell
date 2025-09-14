@@ -1,14 +1,23 @@
-//dwellwell-api/src/routes/trackables/update.ts
 import { Request, Response } from 'express';
 import { asyncHandler } from '../../middleware/asyncHandler';
 import { prisma } from '../../db/prisma';
 
+/**
+ * Update a trackable the user owns.
+ * Works for both:
+ *  - new ownership (ownerUserId)
+ *  - legacy ownership via Home (home.userId)
+ */
 export default asyncHandler(async (req: Request, res: Response) => {
   const userId = (req as any).user?.id;
   const { trackableId } = req.params as any;
 
+  // Find by either ownership model
   const current = await prisma.trackable.findFirst({
-    where: { id: trackableId, home: { userId } }, // ownership via Home
+    where: {
+      id: trackableId,
+      OR: [{ ownerUserId: userId }, { home: { userId } }],
+    },
     select: { id: true, homeId: true },
   });
   if (!current) return res.status(404).json({ error: 'TRACKABLE_NOT_FOUND' });
@@ -55,16 +64,18 @@ export default asyncHandler(async (req: Request, res: Response) => {
     const newHome = await prisma.home.findFirst({ where: { id: homeId, userId } });
     if (!newHome) return res.status(400).json({ error: 'HOME_NOT_FOUND_OR_NOT_OWNED' });
     data.homeId = homeId;
-    // If caller didn't also provide a valid room in that home, clear roomId
-    data.roomId = null;
+    data.roomId = null; // room must be revalidated
   }
 
-  // Changing/setting room? Verify that room belongs to the (possibly new) home
-  const effectiveHomeId = data.homeId ?? current.homeId;
+  // Changing/setting room? Verify the room belongs to the effective home (which may have just changed)
+  const effectiveHomeId = data.homeId ?? current.homeId ?? undefined;
   if (roomId !== undefined) {
     if (roomId === null) {
       data.roomId = null;
     } else {
+      if (!effectiveHomeId) {
+        return res.status(400).json({ error: 'ROOM_NOT_FOUND_OR_NOT_IN_HOME' });
+      }
       const room = await prisma.room.findFirst({ where: { id: roomId, homeId: effectiveHomeId } });
       if (!room) return res.status(400).json({ error: 'ROOM_NOT_FOUND_OR_NOT_IN_HOME' });
       data.roomId = roomId;

@@ -1,4 +1,4 @@
-//dwellwell-api/src/routes/trackables/index.ts
+// dwellwell-api/src/routes/trackables/index.ts
 import { Router } from 'express';
 import { requireAuth } from '../../middleware/requireAuth';
 import list from './list';
