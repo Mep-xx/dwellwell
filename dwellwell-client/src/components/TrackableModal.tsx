@@ -1,6 +1,4 @@
-// dwellwell-client/src/components/TrackableModal.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
-import { v4 as uuidv4 } from "uuid";
 import { api } from "../utils/api";
 import { sanitize } from "../utils/sanitize";
 import type { TrackableCategory } from "@shared/types/trackable";
@@ -10,15 +8,15 @@ import { ChevronDown, ChevronUp, X } from "lucide-react";
  *  Public types (used by parent)
  *  ────────────────────────────────────────────────────────────────────────────*/
 export type CreateTrackableDTO = {
-  id?: string; // present when editing
+  id?: string; // present only when editing
   userDefinedName: string;
   brand?: string;
   model?: string;
   type?: string;
   category?: TrackableCategory | string;
-  serialNumber?: string;
+  serialNumber?: string | null;
   imageUrl?: string;
-  notes?: string;
+  notes?: string | null;
   applianceCatalogId?: string;
   roomId?: string | null;
   homeId?: string | null;
@@ -33,7 +31,6 @@ type Props = {
 
 /** ─────────────────────────────────────────────────────────────────────────────
  *  Curated taxonomy
- *  Keep this small and human-first. It’s easy to extend without bouncing the UI.
  *  ────────────────────────────────────────────────────────────────────────────*/
 const CATEGORY_OPTIONS = [
   { value: "appliance", label: "Appliance" },
@@ -49,7 +46,6 @@ const CATEGORY_OPTIONS = [
 ] as const;
 
 const TYPE_BY_CATEGORY: Record<string, { value: string; label: string }[]> = {
-  // Appliances (whole-home or utility)
   appliance: [
     { value: "dishwasher", label: "Dishwasher" },
     { value: "refrigerator", label: "Refrigerator" },
@@ -61,8 +57,6 @@ const TYPE_BY_CATEGORY: Record<string, { value: string; label: string }[]> = {
     { value: "water-softener", label: "Water Softener" },
     { value: "dehumidifier", label: "Dehumidifier" },
   ],
-
-  // Kitchen (built-in or fixtures specific to kitchen)
   kitchen: [
     { value: "sink-faucet", label: "Sink / Faucet" },
     { value: "garbage-disposal", label: "Garbage Disposal" },
@@ -70,8 +64,6 @@ const TYPE_BY_CATEGORY: Record<string, { value: string; label: string }[]> = {
     { value: "countertop", label: "Countertop" },
     { value: "cabinetry", label: "Cabinetry" },
   ],
-
-  // Bathroom
   bathroom: [
     { value: "toilet", label: "Toilet" },
     { value: "shower-tub", label: "Shower / Tub" },
@@ -79,38 +71,30 @@ const TYPE_BY_CATEGORY: Record<string, { value: string; label: string }[]> = {
     { value: "exhaust-fan", label: "Exhaust Fan" },
     { value: "vanity", label: "Vanity / Cabinet" },
   ],
-
-  // HVAC – Heating specific
   heating: [
     { value: "furnace", label: "Furnace" },
     { value: "boiler", label: "Boiler" },
     { value: "space-heater", label: "Space Heater" },
     { value: "radiant-heat", label: "Radiant Heat" },
   ],
-
-  // HVAC – Cooling specific
   cooling: [
     { value: "central-ac", label: "Central A/C" },
     { value: "heat-pump", label: "Heat Pump" },
     { value: "mini-split", label: "Mini Split" },
     { value: "window-ac", label: "Window A/C" },
   ],
-
-  // Plumbing (non-bath/kitchen specific)
   plumbing: [
     { value: "main-shutoff", label: "Main Shutoff Valve" },
     { value: "sump-pump", label: "Sump Pump" },
     { value: "well-pump", label: "Well Pump" },
     { value: "septic", label: "Septic System" },
   ],
-
   electrical: [
     { value: "panel", label: "Electrical Panel" },
     { value: "generator", label: "Generator" },
     { value: "smoke-co", label: "Smoke/CO Detector" },
     { value: "outlets-switches", label: "Outlets / Switches" },
   ],
-
   outdoor: [
     { value: "lawn-mower", label: "Lawn Mower" },
     { value: "sprinkler-system", label: "Sprinkler System" },
@@ -118,14 +102,11 @@ const TYPE_BY_CATEGORY: Record<string, { value: string; label: string }[]> = {
     { value: "deck-patio", label: "Deck / Patio" },
     { value: "fence-gate", label: "Fence / Gate" },
   ],
-
   safety: [
     { value: "fire-extinguisher", label: "Fire Extinguisher" },
     { value: "alarm-system", label: "Alarm / Security System" },
     { value: "radon-system", label: "Radon Mitigation" },
   ],
-
-  // Catch-all
   general: [
     { value: "tool", label: "Tool" },
     { value: "window", label: "Window" },
@@ -146,7 +127,6 @@ type ApplianceLookup = {
   imageUrl?: string;
 };
 
-/** Small helper for consistent shell */
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="space-y-2">
@@ -161,7 +141,7 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
   const [advancedOpen, setAdvancedOpen] = useState(false);
 
   const [form, setForm] = useState<CreateTrackableDTO>({
-    id: uuidv4(), // used ONLY when creating
+    // ❌ no id here for NEW; only present when editing
     userDefinedName: "",
     brand: "",
     model: "",
@@ -172,14 +152,13 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
     notes: "",
   });
 
-  // suggestions
   const [suggestions, setSuggestions] = useState<ApplianceLookup[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const lookupTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // hydrate on open/edit
   useEffect(() => {
     if (initialData && initialData.id) {
+      // EDIT: hydrate with id
       setForm({
         id: initialData.id,
         userDefinedName: initialData.userDefinedName ?? "",
@@ -205,7 +184,6 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
 
   const resetForm = () => {
     setForm({
-      id: uuidv4(),
       userDefinedName: "",
       type: "",
       category: "general",
@@ -220,10 +198,11 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
     setShowSuggestions(false);
   };
 
-  // category-bound type options
-  const typeOptions = useMemo(() => TYPE_BY_CATEGORY[`${form.category || "general"}`] ?? [], [form.category]);
+  const typeOptions = useMemo(
+    () => TYPE_BY_CATEGORY[`${form.category || "general"}`] ?? [],
+    [form.category]
+  );
 
-  // keep type valid if category changes
   useEffect(() => {
     if (form.type && !typeOptions.some(o => o.value === form.type)) {
       setForm(prev => ({ ...prev, type: "" }));
@@ -247,8 +226,10 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
 
     lookupTimer.current = setTimeout(async () => {
       try {
+        // DB-first
         const res = await api.get("/lookup/appliances", { params: { q: val } });
         let results: ApplianceLookup[] = Array.isArray(res.data) ? res.data : [];
+        // AI fallback
         if (!results.length) {
           const aiRes = await api.get("/ai/lookup-appliance", { params: { q: val } });
           results = Array.isArray(aiRes.data) ? aiRes.data : [];
@@ -284,13 +265,19 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
     if (!name) return;
 
     const cleaned: CreateTrackableDTO = {
-      ...form,
+      // For NEW, there is no id key at all. For EDIT, id is present.
+      ...(isEditing ? { id: initialData!.id } : {}),
       userDefinedName: sanitize(name),
       brand: sanitize(form.brand ?? ""),
       model: sanitize(form.model ?? ""),
       serialNumber: sanitize(form.serialNumber ?? ""),
       notes: sanitize(form.notes ?? ""),
-      // leave type/category as chosen (already curated)
+      type: form.type,
+      category: form.category,
+      imageUrl: form.imageUrl,
+      applianceCatalogId: form.applianceCatalogId,
+      roomId: form.roomId ?? undefined,
+      homeId: form.homeId ?? undefined,
     };
 
     onSave(cleaned);

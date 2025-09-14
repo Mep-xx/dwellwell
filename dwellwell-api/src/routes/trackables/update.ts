@@ -4,10 +4,34 @@ import { prisma } from '../../db/prisma';
 
 /**
  * Update a trackable the user owns.
- * Works for both:
- *  - new ownership (ownerUserId)
- *  - legacy ownership via Home (home.userId)
+ * - Ownership: supports both ownerUserId and legacy home.userId
+ * - Allows overriding brand, model, category, and type/kind on Trackable (nullable columns)
+ * - Validates home/room reassignment
+ * - Validates applianceCatalogId existence
+ * - Parses purchaseDate
+ *
+ * NOTE: This assumes Trackable has nullable columns:
+ *   brand?: string | null
+ *   model?: string | null
+ *   category?: string | null
+ *   kind?: string | null   // "type" in the UI maps to "kind" in DB
+ *
+ * If your column names differ, adjust below where noted.
  */
+
+const ALLOWED_CATEGORIES = new Set([
+  'appliance',
+  'kitchen',
+  'bathroom',
+  'heating',
+  'cooling',
+  'plumbing',
+  'electrical',
+  'outdoor',
+  'safety',
+  'general',
+]);
+
 export default asyncHandler(async (req: Request, res: Response) => {
   const userId = (req as any).user?.id;
   const { trackableId } = req.params as any;
@@ -22,6 +46,7 @@ export default asyncHandler(async (req: Request, res: Response) => {
   });
   if (!current) return res.status(404).json({ error: 'TRACKABLE_NOT_FOUND' });
 
+  // Accept both "type" (UI) and "kind" (DB)
   const {
     homeId,
     roomId,
@@ -31,14 +56,24 @@ export default asyncHandler(async (req: Request, res: Response) => {
     serialNumber,
     notes,
     imageUrl,
+
+    // new overrides (long-term UX)
+    brand,
+    model,
+    category,
+    type,   // UI field
+    kind,   // if caller happens to send "kind" explicitly
   } = req.body ?? {};
 
   const data: any = {};
+
+  // Basic fields
   if (userDefinedName !== undefined) data.userDefinedName = userDefinedName;
   if (serialNumber !== undefined) data.serialNumber = serialNumber;
   if (notes !== undefined) data.notes = notes;
   if (imageUrl !== undefined) data.imageUrl = imageUrl;
 
+  // Purchase date
   if (purchaseDate !== undefined) {
     if (purchaseDate === null || purchaseDate === '') {
       data.purchaseDate = null;
@@ -49,6 +84,7 @@ export default asyncHandler(async (req: Request, res: Response) => {
     }
   }
 
+  // Catalog link
   if (applianceCatalogId !== undefined) {
     if (applianceCatalogId === null) {
       data.applianceCatalogId = null;
@@ -59,16 +95,46 @@ export default asyncHandler(async (req: Request, res: Response) => {
     }
   }
 
-  // Reassigning home? Verify ownership and reset room if needed.
-  if (homeId !== undefined && homeId !== current.homeId) {
-    const newHome = await prisma.home.findFirst({ where: { id: homeId, userId } });
-    if (!newHome) return res.status(400).json({ error: 'HOME_NOT_FOUND_OR_NOT_OWNED' });
-    data.homeId = homeId;
-    data.roomId = null; // room must be revalidated
+  // Long-term UX: allow brand/model/category/type overrides on Trackable itself
+  // These columns must exist on the Trackable model (nullable).
+  if (brand !== undefined) data.brand = brand === null ? null : String(brand).slice(0, 128);
+  if (model !== undefined) data.model = model === null ? null : String(model).slice(0, 128);
+
+  if (category !== undefined) {
+    if (category === null) {
+      data.category = null;
+    } else {
+      const c = String(category).toLowerCase();
+      if (!ALLOWED_CATEGORIES.has(c)) {
+        return res.status(400).json({ error: 'CATEGORY_INVALID', allowed: Array.from(ALLOWED_CATEGORIES) });
+      }
+      data.category = c;
+    }
   }
 
-  // Changing/setting room? Verify the room belongs to the effective home (which may have just changed)
-  const effectiveHomeId = data.homeId ?? current.homeId ?? undefined;
+  // Map UI "type" -> DB "kind"
+  if (type !== undefined || kind !== undefined) {
+    const val = (type ?? kind);
+    data.kind = val === null ? null : String(val).toLowerCase().slice(0, 64);
+  }
+
+  // Home reassignment (ownership validation) & room reset if needed
+  if (homeId !== undefined && homeId !== current.homeId) {
+    if (homeId === null) {
+      // Allow disassociating a home entirely, if your schema allows it
+      data.homeId = null;
+      data.roomId = null;
+    } else {
+      const newHome = await prisma.home.findFirst({ where: { id: homeId, userId } });
+      if (!newHome) return res.status(400).json({ error: 'HOME_NOT_FOUND_OR_NOT_OWNED' });
+      data.homeId = homeId;
+      // unless caller also provides a valid room below, force revalidation
+      data.roomId = null;
+    }
+  }
+
+  // Room validation (must belong to effective home, if set)
+  const effectiveHomeId = data.homeId !== undefined ? data.homeId : current.homeId;
   if (roomId !== undefined) {
     if (roomId === null) {
       data.roomId = null;
@@ -82,6 +148,52 @@ export default asyncHandler(async (req: Request, res: Response) => {
     }
   }
 
-  const updated = await prisma.trackable.update({ where: { id: trackableId }, data });
-  res.json(updated);
+  // Perform update
+  await prisma.trackable.update({
+    where: { id: trackableId },
+    data,
+  });
+
+  // Re-fetch a full view so the client sees the latest (including catalog fallbacks).
+  const updated = await prisma.trackable.findUnique({
+    where: { id: trackableId },
+    include: {
+      applianceCatalog: true,
+      room: true,
+      home: true,
+    },
+  });
+
+  if (!updated) return res.status(404).json({ error: 'TRACKABLE_NOT_FOUND' });
+
+  // Build response view: Trackable overrides first, then fall back to catalog
+  const view = {
+    id: updated.id,
+    userDefinedName: updated.userDefinedName ?? '',
+
+    brand: updated.brand ?? updated.applianceCatalog?.brand ?? null,
+    model: updated.model ?? updated.applianceCatalog?.model ?? null,
+    // "type" for the UI comes from Trackable.kind first, then catalog.type
+    type: updated.kind ?? updated.applianceCatalog?.type ?? null,
+    category: updated.category ?? updated.applianceCatalog?.category ?? 'general',
+
+    serialNumber: updated.serialNumber ?? null,
+    imageUrl: updated.imageUrl ?? null,
+    notes: updated.notes ?? null,
+    applianceCatalogId: updated.applianceCatalogId ?? null,
+
+    homeId: updated.homeId ?? null,
+    roomId: updated.roomId ?? null,
+    roomName: updated.room?.name ?? null,
+    homeName: updated.home?.nickname ?? null,
+
+    status: updated.status,
+    nextDueDate: (updated as any).nextDueDate ?? null,
+    counts: (updated as any).counts ?? { overdue: 0, dueSoon: 0, active: 0 },
+
+    createdAt: updated.createdAt.toISOString(),
+    lastCompletedAt: (updated as any).lastCompletedAt ?? null,
+  };
+
+  res.json(view);
 });

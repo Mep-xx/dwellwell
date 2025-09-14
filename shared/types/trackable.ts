@@ -17,9 +17,9 @@ export type Trackable = {
   model: string;
   type: string;
   category: string;
-  serialNumber?: string;
+  serialNumber?: string | null;
   imageUrl?: string;
-  notes?: string;
+  notes?: string | null;
   applianceCatalogId?: string;
   homeId: string;
   roomId?: string | null;
