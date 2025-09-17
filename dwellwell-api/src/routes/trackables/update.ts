@@ -30,6 +30,13 @@ const ALLOWED_CATEGORIES = new Set([
   'outdoor',
   'safety',
   'general',
+  'electronics',      // broad consumer electronics
+  'computing',        // laptops, desktops, printers
+  'entertainment',    // TV, consoles, AV gear, projectors
+  'lighting',         // fixtures, bulbs, smart lighting
+  'cleaning',         // vacuums, robot vacs, steam cleaners
+  'tools',            // drills, saws, power/hand tools
+  'furniture',        // couches, desks, etc.
 ]);
 
 export default asyncHandler(async (req: Request, res: Response) => {

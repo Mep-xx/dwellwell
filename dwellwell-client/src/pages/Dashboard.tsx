@@ -1,6 +1,6 @@
 //dwellwell-client/src/pages/Dashboard.tsx
 import { useState } from 'react';
-import TaskCard from '../components/TaskCard';
+import TaskCard from '@/components/features/TaskCard';
 import { initialTasks } from '../data/mockTasks';
 import { TaskCategory, TaskStatus } from '@shared/types/task';
 

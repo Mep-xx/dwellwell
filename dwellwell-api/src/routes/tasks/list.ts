@@ -2,41 +2,25 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../../middleware/asyncHandler';
 import { prisma } from '../../db/prisma';
-import { TaskStatus } from '@prisma/client';
 
 export default asyncHandler(async (req: Request, res: Response) => {
   const userId = (req as any).user?.id;
-  const statusParam = (req.query.status as string | undefined)?.trim();
+  const { trackableId, status } = req.query as { trackableId?: string; status?: string };
 
-  let statusFilter: TaskStatus | undefined;
+  const where: any = { userId };
 
-  if (statusParam) {
-    // Normalize case and map to the enum
-    const match = (Object.values(TaskStatus) as string[]).find(
-      v => v.toLowerCase() === statusParam.toLowerCase()
-    );
-    if (!match) {
-      return res
-        .status(400)
-        .json({ error: 'INVALID_STATUS', allowed: Object.values(TaskStatus) });
-    }
-    statusFilter = match as TaskStatus;
+  // Trackable scoping
+  if (trackableId) where.trackableId = String(trackableId);
+
+  // Accept friendly status param
+  // - "active" → not archived, status=PENDING (and not paused; paused tasks still exist but are flagged)
+  // - otherwise allow raw enum values if you use them directly
+  if (status && String(status).toLowerCase() === 'active') {
+    where.archivedAt = null;
+    where.status = 'PENDING'; // adjust if you want to include SKIPPED; usually "active" = do-able
+  } else if (status) {
+    where.status = String(status).toUpperCase();
   }
-
-  const showPaused = req.query.showPaused === '1';
-  const showArchived = req.query.showArchived === '1';
-  const trackableId = (req.query.trackableId as string) || undefined;
-
-  const where: any = {
-    userId,
-    ...(statusFilter ? { status: statusFilter } : {}),
-    ...(trackableId ? { trackableId } : {}),
-  };
-
-  // Hide archived by default
-  if (!showArchived) where.archivedAt = null;
-  // Hide paused unless requested
-  if (!showPaused) where.pausedAt = null;
 
   const tasks = await prisma.userTask.findMany({
     where,

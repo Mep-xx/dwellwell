@@ -13,7 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { AddressAutocomplete, type AddressSuggestion } from "@/components/AddressAutocomplete";
+import { AddressAutocomplete, type AddressSuggestion } from "@/components/ui/AddressAutocomplete";
 import { ARCHITECTURAL_STYLES } from '@shared/constants';
 
 type Props = {

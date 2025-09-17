@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { api } from '@/utils/api';
 import { Task } from '@shared/types/task';
-import { categoryGradients } from '../data/mockTasks';
+import { categoryGradients } from '../../data/mockTasks';
 
 type Props = {
   task: Task;

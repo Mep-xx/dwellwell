@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { api } from "@/utils/api";
 import { useToast } from "@/components/ui/use-toast";
 import type { Task } from "@shared/types/task";
 import TrackableTaskRow from "./TrackableTaskRow";
 import { TRACKABLE_TYPE_ICONS } from "@shared/icons/trackables";
+import { ChevronDown, ChevronUp } from "lucide-react";
 
 /** Summary shape returned by /trackables (with rollups). */
 export type TrackableSummary = {
@@ -43,9 +44,7 @@ const STATUS_LABELS: Record<"IN_USE" | "PAUSED" | "RETIRED", string> = {
 };
 
 const SAFE_COUNTS = { overdue: 0, dueSoon: 0, active: 0 };
-
-const fmt = (iso?: string | null) =>
-  iso ? new Date(iso).toLocaleDateString() : undefined;
+const fmt = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString() : undefined);
 
 export default function TrackableCard({ data, onEdited, onRemoved, onOpenEdit }: Props) {
   const { toast } = useToast();
@@ -68,7 +67,11 @@ export default function TrackableCard({ data, onEdited, onRemoved, onOpenEdit }:
     }
   }, [status]);
 
+  // --- fetch once per card (even in StrictMode / repeated renders)
+  const hasFetchedRef = useRef(false);
   const fetchTasks = useCallback(async () => {
+    if (hasFetchedRef.current) return;
+    hasFetchedRef.current = true;
     setLoadingTasks(true);
     setError(null);
     try {
@@ -82,9 +85,10 @@ export default function TrackableCard({ data, onEdited, onRemoved, onOpenEdit }:
     }
   }, [data.id]);
 
+  // fetch on first expand only
   useEffect(() => {
-    if (expanded && tasks.length === 0 && !loadingTasks && !error) fetchTasks();
-  }, [expanded, tasks.length, loadingTasks, error, fetchTasks]);
+    if (expanded && !hasFetchedRef.current) fetchTasks();
+  }, [expanded, fetchTasks]);
 
   // Lifecycle
   const pause = async () => {
@@ -111,6 +115,7 @@ export default function TrackableCard({ data, onEdited, onRemoved, onOpenEdit }:
   };
 
   const icon = data.type ? TRACKABLE_TYPE_ICONS[data.type] : undefined;
+  const liveCount = tasks.length || counts.active;
 
   return (
     <motion.div
@@ -118,7 +123,7 @@ export default function TrackableCard({ data, onEdited, onRemoved, onOpenEdit }:
       initial={{ opacity: 0, scale: 0.98 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.97 }}
-      className="rounded-xl border shadow bg-white p-4 transition-all hover:shadow-lg hover:-translate-y-0.5"
+      className="self-start rounded-xl border shadow bg-white p-4 transition-all hover:shadow-lg hover:-translate-y-0.5"
     >
       {/* Header: Title left, status & next-due right */}
       <div className="flex items-start">
@@ -146,7 +151,7 @@ export default function TrackableCard({ data, onEdited, onRemoved, onOpenEdit }:
           ⚠️ <span className="font-medium">{counts.overdue}</span> Overdue
         </span>
         <span className="inline-flex items-center gap-1 text-sm">
-          📌 <span className="font-medium">{counts.active}</span> Active
+          📌 <span className="font-medium">{liveCount}</span> Active
         </span>
       </div>
 
@@ -162,16 +167,14 @@ export default function TrackableCard({ data, onEdited, onRemoved, onOpenEdit }:
 
       {/* Thumb + actions */}
       <div className="mt-3 flex items-center gap-3">
-        <button
+        <div
           className="shrink-0 w-16 h-16 rounded-xl bg-gray-50 flex items-center justify-center overflow-hidden border"
-          onClick={() => setExpanded(x => !x)}
-          aria-label="Toggle tasks"
-          title="Show tasks"
+          title={data.userDefinedName}
         >
           {data.imageUrl
             ? <img src={data.imageUrl} alt={data.userDefinedName} className="w-full h-full object-contain" />
             : <span className="text-2xl">{icon ?? "🧰"}</span>}
-        </button>
+        </div>
 
         <div className="flex-1">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-gray-700">
@@ -190,6 +193,22 @@ export default function TrackableCard({ data, onEdited, onRemoved, onOpenEdit }:
         </div>
       </div>
 
+      {/* Expand / Collapse Button — HomeCard style */}
+      <div className="mt-3">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setExpanded((prev) => !prev);
+          }}
+          className="px-3 py-1.5 bg-brand-primary/10 hover:bg-brand-primary/20 text-brand-primary rounded-full
+                     flex items-center gap-2 text-sm font-medium transition-colors"
+          title={expanded ? "Hide Tasks" : "Show Tasks"}
+        >
+          {expanded ? "Hide Tasks" : `Show Tasks (${liveCount})`}
+          {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        </button>
+      </div>
+
       {/* Expandable tasks */}
       <AnimatePresence initial={false}>
         {expanded && (
@@ -203,11 +222,13 @@ export default function TrackableCard({ data, onEdited, onRemoved, onOpenEdit }:
           >
             <div className="mt-4 rounded-xl border bg-gray-50 p-3">
               <div className="mb-2 flex items-center justify-between">
-                <div className="text-sm font-semibold text-gray-800">Tasks ({tasks.length || counts.active})</div>
+                <div className="text-sm font-semibold text-gray-800">
+                  Tasks {loadingTasks ? "" : `(${tasks.length})`}
+                </div>
                 <div className="flex items-center gap-2">
                   <button
                     className="text-xs text-gray-700 hover:text-black underline"
-                    onClick={(e) => { e.stopPropagation(); fetchTasks(); }}
+                    onClick={(e) => { e.stopPropagation(); hasFetchedRef.current = false; fetchTasks(); }}
                   >
                     Refresh
                   </button>
@@ -234,7 +255,7 @@ export default function TrackableCard({ data, onEdited, onRemoved, onOpenEdit }:
 
               <div className="divide-y">
                 {tasks.map((t) => (
-                  <TrackableTaskRow key={t.id} task={t} onChanged={fetchTasks} />
+                  <TrackableTaskRow key={t.id} task={t} onChanged={() => { hasFetchedRef.current = false; fetchTasks(); }} />
                 ))}
               </div>
             </div>

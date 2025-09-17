@@ -15,7 +15,7 @@ import {
   SortableContext,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
-import { SortableRoomCard } from '@/components/SortableRoomCard';
+import { SortableRoomCard } from '@/components/features/SortableRoomCard';
 import { api } from '@/utils/api';
 import type { Room } from '@shared/types/room';
 import { Button } from '@/components/ui/button';

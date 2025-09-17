@@ -2,13 +2,12 @@
 // (unchanged from your last message; included here for convenience)
 import { useEffect, useState, useCallback } from "react";
 import { api } from "@/utils/api";
-import TrackableModal from "../components/TrackableModal";
-import type { Task } from "@shared/types/task";
+import TrackableModal from "@/components/features/TrackableModal";
 import { useToast } from "@/components/ui/use-toast";
 import { AnimatePresence } from "framer-motion";
 import { useHome } from "@/context/HomeContext";
-import TrackableCard, { TrackableSummary } from "@/components/TrackableCard";
-import type { CreateTrackableDTO } from "@/components/TrackableModal";
+import TrackableCard, { TrackableSummary } from "@/components/features/TrackableCard";
+import type { CreateTrackableDTO } from "@/components/features/TrackableModal";
 
 type Props = {};
 
@@ -174,7 +173,7 @@ export default function Trackables(_: Props) {
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-start">
           <AnimatePresence>
             {trackables.map((t) => (
               <TrackableCard

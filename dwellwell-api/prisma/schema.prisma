@@ -388,44 +388,41 @@ model ApplianceCatalog {
 model Trackable {
   id String @id @default(uuid())
 
-  // Ownership (required): trackable belongs to a user regardless of home
   ownerUserId String
   owner       User   @relation("UserOwnsTrackables", fields: [ownerUserId], references: [id], onDelete: Cascade)
 
-  // Optional "current" placement; prefer TrackableAssignment for history
   homeId String? @map("homeId")
   roomId String?
   home   Home?   @relation("HomeTrackables", fields: [homeId], references: [id], onDelete: Cascade)
   room   Room?   @relation("RoomTrackables", fields: [roomId], references: [id], onDelete: Cascade)
 
-  // Catalog link (optional)
   applianceCatalogId String?
   applianceCatalog   ApplianceCatalog? @relation(fields: [applianceCatalogId], references: [id])
 
-  // Descriptive fields
+  // NEW: per-item overrides (nullable; take precedence over catalog)
+  brand    String?   @db.VarChar(128)
+  model    String?   @db.VarChar(128)
+  category String?   @db.VarChar(64)
+  kind     String?   @db.VarChar(64) // UI "type" maps to "kind"
+
   userDefinedName String?
   purchaseDate    DateTime?
   serialNumber    String?
   imageUrl        String?
   notes           String?
 
-  kind       String?
   attributes Json?
 
-  // Lifecycle
   status        TrackableStatus @default(IN_USE)
   retiredAt     DateTime?
   retiredReason RetiredReason?
 
-  // Supersession (single FK → parent; backref is array)
   supersedesId String?
   supersedes   Trackable?  @relation("TrackableSupersession", fields: [supersedesId], references: [id])
   supersededBy Trackable[] @relation("TrackableSupersession")
 
-  // History assignments
   assignments TrackableAssignment[]
 
-  // Tasks / resources
   tasks             UserTask[]          @relation("TrackableTasks")
   TrackableResource TrackableResource[]
 
@@ -436,6 +433,10 @@ model Trackable {
   @@index([status])
   @@index([applianceCatalogId])
   @@index([supersedesId])
+  @@index([brand])
+  @@index([model])
+  @@index([category])
+  @@index([kind])
 }
 
 model TrackableAssignment {

@@ -5,9 +5,9 @@ import type { Home } from "@shared/types/home";
 import type { Room } from "@shared/types/room";
 import { useNavigate } from "react-router-dom";
 
-import { HomeCard } from "@/components/HomeCard";
-import { DeleteHomeModal } from "@/components/DeleteHomeModal";
-import AddHomeWizard from "@/components/AddHomeWizard";
+import { HomeCard } from "@/components/features/HomeCard";
+import { DeleteHomeModal } from "@/components/features/DeleteHomeModal";
+import AddHomeWizard from "@/components/features/AddHomeWizard";
 import { useToast } from "@/components/ui/use-toast";
 
 type TaskSummary = {

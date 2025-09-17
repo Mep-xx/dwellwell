@@ -1,25 +1,32 @@
+// dwellwell-api/src/routes/index.ts
 import { Router } from 'express';
 
-import auth from './auth';
-import homes from './homes';
-import rooms from './rooms';
-import tasks from './tasks';
-import trackables from './trackables';
-import ai from './ai';            // folder with index.ts
-import lookup from './lookup';    // folder with index.ts
-import mapbox from './mapbox';
+// keep using your existing per-folder index files:
+import homesRouter from './homes';
+import trackablesRouter from './trackables';
+import tasksRouter from './tasks';
+import catalogRouter from './catalog';
+import aiRouter from './ai';
+import lookupRouter from './lookup';
 import admin from './admin';
+
+// If you have other groups (admin, feedback, billing, etc.), import and add here too.
 
 const router = Router();
 
-router.use('/auth', auth);
-router.use('/homes', homes);
-router.use('/rooms', rooms);
-router.use('/tasks', tasks);
-router.use('/trackables', trackables);
-router.use('/ai', ai);
-router.use('/lookup', lookup);
-router.use('/mapbox', mapbox);
+// Most of your child routers already apply requireAuth internally.
+// For Homes, you’ve been mounting the folder’s index directly; keep that behavior:
+router.use('/homes', homesRouter);
+
+// Core feature routers:
+router.use('/trackables', trackablesRouter);
+router.use('/tasks', tasksRouter);
+
+// Catalog-first search + AI fallback:
+router.use('/catalog', catalogRouter);
+router.use('/ai', aiRouter);
+router.use('/lookup', lookupRouter);
+
 router.use('/admin', admin);
 
 export default router;

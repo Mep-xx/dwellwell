@@ -5,10 +5,10 @@ import { api } from "@/utils/api";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import MapboxAddress from "@/components/MapboxAddress";
+import MapboxAddress from "@/components/ui/MapboxAddress";
 import HomePhotoDropzone from "@/components/ui/HomePhotoDropzone";
 import { buildZillowUrl } from "@/utils/zillowUrl";
-import { RoomsPanel } from "@/components/RoomsPanel";
+import { RoomsPanel } from "@/components/features/RoomsPanel";
 
 import type { AxiosError } from "axios";
 import {

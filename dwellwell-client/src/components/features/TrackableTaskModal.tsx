@@ -1,5 +1,5 @@
 //dwellwell-client/src/components/TrackableTaskModal.tsx
-import { Task } from '../../../shared/types/task';
+import { Task } from '@shared/types/task';
 
 type Props = {
   isOpen: boolean;

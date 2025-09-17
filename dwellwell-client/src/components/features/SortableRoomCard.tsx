@@ -1,6 +1,6 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Input } from './ui/input';
+import { Input } from '@/components/ui/input';
 import { RoomTypeSelect } from './RoomTypeSelect';
 import { ROOM_TYPE_ICONS } from '@constants';
 // ⬇️ replace the old floorHelpers import with the shared floors constants

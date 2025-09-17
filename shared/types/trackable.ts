@@ -1,14 +1,21 @@
 export type TrackableCategory =
-  | 'appliance'
+| 'appliance'
   | 'kitchen'
   | 'bathroom'
-  | 'outdoor'
-  | 'safety'
   | 'heating'
   | 'cooling'
-  | 'electrical'
   | 'plumbing'
-  | 'general';
+  | 'electrical'
+  | 'outdoor'
+  | 'safety'
+  | 'general'
+  | 'electronics'
+  | 'computing'
+  | 'entertainment'
+  | 'lighting'
+  | 'cleaning'
+  | 'tools'
+  | 'furniture';
 
 export type Trackable = {
   id: string;
