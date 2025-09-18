@@ -1,24 +1,25 @@
 // dwellwell-api/src/routes/rooms/list.ts
-import { Request, Response } from 'express';
-import { asyncHandler } from '../../middleware/asyncHandler';
-import { prisma } from '../../db/prisma';
+import { Request, Response } from "express";
+import { prisma } from "../../db/prisma";
 
-export default asyncHandler(async (req, res) => {
-  const userId = (req as any).user?.id;
+export default async function list(req: Request, res: Response) {
+  try {
+    const homeId = String(req.query.homeId || "").trim();
+    if (!homeId) {
+      return res.status(400).json({ error: "MISSING_HOME_ID", message: "Query param 'homeId' is required." });
+    }
 
-  if ('propertyId' in req.query) {
-    return res.status(400).json({ error: 'DO_NOT_USE_PROPERTY_ID' });
+    const includeDetails = String(req.query.includeDetails || "").toLowerCase() === "true";
+
+    const rooms = await prisma.room.findMany({
+      where: { homeId },
+      orderBy: [{ position: "asc" }, { name: "asc" }],
+      include: includeDetails ? { userTasks: true } : undefined,
+    });
+
+    return res.json(rooms);
+  } catch (err: any) {
+    console.error("[rooms:list] error", err);
+    return res.status(500).json({ error: "ROOMS_LIST_FAILED", message: "Failed to list rooms" });
   }
-
-  const homeId = (req.query.homeId as string) || '';
-  const includeDetails = String(req.query.includeDetails || 'false') === 'true';
-  if (!homeId) return res.status(400).json({ error: 'HOME_ID_REQUIRED' });
-
-  const rooms = await prisma.room.findMany({
-    where: { homeId, home: { userId } },
-    orderBy: [{ position: 'asc' }],
-    include: includeDetails ? { detail: true } : undefined,
-  });
-
-  res.json(rooms);
-});
+}

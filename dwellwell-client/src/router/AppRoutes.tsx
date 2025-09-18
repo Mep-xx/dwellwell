@@ -11,22 +11,25 @@ import Homes from '@/pages/Homes';
 import Home from '@/pages/Home';
 import Trackables from '@/pages/Trackables';
 import Vehicles from '@/pages/Vehicles';
-import AdminUsers from '@/pages/admin/AdminUsers';
-import Billing from '@/pages/Billing';
 import Settings from '@/pages/Settings';
+import Billing from '@/pages/Billing';
 import Room from '@/pages/Room';
+
+// NEW
+import TasksPage from '@/pages/TasksPage';
+import TaskDetailPage from '@/pages/TaskDetailPage';
 
 // layouts
 import Layout from '@/components/layout/Layout';
 import ProtectedLayout from '@/components/layout/ProtectedLayout';
+
+// admin (unchanged)
 import AdminDashboard from '@/pages/admin/AdminDashboard';
 import AdminTaskTemplates from '@/pages/admin/AdminTaskTemplates';
 import AdminHomes from '@/pages/admin/AdminHomes';
+import AdminUsers from '@/pages/admin/AdminUsers';
 import AdminTrackables from '@/pages/admin/AdminTrackables';
 
-import RequireAuth from './RequireAuth';
-
-/** Blocks authed users from seeing public routes (/, /login, /signup) */
 function RequireGuest() {
   const { user, loading } = useAuth();
   const loc = useLocation();
@@ -38,7 +41,7 @@ function RequireGuest() {
 export default function AppRoutes() {
   return (
     <Routes>
-      {/* Public routes use the public Layout (no sidebar) */}
+      {/* Public */}
       <Route element={<Layout />}>
         <Route element={<RequireGuest />}>
           <Route path="/" element={<LandingPage />} />
@@ -47,33 +50,35 @@ export default function AppRoutes() {
         </Route>
       </Route>
 
-      {/* Private routes require auth and render the protected layout (with sidebar) */}
-      <Route element={<RequireAuth />}>
-        <Route element={<ProtectedLayout />}>
-          <Route path="/app" element={<Dashboard />} />
-          <Route path="/app/homes" element={<Homes />} />
-          <Route path="/app/homes/:id" element={<Home />} />
-          <Route path="/app/rooms/:roomId" element={<Room />} />
-          <Route path="/app/trackables" element={<Trackables />} />
-          <Route path="/app/vehicles" element={<Vehicles />} />
+      {/* Private */}
+      <Route element={<ProtectedLayout />}>
+        <Route path="/app" element={<Dashboard />} />
+        <Route path="/app/homes" element={<Homes />} />
+        <Route path="/app/homes/:id" element={<Home />} />
+        <Route path="/app/rooms/:roomId" element={<Room />} />
+        <Route path="/app/trackables" element={<Trackables />} />
+        <Route path="/app/vehicles" element={<Vehicles />} />
 
-          {/* Account */}
-          <Route path="/app/settings" element={<Settings />} />
-          <Route path="/app/billing" element={<Billing />} />
+        {/* NEW */}
+        <Route path="/app/tasks" element={<TasksPage />} />
+        <Route path="/app/tasks/:taskId" element={<TaskDetailPage />} />
 
-          {/* Admin */}
-          <Route path="/admin/AdminDashboard" element={<AdminDashboard />} />
-          <Route path="/admin/AdminTaskTemplates" element={<AdminTaskTemplates />} />
-          <Route path="/admin/AdminUsers" element={<AdminUsers />} />
-          <Route path="/admin/AdminHomes" element={<AdminHomes />} />
-          <Route path="/admin/AdminTrackables" element={<AdminTrackables />} />
+        {/* Account */}
+        <Route path="/app/settings" element={<Settings />} />
+        <Route path="/app/billing" element={<Billing />} />
 
-          {/* Legacy redirects */}
-          <Route path="/app/homes/:id/edit" element={<Navigate to="/app/homes/:id" replace />} />
-          <Route path="/homes/:id/edit" element={<Navigate to="/app/homes/:id" replace />} />
-          <Route path="/homes" element={<Navigate to="/app/homes" replace />} />
-          <Route path="/app/room/:id" element={<Navigate to="/app/rooms/:id" replace />} />
-        </Route>
+        {/* Admin */}
+        <Route path="/admin/AdminDashboard" element={<AdminDashboard />} />
+        <Route path="/admin/AdminTaskTemplates" element={<AdminTaskTemplates />} />
+        <Route path="/admin/AdminUsers" element={<AdminUsers />} />
+        <Route path="/admin/AdminHomes" element={<AdminHomes />} />
+        <Route path="/admin/AdminTrackables" element={<AdminTrackables />} />
+
+        {/* Legacy redirects */}
+        <Route path="/app/homes/:id/edit" element={<Navigate to="/app/homes/:id" replace />} />
+        <Route path="/homes/:id/edit" element={<Navigate to="/app/homes/:id" replace />} />
+        <Route path="/homes" element={<Navigate to="/app/homes" replace />} />
+        <Route path="/app/room/:id" element={<Navigate to="/app/rooms/:id" replace />} />
       </Route>
 
       {/* Fallback */}

@@ -2,10 +2,10 @@
 import axios, { AxiosError, AxiosRequestConfig } from 'axios';
 import { apiLogout } from '@/utils/logoutHelper';
 
-const baseURL =
-  (import.meta.env.VITE_API_URL
-    ? `${import.meta.env.VITE_API_URL}/api`
-    : 'http://localhost:4000/api');
+// Use the Vite dev proxy when in dev; use env var in prod if provided.
+const baseURL = import.meta.env.DEV
+  ? '/api'
+  : (import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api');
 
 export const api = axios.create({
   baseURL,
@@ -22,35 +22,44 @@ export function getToken() {
   try { return localStorage.getItem(ACCESS_TOKEN_KEY); } catch { return null; }
 }
 export function setToken(token: string) {
-  try { localStorage.setItem(ACCESS_TOKEN_KEY, token); } catch {}
+  try { localStorage.setItem(ACCESS_TOKEN_KEY, token); } catch { }
 }
 export function clearToken() {
   try {
     localStorage.removeItem(ACCESS_TOKEN_KEY);
     // do NOT clear user here; AuthContext handles it on logout so UI updates correctly
-  } catch {}
+  } catch { }
 }
 
+// ----------------------------------------------------------------------------
+// Dev logging (safe)
+// ----------------------------------------------------------------------------
 if (import.meta.env.DEV) {
   api.interceptors.request.use((cfg) => {
-    // small and safe
-    console.debug("API →", cfg.method?.toUpperCase(), cfg.url, cfg.data ?? "");
+    try {
+      console.debug('API →', (cfg.method || 'GET').toUpperCase(), cfg.url, cfg.data ?? '');
+    } catch { }
     return cfg;
   });
   api.interceptors.response.use(
     (r) => {
-      console.debug("API ←", r.status, r.config.url);
+      try { console.debug('API ←', r.status, r.config?.url); } catch { }
       return r;
     },
+    // dwellwell-client/src/utils/api.ts (inside DEV response error interceptor)
     (e) => {
-      const s = e?.response?.status;
-      const u = e?.config?.url;
-      console.warn("API ←", s, u, e?.response?.data ?? "");
+      // Ignore React StrictMode duplicate-effect cancellations
+      if ((e as any)?.code === 'ERR_CANCELED') {
+        return Promise.reject(e);
+      }
+      const status = e?.response?.status ?? 'NO_RESPONSE';
+      const url = e?.config?.url;
+      const body = e?.response?.data ?? e?.message;
+      try { console.warn('API ←', status, url, body); } catch { }
       return Promise.reject(e);
     }
   );
 }
-
 
 // ----------------------------------------------------------------------------
 // Attach token to requests
@@ -95,21 +104,18 @@ api.interceptors.response.use(
   async (error: AxiosError) => {
     const original = error.config as AxiosRequestConfig & { _retry?: boolean };
 
-    // ✅ Never try to auto-refresh if the request that failed is /auth/refresh
+    // Never try to auto-refresh if the request that failed is /auth/refresh
     const url = (original?.url || '').toString();
     if (url.includes('/auth/refresh')) {
-      // Do NOT redirect here; just let the caller (AuthContext on mount) decide.
       return Promise.reject(error);
     }
 
     const status = error.response?.status;
     const code = (error.response?.data as any)?.error;
-
     const isAuthErr = status === 401;
     const eligible = isAuthErr && (code === 'TOKEN_EXPIRED' || code === 'UNAUTHORIZED');
 
     if (!eligible || original?._retry) {
-      // Hard fail: if this looks like auth loss, log out
       if (status === 401) {
         clearToken();
         const params = new URLSearchParams({ reason: 'expired' });
@@ -121,7 +127,6 @@ api.interceptors.response.use(
     original._retry = true;
 
     if (isRefreshing) {
-      // Queue this request until the in-flight refresh completes
       return new Promise((resolve, reject) => {
         pendingQueue.push((newToken) => {
           if (!newToken) return reject(error);

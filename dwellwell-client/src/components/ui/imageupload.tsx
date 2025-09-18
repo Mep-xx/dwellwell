@@ -2,6 +2,7 @@
 import { useCallback, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { api } from "@/utils/api";
+import { getApiOrigin } from "@/utils/url";
 
 type Props = {
   homeId: string;
@@ -15,13 +16,22 @@ function absolutizeFromApiBase(pathOrUrl: string): string {
   if (!pathOrUrl) return "";
   if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl;
 
-  const base = api.defaults.baseURL ?? window.location.origin;
-  const apiOrigin = new URL("/", base).origin;                
-  const trimmed = String(pathOrUrl).replace(/^\/?api\/?/, "").replace(/^\/+/, "");
-  return `${apiOrigin}/${trimmed}`;
+  const trimmed = String(pathOrUrl)
+    .replace(/^\/?api\/?/, "")
+    .replace(/^\/+/, "");
+
+  if (import.meta.env.DEV && trimmed.startsWith("uploads/")) {
+    return `/${trimmed}`; // Vite proxy in dev
+  }
+  return `${getApiOrigin()}/${trimmed}`;
 }
 
-export function ImageUpload({ homeId, onUploadComplete, disabled = false, showPreview = false }: Props) {
+export function ImageUpload({
+  homeId,
+  onUploadComplete,
+  disabled = false,
+  showPreview = false,
+}: Props) {
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState<string>("");
   const [err, setErr] = useState<string | null>(null);
@@ -50,7 +60,7 @@ export function ImageUpload({ homeId, onUploadComplete, disabled = false, showPr
         try {
           data = await send(`/homes/${encodeURIComponent(homeId)}/image`);
         } catch {
-          // Optional fallbacks (kept for safety; you can remove if unused)
+          // Optional fallbacks; okay to remove if unused
           try {
             data = await send(`/homes/${encodeURIComponent(homeId)}/upload`);
           } catch {
@@ -59,7 +69,13 @@ export function ImageUpload({ homeId, onUploadComplete, disabled = false, showPr
         }
 
         const candidate: string | undefined =
-          data?.url || data?.imageUrl || data?.location || data?.path || data?.filePath || data?.filename || data?.key;
+          data?.url ||
+          data?.imageUrl ||
+          data?.location ||
+          data?.path ||
+          data?.filePath ||
+          data?.filename ||
+          data?.key;
 
         if (!candidate) throw new Error("Upload response missing image url");
 
@@ -101,7 +117,6 @@ export function ImageUpload({ homeId, onUploadComplete, disabled = false, showPr
         {err && <p className="mt-2 text-xs text-red-600">{err}</p>}
       </div>
 
-      {/* Hide the component’s own tiny preview unless explicitly requested */}
       {showPreview && preview && (
         <div className="mt-3 flex items-center gap-3">
           <img src={preview} alt="Home photo preview" className="h-20 w-32 rounded object-cover border" />

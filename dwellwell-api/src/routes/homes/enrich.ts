@@ -1,7 +1,9 @@
+//dwellwell-api/src/routes/homes/enrich.ts
 import { Router, Request, Response } from "express";
 import { Room } from "@prisma/client";
 import { prisma } from "../../db/prisma";
 import OpenAI from "openai";
+import { requireAuth } from "../../middleware/requireAuth";
 
 const router = Router();
 
@@ -46,21 +48,15 @@ let allowedRoomTypes: string[] = [
 ];
 
 try {
-  // Adjust the relative path to your repo layout if needed:
-  // This file sits at: dwellwell-api/src/routes/homes/enrich.ts
-  // Shared is a sibling of dwellwell-api => "../../../shared/..."
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   // @ts-ignore
   const sharedStyles = require("../../../shared/architecturalStyleLabels");
-  // Supported shapes:
-  //   default export: [{value,label}] or named export architecturalStyleLabels
   const stylesArray =
     sharedStyles?.architecturalStyleLabels ||
     sharedStyles?.default ||
     sharedStyles;
 
   if (Array.isArray(stylesArray)) {
-    // Accept either {value,label} or simple strings
     const vals = stylesArray
       .map((s: any) => (typeof s === "string" ? s : s?.value || s?.label))
       .filter(Boolean);
@@ -74,8 +70,6 @@ try {
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   // @ts-ignore
   const houseRoomTemplates = require("../../../shared/houseRoomTemplates");
-  // You might have an object keyed by style with room arrays.
-  // Collect all unique room.type values as the allow-list.
   const all = houseRoomTemplates?.default || houseRoomTemplates;
   if (all && typeof all === "object") {
     const set = new Set<string>();
@@ -226,7 +220,6 @@ function normalizeModelOutput(raw: any) {
       continue;
     }
 
-    // passthrough simple strings
     if (
       key === "nickname" ||
       key === "apartment" ||
@@ -250,7 +243,7 @@ function safeJsonParse<T = any>(text: string): T | null {
   }
 }
 
-router.post("/:homeId/enrich", async (req: Request, res: Response) => {
+router.post("/:homeId/enrich", requireAuth, async (req: Request, res: Response) => {
   try {
     if (!OPENAI_API_KEY) {
       return res.status(501).json({ error: "OPENAI_API_KEY not configured" });
@@ -265,7 +258,6 @@ router.post("/:homeId/enrich", async (req: Request, res: Response) => {
     });
     if (!home) return res.status(404).json({ error: "HOME_NOT_FOUND" });
 
-    // Build the "current" snapshot for the model
     const current = {
       address: home.address ?? null,
       city: home.city ?? null,
@@ -313,28 +305,21 @@ router.post("/:homeId/enrich", async (req: Request, res: Response) => {
     const raw = safeJsonParse<Record<string, any>>(content) || {};
     const updated = normalizeModelOutput(raw);
 
-    // Compute changed fields vs current (only for top-level accepted keys)
     const changed = Object.keys(updated).reduce<
       { key: string; oldValue: any; newValue: any }[]
     >((acc, key) => {
       const newVal = (updated as any)[key];
       const oldVal =
         key === "rooms"
-          ? (current.rooms as any) // compare arrays shallowly as-is
+          ? (current.rooms as any)
           : (current as any)[key];
-      // include all provided keys as "changed" even if equal, because client wants to know what model returned.
-      // If you want strict diff, check deep equality and skip equal.
       acc.push({ key, oldValue: oldVal, newValue: newVal });
       return acc;
     }, []);
 
-    // Log to AIQueryHistory
     const userId =
-      // prefer middleware-attached context
       (req as any)?.ctx?.user?.id ||
-      // optional: if you put user id on req.user
       (req as any)?.user?.id ||
-      // fallback: null
       null;
 
     const responseSummary =
@@ -356,11 +341,6 @@ router.post("/:homeId/enrich", async (req: Request, res: Response) => {
       },
     });
 
-    // Return a payload your UI can use immediately without saving:
-    // - raw: the raw JSON from the model
-    // - updated: filtered/normalized fields
-    // - changed: array key/old/new for UI toast and inline preview
-    // NOTE: We do NOT persist to Home here; the user will click Save on the client.
     return res.json({
       raw,
       updated,
@@ -369,7 +349,9 @@ router.post("/:homeId/enrich", async (req: Request, res: Response) => {
     });
   } catch (err: any) {
     console.error("[enrich] error:", err);
-    return res.status(500).json({ error: "ENRICH_FAILED", details: String(err?.message || err) });
+    return res
+      .status(500)
+      .json({ error: "ENRICH_FAILED", details: String(err?.message || err) });
   }
 });
 

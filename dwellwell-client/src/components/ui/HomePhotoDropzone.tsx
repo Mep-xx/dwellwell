@@ -2,6 +2,7 @@
 import { useCallback, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { api } from "@/utils/api";
+import { getApiOrigin } from "@/utils/url";
 
 type Props = {
   homeId: string;
@@ -14,12 +15,17 @@ function absolutizeFromApiBase(pathOrUrl: string): string {
   if (!pathOrUrl) return "";
   if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl;
 
-  const base = api.defaults.baseURL ?? window.location.origin;
-  const apiOrigin = new URL("/", base).origin;
+  // Normalize “/api/…”, “api/…”, “/uploads/…”, etc.
   const trimmed = String(pathOrUrl)
     .replace(/^\/?api\/?/, "")
     .replace(/^\/+/, "");
-  return `${apiOrigin}/${trimmed}`;
+
+  // In dev, prefer relative path so Vite’s proxy serves /uploads
+  if (import.meta.env.DEV && trimmed.startsWith("uploads/")) {
+    return `/${trimmed}`;
+  }
+
+  return `${getApiOrigin()}/${trimmed}`;
 }
 
 export default function HomePhotoDropzone({
@@ -43,10 +49,11 @@ export default function HomePhotoDropzone({
         setBusy(true);
         setError(null);
 
-        // primary route you already have
-        const { data } = await api.post(`/homes/${encodeURIComponent(homeId)}/image`, fd, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
+        const { data } = await api.post(
+          `/homes/${encodeURIComponent(homeId)}/image`,
+          fd,
+          { headers: { "Content-Type": "multipart/form-data" } }
+        );
 
         const candidate: string | undefined =
           data?.url || data?.imageUrl || data?.location || data?.path || data?.filePath;

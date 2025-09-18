@@ -1,23 +1,25 @@
 // dwellwell-api/src/routes/rooms/tasks.ts
-import { Request, Response } from 'express';
-import { prisma } from '../../db/prisma';
-import { asyncHandler } from '../../middleware/asyncHandler';
+import { Request, Response } from "express";
+import { prisma } from "../../db/prisma";
 
-export default asyncHandler(async (req: Request, res: Response) => {
-  const userId = (req as any).user?.id;
-  const { roomId } = req.params as any;
+export default async function tasks(req: Request, res: Response) {
+  try {
+    const roomId = req.params.roomId;
+    if (!roomId) {
+      return res.status(400).json({ error: "MISSING_ROOM_ID", message: "Param ':roomId' is required." });
+    }
 
-  // Verify room belongs to user
-  const room = await prisma.room.findFirst({
-    where: { id: roomId, home: { userId } },
-    select: { id: true },
-  });
-  if (!room) return res.status(404).json({ error: 'ROOM_NOT_FOUND' });
+    const data = await prisma.userTask.findMany({
+      where: { roomId },
+      orderBy: [
+        { dueDate: "asc" },
+        { createdAt: "asc" },
+      ],
+    });
 
-  const tasks = await prisma.userTask.findMany({
-    where: { userId, roomId },
-    orderBy: [{ status: 'asc' }, { dueDate: 'asc' }],
-  });
-
-  res.json(tasks);
-});
+    return res.json(data);
+  } catch (err: any) {
+    console.error("[rooms:tasks] error", err);
+    return res.status(500).json({ error: "ROOM_TASKS_FAILED", message: "Failed to load room tasks" });
+  }
+}

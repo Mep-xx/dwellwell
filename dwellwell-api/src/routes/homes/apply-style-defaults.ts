@@ -2,13 +2,14 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../../db/prisma";
-import { HOUSE_ROOM_TEMPLATES } from '@shared/constants'
+import { HOUSE_ROOM_TEMPLATES } from "@shared/constants";
+import { requireAuth } from "../../middleware/requireAuth";
 
 const router = Router();
 
 const paramsSchema = z.object({ id: z.string().cuid() });
 
-router.post("/:id/rooms/apply-style-defaults", async (req, res) => {
+router.post("/:id/rooms/apply-style-defaults", requireAuth, async (req, res) => {
   try {
     const { id } = paramsSchema.parse(req.params);
 
@@ -27,7 +28,6 @@ router.post("/:id/rooms/apply-style-defaults", async (req, res) => {
       return res.status(200).json({ added: 0, skipped: 0 });
     }
 
-    // Find existing rooms & current max position
     const existing = await prisma.room.findMany({
       where: { homeId: id },
       select: { id: true, name: true, position: true },
@@ -57,7 +57,9 @@ router.post("/:id/rooms/apply-style-defaults", async (req, res) => {
     }
 
     await prisma.room.createMany({ data: toCreate });
-    return res.status(201).json({ added: toCreate.length, skipped: template.length - toCreate.length });
+    return res
+      .status(201)
+      .json({ added: toCreate.length, skipped: template.length - toCreate.length });
   } catch (err: any) {
     console.error("apply-style-defaults error:", err);
     return res.status(400).json({ message: "Bad request", error: err?.message });

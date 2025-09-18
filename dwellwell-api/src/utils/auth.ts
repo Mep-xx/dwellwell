@@ -7,7 +7,7 @@ import argon2 from 'argon2';
 const ACCESS_SECRET = process.env.JWT_SECRET || 'dev-secret';
 const REFRESH_SECRET = process.env.REFRESH_TOKEN_SECRET || 'dev-refresh';
 
-const ACCESS_TTL = process.env.ACCESS_TOKEN_TTL || '60m';
+const ACCESS_TTL = process.env.ACCESS_TOKEN_TTL || '720m';
 const REFRESH_TTL = process.env.REFRESH_TOKEN_TTL || '180d';
 
 const PASSWORD_PEPPER = process.env.PASSWORD_PEPPER || 'dev-pepper';

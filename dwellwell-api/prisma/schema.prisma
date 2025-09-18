@@ -142,7 +142,7 @@ enum TrackableResourceType {
 model User {
   id                String       @id @default(uuid())
   email             String       @unique
-  passwordHash      String? // null for SSO users
+  passwordHash      String?
   authProvider      AuthProvider @default(local)
   passwordUpdatedAt DateTime?
   failedLoginCount  Int          @default(0)
@@ -551,6 +551,8 @@ model UserTask {
   equipmentNeeded Json?
   resources       Json?
 
+  stepProgress Json?   // { [stepId]: { checked: boolean, note?: string } }
+
   imageUrl String?
   icon     String?
 
@@ -577,7 +579,7 @@ model TaskSnapshotHistory {
   userTaskId     String
   fromVersion    Int?
   toVersion      Int?
-  fieldsChanged  Json? // string[]
+  fieldsChanged  Json?
   snapshotBefore Json?
   snapshotAfter  Json?
   appliedAt      DateTime @default(now())
@@ -695,9 +697,9 @@ model TrackableResource {
 model LifecycleEvent {
   id        String   @id @default(cuid())
   userId    String
-  entity    String // 'trackable' | 'task'
+  entity    String
   entityId  String
-  action    String // 'created' | 'paused' | 'resumed' | 'retired' | 'replaced' | 'revived' | 'completed' | ...
+  action    String
   metadata  Json?
   createdAt DateTime @default(now())
 

@@ -1,6 +1,8 @@
-// /dwellwell-api/src/routes/tasks/index.ts
+// dwellwell-api/src/routes/tasks/index.ts
 import { Router } from 'express';
 import { requireAuth } from '../../middleware/requireAuth';
+
+// existing routes you already have
 import list from './list';
 import complete from './complete';
 import snooze from './snooze';
@@ -12,22 +14,27 @@ import updates from './updates';
 import templateDiff from './templateDiff';
 import applyTemplateUpdates from './applyTemplateUpdates';
 
+// NEW
+import getDetail from './taskDetail';
+
 const router = Router();
 router.use(requireAuth);
 
 router.get('/', list);
 
-// template adoption helpers
+// template adoption helpers (existing)
 router.get('/updates', updates);
 router.get('/:taskId/template-diff', templateDiff);
 router.post('/apply-template-updates', applyTemplateUpdates);
 
-// task status actions
+// task status actions (existing)
 router.post('/:taskId/complete', complete);
 router.post('/:taskId/snooze', snooze);
 router.post('/:taskId/pause', pause);
 router.post('/:taskId/resume', resume);
 router.post('/:taskId/archive', archive);
 router.post('/:taskId/unarchive', unarchive);
+
+router.get('/:taskId', getDetail);
 
 export default router;

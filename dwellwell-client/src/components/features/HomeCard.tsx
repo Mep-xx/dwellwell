@@ -8,6 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Pencil, Trash2, ChevronDown, ChevronUp, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { api } from "@/utils/api";
+import { getApiOrigin } from "@/utils/url";
 
 type TaskSummary = {
   complete: number;
@@ -24,7 +25,7 @@ type Props = {
   onDelete: (homeId: string) => void;
 };
 
-function resolveHomeImageUrl(v?: string | null ) {
+function resolveHomeImageUrl(v?: string | null) {
   const PLACEHOLDER = "/images/home_placeholder.png";
   if (!v) return PLACEHOLDER;
 
@@ -34,13 +35,14 @@ function resolveHomeImageUrl(v?: string | null ) {
   // App-provided placeholders
   if (v.startsWith("/images/")) return v;
 
-  // Things like "/uploads/..." or "uploads/..."
-  const base = api.defaults.baseURL ?? window.location.origin; // e.g. http://localhost:4000/api
-  const apiOrigin = new URL("/", base).origin;                  // -> http://localhost:4000
+  const apiOrigin = getApiOrigin();
 
   const trimmed = v.replace(/^\/?api\/?/, "").replace(/^\/+/, ""); // drop leading api/ and slashes
-  if (trimmed.startsWith("uploads/")) return `${apiOrigin}/${trimmed}`;
 
+  // Prefer relative path in dev (Vite proxy handles /uploads)
+  if (trimmed.startsWith("uploads/")) {
+    return import.meta.env.DEV ? `/${trimmed}` : `${apiOrigin}/${trimmed}`;
+  }
   // Last resort: if server returned a weird relative path, still try to make it absolute
   return `${apiOrigin}/${trimmed}`;
 }

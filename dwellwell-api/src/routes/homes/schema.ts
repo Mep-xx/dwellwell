@@ -26,7 +26,6 @@ export const createHomeSchema = z.object({
   state: z.string().min(1),
   zip: z.string().min(1),
   apartment: z.string().optional(),
-  // let these through at create time so downstream flows work:
   nickname: z.string().max(120).optional(),
   architecturalStyle: z.string().max(120).optional(),
 });
@@ -40,7 +39,8 @@ export const updateHomeSchema = z.object({
   boilerType: z.string().max(80).optional(),
   roofType: z.string().max(80).optional(),
   sidingType: z.string().max(80).optional(),
-  imageUrl: z.string().url().optional(),
+  // Allow relative paths like "/uploads/..." in addition to full URLs
+  imageUrl: z.string().min(1).optional(),
 
   hasCentralAir: toOptionalBool().optional(),
   hasBaseboard: toOptionalBool().optional(),
