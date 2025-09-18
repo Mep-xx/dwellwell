@@ -1,4 +1,4 @@
-// src/components/AddHomeWizard.tsx
+//dwellwell-client/src/components/features/AddHomeWizard.tsx
 import React, { useMemo, useState } from "react";
 import { api } from "@/utils/api";
 import type { Home } from "@shared/types/home";

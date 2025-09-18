@@ -15,6 +15,9 @@ import Settings from '@/pages/Settings';
 import Billing from '@/pages/Billing';
 import Room from '@/pages/Room';
 
+// Redesign
+import HomesRedesign from '@/pages/HomesRedesign';
+
 // NEW
 import TasksPage from '@/pages/TasksPage';
 import TaskDetailPage from '@/pages/TaskDetailPage';
@@ -50,16 +53,24 @@ export default function AppRoutes() {
         </Route>
       </Route>
 
+      {/* Keep a public redirect so old links still work */}
+      <Route path="/v2/homes" element={<Navigate to="/app/v2/homes" replace />} />
+
       {/* Private */}
       <Route element={<ProtectedLayout />}>
         <Route path="/app" element={<Dashboard />} />
+
+        {/* Classic */}
         <Route path="/app/homes" element={<Homes />} />
         <Route path="/app/homes/:id" element={<Home />} />
         <Route path="/app/rooms/:roomId" element={<Room />} />
         <Route path="/app/trackables" element={<Trackables />} />
         <Route path="/app/vehicles" element={<Vehicles />} />
 
-        {/* NEW */}
+        {/* Redesign */}
+        <Route path="/app/v2/homes" element={<HomesRedesign />} />
+
+        {/* Tasks */}
         <Route path="/app/tasks" element={<TasksPage />} />
         <Route path="/app/tasks/:taskId" element={<TaskDetailPage />} />
 
