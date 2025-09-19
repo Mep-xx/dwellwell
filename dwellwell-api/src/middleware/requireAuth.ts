@@ -23,18 +23,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
     return res.status(401).json({ error: 'UNAUTHORIZED' });
   }
 
-  // Log what we’re about to verify
   try {
-    const decoded: any = jwt.decode(token, { complete: true });
-    const exp = decoded?.payload?.exp;
-    const role = decoded?.payload?.role;
-    const userId = decoded?.payload?.userId ?? decoded?.payload?.sub;
-  } catch (e) {
-    
-  }
-
-  try {
-    // Allow a little skew so we don’t flap during refresh
     const payload = jwt.verify(token, ACCESS_SECRET, { clockTolerance: 5 }) as JwtPayload;
     const userId = (payload as any).userId ?? payload.sub;
     const role = (payload as any).role;
@@ -44,8 +33,6 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
     req.user = { id: String(userId), role };
     return next();
   } catch (e: any) {
-    const name = e?.name || 'VerifyError';
-    const msg = e?.message || 'verify failed';
     if (e instanceof TokenExpiredError) {
       return res.status(401).json({ error: 'TOKEN_EXPIRED' });
     }

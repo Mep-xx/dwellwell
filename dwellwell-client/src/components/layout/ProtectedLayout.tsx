@@ -41,7 +41,7 @@ export default function ProtectedLayout() {
             <NavLink to="/app" className={({ isActive }) => navLinkClasses(isActive)}>
               🏠 Dashboard
             </NavLink>
-            <NavLink to="/app/homes" className={({ isActive }) => navLinkClasses(isActive)}>
+            <NavLink to="/app/v2/homes" className={({ isActive }) => navLinkClasses(isActive)}>
               🏡 Homes
             </NavLink>
             <NavLink to="/app/trackables" className={({ isActive }) => navLinkClasses(isActive)}>

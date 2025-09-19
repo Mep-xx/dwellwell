@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken';
 const ACCESS_SECRET  = process.env.JWT_SECRET as string;
 const REFRESH_SECRET = process.env.REFRESH_TOKEN_SECRET as string;
 
-const ACCESS_TTL  = process.env.ACCESS_TOKEN_TTL  || '720m'; // keep as a string like '60m'
+const ACCESS_TTL  = process.env.ACCESS_TOKEN_TTL  || '24h'; // human strings: '24h' | '1440m' | '1d'
 const REFRESH_TTL = process.env.REFRESH_TOKEN_TTL || '30d';
 
 export function signAccessToken(user: { id: string; role?: string }) {

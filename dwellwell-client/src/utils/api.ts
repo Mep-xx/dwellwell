@@ -46,7 +46,6 @@ if (import.meta.env.DEV) {
       try { console.debug('API ←', r.status, r.config?.url); } catch { }
       return r;
     },
-    // dwellwell-client/src/utils/api.ts (inside DEV response error interceptor)
     (e) => {
       // Ignore React StrictMode duplicate-effect cancellations
       if ((e as any)?.code === 'ERR_CANCELED') {
@@ -74,8 +73,21 @@ api.interceptors.request.use((config) => {
 });
 
 // ----------------------------------------------------------------------------
-// 401 auto-refresh logic with request queue
+// Cross-tab refresh coordination
 // ----------------------------------------------------------------------------
+const bc = new BroadcastChannel('dwellwell-auth');
+
+bc.onmessage = (ev) => {
+  if (ev?.data?.type === 'NEW_ACCESS_TOKEN') {
+    const t = ev.data.token as string | null;
+    if (t) setToken(t);
+  } else if (ev?.data?.type === 'LOGOUT') {
+    clearToken();
+    const params = new URLSearchParams({ reason: 'expired' });
+    window.location.replace(`/login?${params.toString()}`);
+  }
+};
+
 let isRefreshing = false;
 let pendingQueue: Array<(token: string | null) => void> = [];
 
@@ -92,13 +104,20 @@ async function refreshAccess(): Promise<string | null> {
       { withCredentials: true }
     );
     const t = resp.data?.accessToken || null;
-    if (t) setToken(t);
+    if (t) {
+      setToken(t);
+      bc.postMessage({ type: 'NEW_ACCESS_TOKEN', token: t });
+    }
     return t;
   } catch {
+    bc.postMessage({ type: 'LOGOUT' });
     return null;
   }
 }
 
+// ----------------------------------------------------------------------------
+// 401 auto-refresh logic with request queue
+// ----------------------------------------------------------------------------
 api.interceptors.response.use(
   (r) => r,
   async (error: AxiosError) => {

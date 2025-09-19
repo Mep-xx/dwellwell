@@ -1,32 +1,46 @@
 // dwellwell-api/src/utils/auth.ts
-import jwt from 'jsonwebtoken';
+import * as jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import argon2 from 'argon2';
 
-const ACCESS_SECRET = process.env.JWT_SECRET || 'dev-secret';
-const REFRESH_SECRET = process.env.REFRESH_TOKEN_SECRET || 'dev-refresh';
+type Expires = jwt.SignOptions['expiresIn'];
 
-const ACCESS_TTL = process.env.ACCESS_TOKEN_TTL || '720m';
-const REFRESH_TTL = process.env.REFRESH_TOKEN_TTL || '180d';
+const ACCESS_SECRET: jwt.Secret  = process.env.JWT_SECRET || 'dev-secret';
+const REFRESH_SECRET: jwt.Secret = process.env.REFRESH_TOKEN_SECRET || 'dev-refresh';
+
+// Normalize env -> `expiresIn` (number or template-literal string like "24h")
+function normalizeExpires(raw: string | undefined, fallback: Expires): Expires {
+  if (!raw) return fallback;
+  // If it's a plain integer string, use a number (e.g., "3600" -> 3600)
+  const n = Number(raw);
+  if (Number.isFinite(n) && String(n) === raw.trim()) return n as Expires;
+  // Otherwise pass the string through; JWT accepts "24h", "1d", "15m", etc.
+  return raw as unknown as Expires;
+}
+
+const ACCESS_TTL: Expires  = normalizeExpires(process.env.ACCESS_TOKEN_TTL,  '24h' as unknown as Expires);
+const REFRESH_TTL: Expires = normalizeExpires(process.env.REFRESH_TOKEN_TTL, '180d' as unknown as Expires);
 
 const PASSWORD_PEPPER = process.env.PASSWORD_PEPPER || 'dev-pepper';
 
-// ---------------- JWT ----------------
+// ---------------- JWT (access/refresh) ----------------
 export function signAccess(p: { userId: string; role: string }) {
-  return jwt.sign(p, ACCESS_SECRET, { expiresIn: ACCESS_TTL });
+  const opts: jwt.SignOptions = { expiresIn: ACCESS_TTL };
+  return jwt.sign(p, ACCESS_SECRET, opts);
 }
 export function verifyAccess(token: string) {
   return jwt.verify(token, ACCESS_SECRET);
 }
 export function signRefresh(p: { userId: string; role: string }) {
-  return jwt.sign(p, REFRESH_SECRET, { expiresIn: REFRESH_TTL });
+  const opts: jwt.SignOptions = { expiresIn: REFRESH_TTL };
+  return jwt.sign(p, REFRESH_SECRET, opts);
 }
 export function verifyRefresh(token: string) {
   return jwt.verify(token, REFRESH_SECRET) as any;
 }
 
-// -------- refresh token hashing ------
+// -------- refresh token hashing (DB-stored hash) ------
 export async function hashToken(token: string) {
   return bcrypt.hash(token, 12);
 }
@@ -59,11 +73,10 @@ export async function comparePasswordVersioned(
   if (stored.startsWith('v2-argon2id:')) {
     const hash = stored.slice('v2-argon2id:'.length);
     const ok = await argon2.verify(hash, plain + PASSWORD_PEPPER);
-    // If you ever bump params, inspect hash params and set shouldRehash = true
     return { ok, shouldRehash: false };
   }
 
-  // Legacy bcrypt (no prefix) – run until all users are migrated
+  // Legacy bcrypt (no prefix)
   if (stored.startsWith('$2a$') || stored.startsWith('$2b$') || stored.startsWith('$2y$')) {
     const okWithoutPepper = await bcrypt.compare(plain, stored);
     if (okWithoutPepper) return { ok: true, shouldRehash: true };
@@ -77,13 +90,11 @@ export async function comparePasswordVersioned(
   return { ok: false, shouldRehash: false };
 }
 
-// Convenience wrapper for boolean checks
 export async function comparePasswordOk(plain: string, stored?: string | null) {
   const { ok } = await comparePasswordVersioned(plain, stored);
   return ok;
 }
 
-// Anti-CSRF helper if you ever want it
 export function randomId(len = 32) {
   return crypto.randomBytes(len).toString('hex');
 }

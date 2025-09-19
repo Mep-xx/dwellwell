@@ -6,6 +6,10 @@ import { COOKIE_SAMESITE, COOKIE_SECURE, REFRESH_COOKIE_PATH, REFRESH_MAX_AGE_MS
 
 const IDLE_MAX_DAYS = Number(process.env.REFRESH_IDLE_MAX_DAYS ?? 0); // 0 = disabled
 
+// Allows two near-simultaneous refreshes (e.g., multi-tab) to succeed without global logout
+const ROTATION_GRACE_MS = Number(process.env.REFRESH_ROTATION_GRACE_MS ?? 15000);
+const MAX_CHAIN_HOPS = 5;
+
 export default async function refresh(req: Request, res: Response) {
   const incoming = (req as any).cookies?.refreshToken as string | undefined;
   if (!incoming) return res.status(401).json({ error: 'UNAUTHORIZED' });
@@ -20,10 +24,11 @@ export default async function refresh(req: Request, res: Response) {
   const userId = decoded.userId;
   const role = decoded.role || 'user';
 
+  // Find user’s active, unexpired sessions
   const sessions = await prisma.refreshSession.findMany({
     where: { userId, revokedAt: null, expiresAt: { gt: new Date() } },
     orderBy: { createdAt: 'desc' },
-    take: 15,
+    take: 20,
   });
 
   let matched: (typeof sessions)[number] | null = null;
@@ -32,15 +37,13 @@ export default async function refresh(req: Request, res: Response) {
   }
 
   if (!matched) {
-    await prisma.refreshSession.updateMany({
-      where: { userId, revokedAt: null },
-      data: { revokedAt: new Date() },
-    });
+    // Don't nuke all sessions here; just clear cookies and ask to re-auth
     res.clearCookie('refreshToken', { httpOnly: true, sameSite: COOKIE_SAMESITE, secure: COOKIE_SECURE, path: REFRESH_COOKIE_PATH });
     res.clearCookie(REFRESH_HINT_COOKIE, { path: REFRESH_COOKIE_PATH });
     return res.status(401).json({ error: 'UNAUTHORIZED' });
   }
 
+  // Idle timeout enforcement (optional)
   if (IDLE_MAX_DAYS > 0) {
     const idleMs = Date.now() - new Date(matched.lastUsedAt).getTime();
     const maxIdleMs = IDLE_MAX_DAYS * 24 * 60 * 60 * 1000;
@@ -52,41 +55,112 @@ export default async function refresh(req: Request, res: Response) {
     }
   }
 
+  // If this token was already rotated, follow the chain forward and (within grace) accept it
   if (matched.replacedById) {
-    await prisma.refreshSession.updateMany({
-      where: { userId, revokedAt: null },
-      data: { revokedAt: new Date() },
-    });
+    // Walk replacement chain to the newest node
+    let cursor = matched;
+    let hops = 0;
+    while (cursor.replacedById && hops < MAX_CHAIN_HOPS) {
+      const next = await prisma.refreshSession.findUnique({ where: { id: cursor.replacedById } });
+      if (!next) break;
+      cursor = next;
+      hops++;
+    }
+
+    const recent = Date.now() - new Date(cursor.createdAt).getTime() <= ROTATION_GRACE_MS;
+    const stillValid = !cursor.revokedAt && cursor.expiresAt > new Date();
+
+    if (recent && stillValid) {
+      // Rotate again from the newest cursor to keep single-use guarantees
+      const newRefresh = signRefresh({ userId, role });
+      const newHash = await hashToken(newRefresh);
+      const ua = req.headers['user-agent'] || '';
+      const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || undefined;
+      const expiresAt = new Date(Date.now() + REFRESH_MAX_AGE_MS);
+
+      const created = await prisma.$transaction(async (tx) => {
+        // Revoke the cursor session and create a replacement
+        await tx.refreshSession.update({
+          where: { id: cursor.id },
+          data: { revokedAt: new Date(), lastUsedAt: new Date() },
+        });
+
+        const createdInner = await tx.refreshSession.create({
+          data: {
+            userId,
+            tokenHash: newHash,
+            userAgent: ua,
+            ip,
+            expiresAt,
+            lastUsedAt: new Date(),
+          },
+        });
+
+        await tx.refreshSession.update({
+          where: { id: cursor.id },
+          data: { replacedById: createdInner.id },
+        });
+
+        return createdInner;
+      });
+
+      const accessToken = signAccess({ userId, role });
+
+      res.cookie('refreshToken', newRefresh, {
+        httpOnly: true,
+        sameSite: COOKIE_SAMESITE,
+        secure: COOKIE_SECURE,
+        maxAge: REFRESH_MAX_AGE_MS,
+        path: REFRESH_COOKIE_PATH,
+      });
+      res.cookie(REFRESH_HINT_COOKIE, '1', {
+        httpOnly: false,
+        sameSite: COOKIE_SAMESITE,
+        secure: COOKIE_SECURE,
+        maxAge: REFRESH_MAX_AGE_MS,
+        path: REFRESH_COOKIE_PATH,
+      });
+
+      return res.json({ accessToken });
+    }
+
+    // Outside grace window → likely replay; don’t revoke all, just fail
     res.clearCookie('refreshToken', { httpOnly: true, sameSite: COOKIE_SAMESITE, secure: COOKIE_SECURE, path: REFRESH_COOKIE_PATH });
     res.clearCookie(REFRESH_HINT_COOKIE, { path: REFRESH_COOKIE_PATH });
     return res.status(401).json({ error: 'UNAUTHORIZED' });
   }
 
-  await prisma.refreshSession.update({
-    where: { id: matched.id },
-    data: { revokedAt: new Date() },
-  });
-
+  // Normal happy path: rotate matched
   const newRefresh = signRefresh({ userId, role });
   const newHash = await hashToken(newRefresh);
   const ua = req.headers['user-agent'] || '';
   const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || undefined;
   const expiresAt = new Date(Date.now() + REFRESH_MAX_AGE_MS);
 
-  const created = await prisma.refreshSession.create({
-    data: {
-      userId,
-      tokenHash: newHash,
-      userAgent: ua,
-      ip,
-      expiresAt,
-      lastUsedAt: new Date(),
-    },
-  });
+  const created = await prisma.$transaction(async (tx) => {
+    // Revoke old & create replacement atomically
+    await tx.refreshSession.update({
+      where: { id: matched!.id },
+      data: { revokedAt: new Date(), lastUsedAt: new Date() },
+    });
 
-  await prisma.refreshSession.update({
-    where: { id: matched.id },
-    data: { replacedById: created.id },
+    const createdInner = await tx.refreshSession.create({
+      data: {
+        userId,
+        tokenHash: newHash,
+        userAgent: ua,
+        ip,
+        expiresAt,
+        lastUsedAt: new Date(),
+      },
+    });
+
+    await tx.refreshSession.update({
+      where: { id: matched!.id },
+      data: { replacedById: createdInner.id },
+    });
+
+    return createdInner;
   });
 
   const accessToken = signAccess({ userId, role });
