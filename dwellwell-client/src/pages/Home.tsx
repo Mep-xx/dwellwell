@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Pencil, Trash2, MapPin, HomeIcon, Ruler, Calendar, ChevronRight } from "lucide-react";
 import HomePhotoDropzone from "@/components/ui/HomePhotoDropzone";
 import { useToast } from "@/components/ui/use-toast";
+import { buildZillowUrl } from "@/utils/zillowUrl";
 import HomeMetaCard from "@/components/redesign/HomeMetaCard";
 import type { HomeWithMeta } from "@/types/extended";
 
@@ -144,6 +145,34 @@ export default function HomePage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                const url = buildZillowUrl({
+                  address: home.address,
+                  city: home.city,
+                  state: home.state,
+                  zip: home.zip,
+                });
+                if (!url) {
+                  toast({
+                    title: "Missing address",
+                    description: "Need address, city, state, and ZIP to open Zillow.",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+                window.open(url, "_blank", "noopener,noreferrer");
+              }}
+              className="flex items-center gap-2"
+            >
+              <img
+                src="/images/zillow-logo.png"
+                alt="Zillow"
+                className="h-5 w-5 object-contain"
+              />
+              <span>View on Zillow</span>
+            </Button>
             <div className="flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm">
               <Switch checked={home.isChecked} onCheckedChange={toggleChecked} />
               <span>Include in To-Do</span>
@@ -175,16 +204,16 @@ export default function HomePage() {
             setSummary((s) =>
               s
                 ? {
-                    ...s,
-                    squareFeet: (next.squareFeet as any) ?? s.squareFeet,
-                    yearBuilt: (next.yearBuilt as any) ?? s.yearBuilt,
-                    hasCentralAir:
-                      typeof (next as any).hasCentralAir === "boolean" ? (next as any).hasCentralAir : s.hasCentralAir,
-                    hasBaseboard:
-                      typeof (next as any).hasBaseboard === "boolean" ? (next as any).hasBaseboard : s.hasBaseboard,
-                    features: Array.isArray((next as any).features) ? ((next as any).features as string[]) : s.features,
-                    nickname: typeof next.nickname === "string" ? (next.nickname as string) : s.nickname,
-                  }
+                  ...s,
+                  squareFeet: (next.squareFeet as any) ?? s.squareFeet,
+                  yearBuilt: (next.yearBuilt as any) ?? s.yearBuilt,
+                  hasCentralAir:
+                    typeof (next as any).hasCentralAir === "boolean" ? (next as any).hasCentralAir : s.hasCentralAir,
+                  hasBaseboard:
+                    typeof (next as any).hasBaseboard === "boolean" ? (next as any).hasBaseboard : s.hasBaseboard,
+                  features: Array.isArray((next as any).features) ? ((next as any).features as string[]) : s.features,
+                  nickname: typeof next.nickname === "string" ? (next.nickname as string) : s.nickname,
+                }
                 : s
             );
           }}
