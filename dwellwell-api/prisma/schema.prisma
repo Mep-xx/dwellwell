@@ -232,6 +232,8 @@ model Home {
 
   isChecked Boolean @default(true)
 
+  position Int?
+
   latitude  Float?
   longitude Float?
   timeZone  String?

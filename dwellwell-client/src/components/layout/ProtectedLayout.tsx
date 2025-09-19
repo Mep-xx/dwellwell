@@ -14,14 +14,13 @@ export default function ProtectedLayout() {
   const isAuthed = !!user && hasLocalToken;
 
   const navLinkClasses = (isActive: boolean) =>
-    `block py-2 transition-colors rounded-r-md ${
-      isActive
-        ? 'bg-blue-100 text-blue-700 font-semibold border-l-4 border-blue-600 pl-4'
-        : 'text-gray-700 hover:text-blue-600 pl-4'
+    `block py-2 transition-colors rounded-r-md ${isActive
+      ? 'bg-blue-100 text-blue-700 font-semibold border-l-4 border-blue-600 pl-4'
+      : 'text-gray-700 hover:text-blue-600 pl-4'
     }`;
 
   const handleLogout = () => {
-    try { localStorage.removeItem('dwellwell-token'); } catch {}
+    try { localStorage.removeItem('dwellwell-token'); } catch { }
     logout();
     navigate('/login', { replace: true });
   };
@@ -57,6 +56,18 @@ export default function ProtectedLayout() {
                 <p className="text-xs uppercase text-gray-400">Admin</p>
                 <NavLink to="/admin/AdminDashboard" className={({ isActive }) => navLinkClasses(isActive)}>
                   📊 Admin Dashboard
+                </NavLink>
+                <NavLink to="/admin/AdminTaskTemplates" className={({ isActive }) => navLinkClasses(isActive)}>
+                  🗂 Task Templates
+                </NavLink>
+                <NavLink to="/admin/AdminUsers" className={({ isActive }) => navLinkClasses(isActive)}>
+                  👥 Users
+                </NavLink>
+                <NavLink to="/admin/AdminHomes" className={({ isActive }) => navLinkClasses(isActive)}>
+                  🏘 Homes
+                </NavLink>
+                <NavLink to="/admin/AdminTrackables" className={({ isActive }) => navLinkClasses(isActive)}>
+                  📚 Trackables (Resources)
                 </NavLink>
               </div>
             )}

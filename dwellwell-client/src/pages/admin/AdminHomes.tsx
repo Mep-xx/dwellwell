@@ -128,7 +128,6 @@ export default function AdminHomes() {
                   <tr key={h.id} className="border-t align-top">
                     <td className="p-2">
                       <div className="font-medium">{address}</div>
-                      <div className="text-xs text-gray-500">#{h.id.slice(0, 8)}</div>
                     </td>
                     <td className="p-2">{owner}</td>
                     <td className="p-2">{loc || '—'}</td>
