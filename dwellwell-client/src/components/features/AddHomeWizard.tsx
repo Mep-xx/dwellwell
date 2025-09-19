@@ -1,182 +1,483 @@
-//dwellwell-client/src/components/features/AddHomeWizard.tsx
-import React, { useMemo, useState } from "react";
+// dwellwell-client/src/pages/Home.tsx
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import type { Room } from "@shared/types/room";
+import type { Task } from "@shared/types/task";
 import { api } from "@/utils/api";
-import type { Home } from "@shared/types/home";
-
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
+import { resolveHomeImageUrl } from "@/utils/images";
+import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
-import { AddressAutocomplete, type AddressSuggestion } from "@/components/ui/AddressAutocomplete";
-import { ARCHITECTURAL_STYLES } from '@shared/constants';
+import {
+  Pencil,
+  Trash2,
+  MapPin,
+  ChevronRight,
+  AlertCircle,
+  Clock,
+  Target,
+  ListChecks,
+} from "lucide-react";
+import HomePhotoDropzone from "@/components/ui/HomePhotoDropzone";
+import { useToast } from "@/components/ui/use-toast";
+import { buildZillowUrl } from "@/utils/zillowUrl";
+import HomeMetaCard from "@/components/redesign/HomeMetaCard";
+import type { HomeWithMeta } from "@/types/extended";
 
-type Props = {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onFinished: (home: Home) => void;
+/* ====================== Types ====================== */
+
+type Summary = {
+  id: string;
+  nickname: string | null;
+  address: string;
+  city: string;
+  state: string;
+  zip: string;
+  squareFeet: number | null;
+  yearBuilt: number | null;
+  hasCentralAir: boolean;
+  hasBaseboard: boolean;
+  features: string[];
+  counts: { rooms: number; vehicles: number; trackables: number };
 };
 
-function normalizeStyles(src: unknown): string[] {
-  if (Array.isArray(src)) return src.filter((s): s is string => typeof s === "string");
-  if (src && typeof src === "object") return Object.values(src as Record<string, unknown>)
-    .filter((s): s is string => typeof s === "string");
-  return [];
+/* ====================== Helpers ====================== */
+
+function clamp(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, n));
 }
-const STYLE_OPTIONS = normalizeStyles(ARCHITECTURAL_STYLES);
+function isOverdue(t: Task) {
+  if (t.status !== "PENDING") return false;
+  if (!t.dueDate) return false;
+  return new Date(t.dueDate).getTime() < Date.now();
+}
+function isDueSoon(t: Task) {
+  if (t.status !== "PENDING") return false;
+  if (!t.dueDate) return false;
+  const due = new Date(t.dueDate).getTime();
+  const now = Date.now();
+  const sevenDays = 7 * 24 * 60 * 60 * 1000;
+  return due >= now && due <= now + sevenDays;
+}
+/** Simple score: 100 - 60*overdue - 20*soon (clamped to 0..100). */
+function maintenanceScore(overdue: number, soon: number) {
+  return clamp(100 - overdue * 60 - soon * 20, 0, 100);
+}
 
-export default function AddHomeWizard({ open, onOpenChange, onFinished }: Props) {
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+/* ====================== Page ====================== */
 
-  const [selected, setSelected] = useState<AddressSuggestion | null>(null);
-  const [apartment, setApartment] = useState("");
-  const [nickname, setNickname] = useState("");
-  const [architecturalStyle, setArchitecturalStyle] = useState("");
+export default function HomePage() {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const { toast } = useToast();
 
-  const displayAddress = useMemo(
-    () => (selected ? selected.place_name : ""),
-    [selected]
-  );
+  const [home, setHome] = useState<(HomeWithMeta & { rooms?: Room[] }) | null>(null);
+  const [summary, setSummary] = useState<Summary | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState(false);
 
-  async function handleCreate() {
-    setError(null);
+  // Tasks state for status strip
+  const [tasksLoading, setTasksLoading] = useState(true);
+  const [activeTasks, setActiveTasks] = useState<Task[]>([]);
+  const [taskError, setTaskError] = useState<string | null>(null);
 
-    if (!selected) {
-      setError("Please choose an address.");
-      return;
-    }
+  // Ref to the meta card container so the Edit button can scroll & toggle edit
+  const metaRef = useRef<HTMLDivElement | null>(null);
 
-    // Try to provide best-guess street line if the suggestion didn’t include .address
-    const line1 =
-      selected.address ??
-      (selected.place_name ? selected.place_name.split(",")[0]?.trim() : "");
-
-    const payload: any = {
-      address: line1,
-      city: selected.city ?? "",
-      state: selected.state ?? "",
-      zip: selected.zip ?? "",
-      apartment: apartment || undefined,
-      nickname: nickname || undefined,
-      architecturalStyle: architecturalStyle || undefined,
-    };
-
-    setSaving(true);
-    try {
-      const res = await api.post<Home>("/homes", payload);
-      const newHome = res.data;
-
-      // Best-effort: pre-seed rooms for the chosen style (ignore if endpoint is missing).
-      if (architecturalStyle) {
-        try {
-          await api.post(`/homes/${newHome.id}/rooms/apply-style-defaults`, {
-            style: architecturalStyle,
-          });
-        } catch {
-          // non-blocking — the Edit page can still apply defaults on load / style change
-        }
+  /* -------- load home + summary -------- */
+  useEffect(() => {
+    let cancelled = false;
+    if (!id) return;
+    (async () => {
+      setLoading(true);
+      try {
+        const [h, s] = await Promise.all([
+          api.get<HomeWithMeta & { rooms?: Room[] }>(`/homes/${encodeURIComponent(id)}`),
+          api.get<Summary>(`/homes/${encodeURIComponent(id)}/summary`).catch(() => ({ data: null as any })),
+        ]);
+        if (cancelled) return;
+        setHome(h.data);
+        if (s?.data) setSummary(s.data);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
 
-      onOpenChange(false);
-      onFinished(newHome);
-    } catch (e: any) {
-      setError(e?.response?.data?.message || "Could not create the home.");
-    } finally {
-      setSaving(false);
+  /* -------- load tasks for status strip -------- */
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      if (!id) return;
+      setTasksLoading(true);
+      setTaskError(null);
+      try {
+        const res = await api.get("/tasks", { params: { homeId: id, status: "active" } });
+        if (cancelled) return;
+        const list: Task[] = Array.isArray(res.data) ? res.data : [];
+        setActiveTasks(list);
+      } catch {
+        if (!cancelled) setTaskError("Could not load tasks");
+      } finally {
+        if (!cancelled) setTasksLoading(false);
+      }
     }
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  /* -------- derived values (hooks must stay above any early returns) -------- */
+  const img = useMemo(() => resolveHomeImageUrl(home?.imageUrl), [home?.imageUrl]);
+
+  const label = useMemo(() => {
+    if (!home) return "";
+    return home.nickname || `${home.address}, ${home.city}, ${home.state}`;
+  }, [home]);
+
+  const zillowUrl = useMemo(() => {
+    if (!home) return null;
+    return buildZillowUrl({
+      address: home.address,
+      apartment: (home as any).apartment ?? null,
+      city: home.city,
+      state: home.state,
+      zip: home.zip,
+    });
+  }, [home]);
+
+  const overdueCount = useMemo(() => activeTasks.filter(isOverdue).length, [activeTasks]);
+  const dueSoonCount = useMemo(() => activeTasks.filter(isDueSoon).length, [activeTasks]);
+  const score = useMemo(() => maintenanceScore(overdueCount, dueSoonCount), [overdueCount, dueSoonCount]);
+
+  /* -------- actions -------- */
+  const onUploaded = (absoluteUrl: string) => {
+    setHome((h) => (h ? { ...h, imageUrl: absoluteUrl } : h));
+  };
+
+  const toggleChecked = async (value: boolean) => {
+    if (!home) return;
+    const prev = home;
+    try {
+      setHome({ ...home, isChecked: value });
+      await api.patch(`/homes/${home.id}`, { isChecked: value });
+      toast({ title: value ? "Included in To-Do" : "Excluded from To-Do" });
+    } catch {
+      setHome(prev);
+      toast({ title: "Could not update", variant: "destructive" });
+    }
+  };
+
+  const deleteHome = async () => {
+    if (!home || deleting) return;
+    if (!confirm("Delete this home? This cannot be undone.")) return;
+    setDeleting(true);
+    try {
+      await api.delete(`/homes/${home.id}`);
+      toast({ title: "Home deleted" });
+      navigate("/app/homes");
+    } catch {
+      toast({ title: "Delete failed", variant: "destructive" });
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleEditMeta = () => {
+    metaRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setTimeout(() => {
+      const root = metaRef.current;
+      if (!root) return;
+      const editBtn = Array.from(root.querySelectorAll("button")).find(
+        (b) => (b.textContent || "").trim().toLowerCase() === "edit"
+      );
+      editBtn?.click();
+    }, 300);
+  };
+
+  /* -------- guards (no hooks after this point) -------- */
+  if (loading) {
+    return (
+      <div className="mx-auto w-full max-w-7xl px-4 py-6">
+        <div className="h-56 w-full animate-pulse rounded-2xl bg-muted" />
+        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="h-24 rounded-xl border bg-muted/40" />
+          <div className="h-24 rounded-xl border bg-muted/40" />
+          <div className="h-24 rounded-xl border bg-muted/40" />
+        </div>
+      </div>
+    );
   }
 
-  function resetAll() {
-    setSelected(null);
-    setApartment("");
-    setNickname("");
-    setArchitecturalStyle("");
-    setError(null);
+  if (!home) {
+    return (
+      <div className="mx-auto w-full max-w-3xl px-4 py-16 text-center">
+        <h1 className="text-2xl font-semibold">Home not found</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          The requested home could not be loaded.
+        </p>
+        <Button className="mt-6" onClick={() => navigate("/app/homes")}>
+          Back to Homes
+        </Button>
+      </div>
+    );
   }
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) resetAll(); onOpenChange(v); }}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Add a Home</DialogTitle>
-          <DialogDescription id="add-home-desc">
-            Start with your address. You can fill in the rest on the next screen.
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-4">
-          <div>
-            <label className="mb-1 block text-sm font-medium">Search Address</label>
-            <AddressAutocomplete
-              displayValue={displayAddress}
-              onSelectSuggestion={(s) => setSelected(s)}
-              onClear={() => setSelected(null)}
-              placeholder="Start typing your address…"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-sm font-medium">Apartment (optional)</label>
-              <Input
-                value={apartment}
-                onChange={(e) => setApartment(e.target.value)}
-                autoComplete="off"
-                spellCheck={false}
-              />
-            </div>
-
-            <div>
-              <label className="mb-1 block text-sm font-medium">Nickname (optional)</label>
-              <Input
-                value={nickname}
-                onChange={(e) => setNickname(e.target.value)}
-                autoComplete="off"
-                spellCheck={false}
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-medium">House Style (optional)</label>
-            <Select
-              value={architecturalStyle}
-              onChange={(e) => setArchitecturalStyle(e.target.value)}
-            >
-              <option value="">— Select a style —</option>
-              {STYLE_OPTIONS.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </Select>
-            <p className="mt-1 text-xs text-muted-foreground">
-              If provided, we’ll pre-fill a room template for this style.
-            </p>
-          </div>
-
-          {error && (
-            <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              {error}
-            </div>
+    <div className="mx-auto w-full max-w-7xl px-4 py-6">
+      {/* ======= Hero ======= */}
+      <div className="overflow-hidden rounded-2xl border shadow-sm">
+        <div className="relative h-56 w-full">
+          <HomePhotoDropzone
+            homeId={home.id}
+            imageUrl={img}
+            onUploaded={onUploaded}
+            className="h-56 w-full"
+          />
+          {!home.isChecked && (
+            <span className="absolute top-3 left-3 rounded bg-gray-900/80 px-2 py-0.5 text-[11px] text-white">
+              Not in To-Do
+            </span>
           )}
+        </div>
 
-          <div className="mt-2 flex items-center justify-end gap-2">
-            <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>
-              Cancel
+        <div className="flex flex-col gap-3 border-t bg-background p-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <MapPin className="h-4 w-4" />
+              <span>
+                {home.city}, {home.state} {home.zip}
+              </span>
+            </div>
+            <h1 className="mt-0.5 text-xl font-semibold leading-tight">
+              {label}
+            </h1>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Zillow */}
+            <Button
+              variant="secondary"
+              onClick={() => {
+                if (!zillowUrl) {
+                  toast({
+                    title: "Missing address",
+                    description:
+                      "Need address, city, state, and ZIP to open Zillow.",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+                window.open(zillowUrl, "_blank", "noopener,noreferrer");
+              }}
+              className="flex items-center gap-2"
+              disabled={!zillowUrl}
+              title={
+                zillowUrl
+                  ? "Open this address on Zillow"
+                  : "Enter full address to enable"
+              }
+            >
+              <img
+                src="/images/zillow-logo.png"
+                alt="Zillow"
+                className="h-5 w-5 object-contain"
+              />
+              <span>View on Zillow</span>
             </Button>
-            <Button onClick={handleCreate} disabled={saving || !selected}>
-              {saving ? "Creating…" : "Create & Continue"}
+
+            {/* Include in To-Do */}
+            <div className="flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm">
+              <Switch checked={home.isChecked} onCheckedChange={toggleChecked} />
+              <span>Include in To-Do</span>
+            </div>
+
+            {/* Edit / Delete */}
+            <Button variant="outline" className="gap-2" onClick={handleEditMeta}>
+              <Pencil className="h-4 w-4" /> Edit
+            </Button>
+            <Button
+              variant="destructive"
+              className="gap-2"
+              onClick={deleteHome}
+              disabled={deleting}
+            >
+              <Trash2 className="h-4 w-4" /> Delete
             </Button>
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+
+      {/* ======= Status strip (overdue / due soon / score) ======= */}
+      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-4">
+        <StatusCard
+          icon={<AlertCircle className="h-5 w-5" />}
+          label="Overdue"
+          value={tasksLoading ? "…" : String(overdueCount)}
+          tone="danger"
+        />
+        <StatusCard
+          icon={<Clock className="h-5 w-5" />}
+          label="Due soon (7d)"
+          value={tasksLoading ? "…" : String(dueSoonCount)}
+          tone="warn"
+        />
+        <StatusCard
+          icon={<Target className="h-5 w-5" />}
+          label="Maintenance score"
+          value={tasksLoading ? "…" : `${score}`}
+          suffix={tasksLoading ? "" : "/ 100"}
+          tone={score >= 80 ? "good" : score >= 60 ? "ok" : "warn"}
+        />
+        <div className="rounded-2xl border bg-background p-4 flex items-center justify-between">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <ListChecks className="h-5 w-5" />
+            <span>Tasks</span>
+          </div>
+          <Button
+            size="sm"
+            onClick={() => navigate(`/app/tasks?homeId=${encodeURIComponent(home.id)}`)}
+            className="ml-2"
+          >
+            View Tasks
+          </Button>
+        </div>
+      </div>
+
+      {/* ======= Home details ======= */}
+      <div className="mt-6" ref={metaRef}>
+        <HomeMetaCard
+          home={home}
+          onUpdated={(next) => {
+            setHome((h) => (h ? { ...h, ...next } : h));
+            setSummary((s) =>
+              s
+                ? {
+                    ...s,
+                    squareFeet: (next.squareFeet as any) ?? s.squareFeet,
+                    yearBuilt: (next.yearBuilt as any) ?? s.yearBuilt,
+                    hasCentralAir:
+                      typeof (next as any).hasCentralAir === "boolean"
+                        ? (next as any).hasCentralAir
+                        : s.hasCentralAir,
+                    hasBaseboard:
+                      typeof (next as any).hasBaseboard === "boolean"
+                        ? (next as any).hasBaseboard
+                        : s.hasBaseboard,
+                    features: Array.isArray((next as any).features)
+                      ? ((next as any).features as string[])
+                      : s.features,
+                    nickname:
+                      typeof next.nickname === "string"
+                        ? (next.nickname as string)
+                        : s.nickname,
+                  }
+                : s
+            );
+          }}
+        />
+      </div>
+
+      {/* ======= Rooms preview ======= */}
+      <div className="mt-6 rounded-2xl border bg-background">
+        <div className="flex items-center justify-between border-b p-4">
+          <h2 className="text-sm font-semibold">Rooms</h2>
+          <button
+            className="inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-sm hover:bg-muted"
+            onClick={() => navigate(`/app/homes/${home.id}`)}
+            title="Manage rooms"
+          >
+            Manage <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+        {home.rooms && home.rooms.length > 0 ? (
+          <ul className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">
+            {home.rooms.slice(0, 9).map((r) => (
+              <li key={r.id} className="rounded-lg border p-3 text-sm hover:bg-muted/50">
+                <div className="font-medium">{r.name || r.type}</div>
+                {r.floor ? (
+                  <div className="text-xs text-muted-foreground">Floor {r.floor}</div>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <div className="p-4 text-sm text-muted-foreground">
+            No rooms yet. You can add rooms from the Rooms section.
+          </div>
+        )}
+      </div>
+
+      {/* ======= Counts (no Vehicles) ======= */}
+      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <CountCard
+          label="Rooms"
+          value={summary?.counts.rooms ?? home.rooms?.length ?? 0}
+        />
+        <CountCard label="Trackables" value={summary?.counts.trackables ?? 0} />
+      </div>
+    </div>
+  );
+}
+
+/* ====================== Small components ====================== */
+
+function StatusCard({
+  icon,
+  label,
+  value,
+  suffix,
+  tone = "neutral",
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string | number;
+  suffix?: string;
+  tone?: "neutral" | "good" | "ok" | "warn" | "danger";
+}) {
+  const toneClasses =
+    tone === "good"
+      ? "border-emerald-300 bg-emerald-50/60"
+      : tone === "ok"
+      ? "border-blue-300 bg-blue-50/60"
+      : tone === "warn"
+      ? "border-amber-300 bg-amber-50/60"
+      : tone === "danger"
+      ? "border-red-300 bg-red-50/60"
+      : "border-gray-200 bg-background";
+  const textTone =
+    tone === "good"
+      ? "text-emerald-700"
+      : tone === "ok"
+      ? "text-blue-700"
+      : tone === "warn"
+      ? "text-amber-700"
+      : tone === "danger"
+      ? "text-red-700"
+      : "text-gray-800";
+
+  return (
+    <div className={`rounded-2xl border ${toneClasses} p-4`}>
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        {icon}
+        <span>{label}</span>
+      </div>
+      <div className={`mt-1 text-2xl font-semibold ${textTone}`}>
+        {value}
+        {suffix ? <span className="text-sm text-gray-500 ml-1">{suffix}</span> : null}
+      </div>
+    </div>
+  );
+}
+
+function CountCard({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-2xl border bg-background p-4">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="mt-1 text-2xl font-semibold">{value}</div>
+    </div>
   );
 }
