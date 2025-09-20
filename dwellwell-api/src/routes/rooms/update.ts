@@ -2,6 +2,7 @@
 import { Request, Response } from "express";
 import { prisma } from "../../db/prisma";
 import { asyncHandler } from "../../middleware/asyncHandler";
+import { generateTasksForRoom } from "../../services/taskGenerator";
 
 function stripUndefined(obj: Record<string, any>) {
   const out: Record<string, any> = {};
@@ -21,14 +22,12 @@ export default asyncHandler(async (req: Request, res: Response) => {
     details?: Record<string, any> | null;
   };
 
-  console.log("ROOM PATCH", roomId, req.body);
-  
-  // Ensure ownership
-  const room = await prisma.room.findFirst({
+  // Ensure ownership + load prior type
+  const before = await prisma.room.findFirst({
     where: { id: roomId, home: { userId } },
-    select: { id: true },
+    select: { id: true, type: true },
   });
-  if (!room) return res.status(404).json({ error: "ROOM_NOT_FOUND" });
+  if (!before) return res.status(404).json({ error: "ROOM_NOT_FOUND" });
 
   // Basic fields (only if we actually have something)
   const data: any = {};
@@ -58,4 +57,9 @@ export default asyncHandler(async (req: Request, res: Response) => {
     include: { detail: true },
   });
   res.json(updated);
+
+  // If type changed, refresh tasks for this room
+  if (type !== undefined && before.type !== (type ?? before.type)) {
+    await generateTasksForRoom(roomId);
+  }
 });

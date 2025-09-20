@@ -68,7 +68,7 @@ export default function HomeCardTile({
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") open();
         }}
-        className={`overflow-hidden rounded-2xl border bg-background shadow-sm transition hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary cursor-pointer ${className}`}
+        className={`overflow-hidden rounded-2xl border bg-white shadow-sm transition hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary cursor-pointer ${className}`}
       >
         <div className="relative h-36 w-full">
           <img src={img} alt={label} title={label} className="h-full w-full object-cover" />

@@ -14,7 +14,7 @@ export default async function list(req: Request, res: Response) {
     const rooms = await prisma.room.findMany({
       where: { homeId },
       orderBy: [{ position: "asc" }, { name: "asc" }],
-      include: includeDetails ? { userTasks: true } : undefined,
+      include: includeDetails ? { detail: true, userTasks: true } : undefined,
     });
 
     return res.json(rooms);

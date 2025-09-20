@@ -2,6 +2,7 @@
 import { Request, Response } from "express";
 import { prisma } from "../../db/prisma";
 import { asyncHandler } from "../../middleware/asyncHandler";
+import { generateTasksForRoom } from "../../services/taskGenerator";
 
 function stripUndefined(obj: Record<string, any>) {
   const out: Record<string, any> = {};
@@ -28,7 +29,7 @@ export default asyncHandler(async (req: Request, res: Response) => {
   // Ensure the home belongs to the user
   const home = await prisma.home.findFirst({
     where: { id: homeId, userId },
-    select: { id: true },
+    select: { id: true, userId: true },
   });
   if (!home) return res.status(404).json({ error: "HOME_NOT_FOUND" });
 
@@ -58,6 +59,9 @@ export default asyncHandler(async (req: Request, res: Response) => {
       });
     }
   }
+
+  // Generate tasks based on room type
+  await generateTasksForRoom(created.id);
 
   const full = await prisma.room.findUnique({
     where: { id: created.id },

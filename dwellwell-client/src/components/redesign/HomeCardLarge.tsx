@@ -74,7 +74,7 @@ export default function HomeCardLarge({
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") open();
         }}
-        className={`grid grid-cols-12 gap-0 overflow-hidden rounded-2xl border bg-background shadow-sm transition hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary ${className}`}
+        className={`grid grid-cols-12 gap-0 overflow-hidden rounded-2xl border bg-white shadow-sm transition hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary ${className}`}
       >
         <div className="col-span-12 md:col-span-5 relative h-44 md:h-full">
           <img src={img} alt={label} title={label} className="h-full w-full object-cover" />
@@ -132,8 +132,8 @@ export default function HomeCardLarge({
               </div>
             </div>
 
-            {/* Counts */}
-            <div className="mt-4 grid grid-cols-3 gap-3 text-center text-sm">
+            {/* Counts (Vehicles removed) */}
+            <div className="mt-4 grid grid-cols-2 gap-3 text-center text-sm">
               <div className="rounded-lg border py-2">
                 <div className="text-xl font-semibold">{summary?.counts.rooms ?? 0}</div>
                 <div className="text-[11px] text-muted-foreground">Rooms</div>
@@ -141,10 +141,6 @@ export default function HomeCardLarge({
               <div className="rounded-lg border py-2">
                 <div className="text-xl font-semibold">{summary?.counts.trackables ?? 0}</div>
                 <div className="text-[11px] text-muted-foreground">Trackables</div>
-              </div>
-              <div className="rounded-lg border py-2">
-                <div className="text-xl font-semibold">{summary?.counts.vehicles ?? 0}</div>
-                <div className="text-[11px] text-muted-foreground">Vehicles</div>
               </div>
             </div>
           </div>
