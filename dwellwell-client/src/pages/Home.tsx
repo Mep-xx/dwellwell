@@ -1,5 +1,5 @@
 // dwellwell-client/src/pages/Home.tsx
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import type { Room } from "@shared/types/room";
 import type { Task } from "@shared/types/task";
@@ -17,6 +17,7 @@ import { buildZillowUrl } from "@/utils/zillowUrl";
 import HomeMetaCard from "@/components/redesign/HomeMetaCard";
 import type { HomeWithMeta } from "@/types/extended";
 import { getRoomVisual } from "@/utils/roomVisuals";
+import RoomsPanel from "@/components/redesign/RoomsPanel";
 
 /* ====================== Types ====================== */
 type Summary = {
@@ -42,6 +43,8 @@ function isDueSoon(t: Task) {
 }
 function maintenanceScore(overdue: number, soon: number) { return clamp(100 - overdue * 60 - soon * 20, 0, 100); }
 
+type TabKey = "overview" | "details" | "rooms" | "features" | "services" | "docs";
+
 /* ====================== Page ====================== */
 export default function HomePage() {
   const { id } = useParams<{ id: string }>();
@@ -63,11 +66,11 @@ export default function HomePage() {
 
   const [addOpen, setAddOpen] = useState(false);
   const [adding, setAdding] = useState(false);
-  const [newRoom, setNewRoom] = useState<{ name: string; type: string; floor: number | null }>({
-    name: "", type: "", floor: 1,
-  });
+  const [newRoom, setNewRoom] = useState<{ name: string; type: string; floor: number | null }>({ name: "", type: "", floor: 1 });
 
   const metaRef = useRef<HTMLDivElement | null>(null);
+
+  const [tab, setTab] = useState<TabKey>("overview");
 
   /* -------- load home + summary -------- */
   useEffect(() => {
@@ -104,16 +107,13 @@ export default function HomePage() {
     load(); return () => { cancelled = true; };
   }, [id]);
 
-  /* -------- recent activity (best effort) -------- */
+  /* -------- recent activity -------- */
   useEffect(() => {
     let cancelled = false;
     (async () => {
       if (!id) return;
       try {
-        // try completed tasks for this home as "recent activity"
-        const res = await api.get("/tasks", {
-          params: { homeId: id, status: "completed", limit: 5, sort: "-completedAt" }
-        });
+        const res = await api.get("/tasks", { params: { homeId: id, status: "completed", limit: 5, sort: "-completedAt" } });
         if (cancelled) return;
         const list: any[] = Array.isArray(res.data) ? res.data : [];
         setRecent(list.slice(0, 5).map(t => ({
@@ -122,20 +122,17 @@ export default function HomePage() {
           when: t.completedAt || t.doneAt || t.updatedAt || null,
           status: "Completed"
         })));
-      } catch {
-        setRecent([]);
-      }
+      } catch { setRecent([]); }
     })();
     return () => { cancelled = true; };
   }, [id]);
 
-  /* -------- home-level trackables (best effort) -------- */
+  /* -------- home-level trackables -------- */
   useEffect(() => {
     let cancelled = false;
     (async () => {
       if (!id) return;
       try {
-        // try a few parameter shapes; whichever returns will render
         const [a, b] = await Promise.allSettled([
           api.get("/trackables", { params: { homeId: id, scope: "home" } }),
           api.get("/trackables", { params: { homeId: id, roomId: null } }),
@@ -155,7 +152,6 @@ export default function HomePage() {
             }
           }
         }
-        // dedupe by id
         const seen = new Set<string>(); const dedup = rows.filter(x => (seen.has(x.id) ? false : (seen.add(x.id), true)));
         setHomeTrackables(dedup.slice(0, 6));
       } catch { setHomeTrackables([]); }
@@ -212,15 +208,10 @@ export default function HomePage() {
   };
 
   const handleEditMeta = () => {
-    metaRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setTab("details");
     setTimeout(() => {
-      const root = metaRef.current;
-      if (!root) return;
-      const editBtn = Array.from(root.querySelectorAll("button")).find(
-        (b) => (b.textContent || "").trim().toLowerCase() === "edit"
-      );
-      editBtn?.click();
-    }, 250);
+      metaRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
   };
 
   const createRoom = async () => {
@@ -246,7 +237,7 @@ export default function HomePage() {
     if (j < 0 || j >= next.length) return;
     [next[idx], next[j]] = [next[j], next[idx]];
     setHome({ ...home, rooms: next });
-    try { await api.post("/rooms/reorder", { roomIds: next.map((r) => r.id) }); } catch { /* non-fatal */ }
+    try { await api.post("/rooms/reorder", { roomIds: next.map((r) => r.id) }); } catch {}
   };
 
   /* -------- guards -------- */
@@ -286,7 +277,6 @@ export default function HomePage() {
 
         <div className="flex flex-col gap-3 border-t bg-white p-4 md:flex-row md:items-center md:justify-between">
           <div>
-            {/* Address is the headline; nickname below */}
             <h1 className="text-xl font-semibold leading-tight">
               {`${home.address}, ${home.city}, ${home.state} ${home.zip}`}
             </h1>
@@ -333,152 +323,139 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* ======= Status strip (cards) ======= */}
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-4">
-        <StatusCard icon={<AlertCircle className="h-5 w-5" />} label="Overdue" value={tasksLoading ? "…" : String(overdueCount)} tone="danger" />
-        <StatusCard icon={<Clock className="h-5 w-5" />} label="Due soon (7d)" value={tasksLoading ? "…" : String(dueSoonCount)} tone="warn" />
-        <StatusCard
-          icon={<Target className="h-5 w-5" />} label="Maintenance score"
-          value={tasksLoading ? "…" : `${score}`} suffix={tasksLoading ? "" : "/ 100"}
-          tone={tasksLoading ? "neutral" : score >= 80 ? "good" : score >= 60 ? "ok" : "warn"}
-        />
-        <div className="rounded-2xl border bg-white p-4 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground"><ListChecks className="h-5 w-5" /><span>Tasks</span></div>
-          <Button size="sm" onClick={() => navigate(`/app/tasks?homeId=${encodeURIComponent(home.id)}`)} className="ml-2">View Tasks</Button>
-        </div>
+      {/* ======= Tabs ======= */}
+      <div className="mt-4 border-b">
+        {(["overview","details","rooms","features","services","docs"] as TabKey[]).map(key => (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            className={`px-3 py-2 text-sm -mb-px border-b-2 mr-1 ${
+              tab === key ? "border-brand-primary text-brand-primary font-semibold"
+                          : "border-transparent text-gray-600 hover:text-brand-primary"
+            }`}
+          >
+            {key === "overview" ? "Overview" :
+             key === "details"  ? "Details"  :
+             key === "rooms"    ? "Rooms"    :
+             key === "features" ? "Features" :
+             key === "services" ? "Services" : "Photos & Docs"}
+          </button>
+        ))}
       </div>
 
-      {/* ======= Recent activity & Home maintenance ======= */}
-      <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {/* Recent Activity */}
-        <div className="rounded-2xl border bg-white p-4">
-          <div className="mb-2 font-semibold">Recent Activity</div>
-          {recent.length === 0 ? (
-            <div className="text-sm text-muted-foreground">No recent activity.</div>
-          ) : (
-            <ul className="space-y-2">
-              {recent.map((r) => (
-                <li key={r.id} className="flex items-center gap-2 rounded-lg border bg-white px-3 py-2">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                  <div className="flex-1">
-                    <div className="text-sm">{r.title}</div>
-                    {r.when ? <div className="text-xs text-muted-foreground">{new Date(r.when).toLocaleDateString()}</div> : null}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        {/* Home Maintenance (home-level trackables) */}
-        <div className="rounded-2xl border bg-white p-4">
-          <div className="mb-2 font-semibold">Home Maintenance</div>
-          {homeTrackables.length === 0 ? (
-            <div className="text-sm text-muted-foreground">No home-based items yet.</div>
-          ) : (
-            <ul className="space-y-2">
-              {homeTrackables.map((t) => (
-                <li key={t.id} className="flex items-center justify-between rounded-lg border bg-white px-3 py-2">
-                  <div>
-                    <div className="text-sm">{t.name}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {(t.status || "In Use")}{t.nextDueDate ? ` • Next: ${new Date(t.nextDueDate).toLocaleDateString()}` : ""}
-                    </div>
-                  </div>
-                  <Button size="sm" variant="ghost" onClick={() => navigate(`/app/trackables/${encodeURIComponent(t.id)}`)}>Open</Button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </div>
-
-      {/* ======= Details (Meta) ======= */}
-      <div className="mt-6" ref={metaRef}>
-        <HomeMetaCard
-          home={home}
-          onUpdated={(next) => {
-            setHome((h) => (h ? { ...h, ...next } : h));
-            setSummary((s) =>
-              s
-                ? {
-                    ...s,
-                    squareFeet: (next.squareFeet as any) ?? s.squareFeet,
-                    yearBuilt: (next.yearBuilt as any) ?? s.yearBuilt,
-                    hasCentralAir: typeof (next as any).hasCentralAir === "boolean" ? (next as any).hasCentralAir : s.hasCentralAir,
-                    hasBaseboard: typeof (next as any).hasBaseboard === "boolean" ? (next as any).hasBaseboard : s.hasBaseboard,
-                    features: Array.isArray((next as any).features) ? ((next as any).features as string[]) : s.features,
-                    nickname: typeof next.nickname === "string" ? (next.nickname as string) : s.nickname,
-                  }
-                : s
-            );
-          }}
-        />
-      </div>
-
-      {/* ======= Rooms ======= */}
-      <div className="mt-6 rounded-2xl border bg-white">
-        <div className="flex items-center justify-between border-b p-4">
-          <h2 className="text-sm font-semibold">Rooms</h2>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="gap-1" onClick={() => setAddOpen(true)} title="Add a room">
-              <Plus className="h-4 w-4" /> Add
-            </Button>
+      {/* ======= Tab Panels ======= */}
+      {tab === "overview" && (
+        <>
+          {/* Status strip */}
+          <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-4">
+            <StatusCard icon={<AlertCircle className="h-5 w-5" />} label="Overdue" value={tasksLoading ? "…" : String(overdueCount)} tone="danger" />
+            <StatusCard icon={<Clock className="h-5 w-5" />} label="Due soon (7d)" value={tasksLoading ? "…" : String(dueSoonCount)} tone="warn" />
+            <StatusCard
+              icon={<Target className="h-5 w-5" />} label="Maintenance score"
+              value={tasksLoading ? "…" : `${score}`} suffix={tasksLoading ? "" : "/ 100"}
+              tone={tasksLoading ? "neutral" : score >= 80 ? "good" : score >= 60 ? "ok" : "warn"}
+            />
+            <div className="rounded-2xl border bg-white p-4 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground"><ListChecks className="h-5 w-5" /><span>Tasks</span></div>
+              <Button size="sm" onClick={() => navigate(`/app/tasks?homeId=${encodeURIComponent(home.id)}`)} className="ml-2">View Tasks</Button>
+            </div>
           </div>
-        </div>
 
-        {home.rooms && home.rooms.length > 0 ? (
-          <ul className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">
-            {home.rooms.map((r, idx) => {
-              const stats = tasksByRoom[r.id] || { overdue: 0, soon: 0 };
-              const roomTitle = (r as any).type || r.name || "Room";
-              const visual = getRoomVisual((r as any).type || r.name);
-
-              return (
-                <li key={r.id} className="rounded-xl border p-0 overflow-hidden bg-white">
-                  {/* simple compact header w/ accent bar */}
-                  <div className="h-1.5 w-full" style={{ backgroundColor: visual.accent }} />
-                  <div className="p-3">
-                    <div className="flex items-center justify-between">
-                      <div className="font-medium truncate">{r.name || (r as any).type}</div>
-                      <div className="flex items-center gap-1">
-                        <button className="rounded p-1 text-gray-600 hover:bg-gray-100" title="Move up" onClick={() => moveRoom(idx, -1)} disabled={idx === 0}>
-                          <ArrowUp className="h-4 w-4" />
-                        </button>
-                        <button className="rounded p-1 text-gray-600 hover:bg-gray-100" title="Move down" onClick={() => moveRoom(idx, +1)} disabled={!home.rooms || idx === home.rooms.length - 1}>
-                          <ArrowDown className="h-4 w-4" />
-                        </button>
+          {/* Recent + Home Maintenance */}
+          <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <div className="rounded-2xl border bg-white p-4">
+              <div className="mb-2 font-semibold">Recent Activity</div>
+              {recent.length === 0 ? (
+                <div className="text-sm text-muted-foreground">No recent activity.</div>
+              ) : (
+                <ul className="space-y-2">
+                  {recent.map((r) => (
+                    <li key={r.id} className="flex items-center gap-2 rounded-lg border bg-white px-3 py-2">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                      <div className="flex-1">
+                        <div className="text-sm">{r.title}</div>
+                        {r.when ? <div className="text-xs text-muted-foreground">{new Date(r.when).toLocaleDateString()}</div> : null}
                       </div>
-                    </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
 
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      {(r as any).type ? (r as any).type : "—"} {typeof (r as any).floor === "number" ? `• Floor ${(r as any).floor}` : ""}
-                    </div>
+            <div className="rounded-2xl border bg-white p-4">
+              <div className="mb-2 font-semibold">Home Maintenance</div>
+              {homeTrackables.length === 0 ? (
+                <div className="text-sm text-muted-foreground">No home-based items yet.</div>
+              ) : (
+                <ul className="space-y-2">
+                  {homeTrackables.map((t) => (
+                    <li key={t.id} className="flex items-center justify-between rounded-lg border bg-white px-3 py-2">
+                      <div>
+                        <div className="text-sm">{t.name}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {(t.status || "In Use")}{t.nextDueDate ? ` • Next: ${new Date(t.nextDueDate).toLocaleDateString()}` : ""}
+                        </div>
+                      </div>
+                      <Button size="sm" variant="ghost" onClick={() => navigate(`/app/trackables/${encodeURIComponent(t.id)}`)}>Open</Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </>
+      )}
 
-                    {/* chips with WHITE backgrounds */}
-                    <div className="mt-2 flex items-center gap-3 text-sm">
-                      <span className="inline-flex items-center gap-1 rounded bg-white px-2 py-0.5 text-red-700 border border-red-200">
-                        <AlertCircle className="h-3.5 w-3.5" /> {stats.overdue}
-                      </span>
-                      <span className="inline-flex items-center gap-1 rounded bg-white px-2 py-0.5 text-amber-700 border border-amber-200">
-                        <Clock className="h-3.5 w-3.5" /> {stats.soon}
-                      </span>
-                      <Button
-                        variant="ghost" size="sm" className="ml-auto h-7 px-2 text-blue-700 hover:text-blue-800"
-                        onClick={() => navigate(`/app/tasks?roomId=${encodeURIComponent(r.id)}`)}
-                      >
-                        View tasks
-                      </Button>
-                    </div>
-                  </div>
-                </li>
+      {tab === "details" && (
+        <div className="mt-6" ref={metaRef}>
+          <HomeMetaCard
+            home={home}
+            onUpdated={(next) => {
+              setHome((h) => (h ? { ...h, ...next } : h));
+              setSummary((s) =>
+                s
+                  ? {
+                      ...s,
+                      squareFeet: (next.squareFeet as any) ?? s.squareFeet,
+                      yearBuilt: (next.yearBuilt as any) ?? s.yearBuilt,
+                      hasCentralAir: typeof (next as any).hasCentralAir === "boolean" ? (next as any).hasCentralAir : s.hasCentralAir,
+                      hasBaseboard: typeof (next as any).hasBaseboard === "boolean" ? (next as any).hasBaseboard : s.hasBaseboard,
+                      features: Array.isArray((next as any).features) ? ((next as any).features as string[]) : s.features,
+                      nickname: typeof next.nickname === "string" ? (next.nickname as string) : s.nickname,
+                    }
+                  : s
               );
-            })}
-          </ul>
-        ) : (
-          <div className="p-4 text-sm text-muted-foreground">No rooms yet. Add one to get started.</div>
-        )}
-      </div>
+            }}
+          />
+        </div>
+      )}
+
+      {tab === "rooms" && (
+        <div className="mt-6 rounded-2xl border bg-white p-4">
+          <RoomsPanel homeId={home.id} tasksByRoom={tasksByRoom} />
+        </div>
+      )}
+
+      {tab === "features" && (
+        <div className="mt-6 rounded-2xl border bg-white p-4">
+          <h2 className="text-sm font-semibold mb-1">Features</h2>
+          <p className="text-sm text-muted-foreground">Coming soon — curated quick-add + suggestions (from the old page).</p>
+        </div>
+      )}
+
+      {tab === "services" && (
+        <div className="mt-6 rounded-2xl border bg-white p-4">
+          <h2 className="text-sm font-semibold mb-1">Services</h2>
+          <p className="text-sm text-muted-foreground">Keep your HVAC/boiler and other providers here. (MVP placeholder.)</p>
+        </div>
+      )}
+
+      {tab === "docs" && (
+        <div className="mt-6 rounded-2xl border bg-white p-4">
+          <h2 className="text-sm font-semibold mb-1">Photos & Docs</h2>
+          <p className="text-sm text-muted-foreground">Upload invoices, warranties, manuals, etc. (MVP placeholder.)</p>
+        </div>
+      )}
 
       {/* Add Room Modal */}
       {addOpen && (
