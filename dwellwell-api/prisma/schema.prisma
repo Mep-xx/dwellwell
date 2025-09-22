@@ -253,7 +253,8 @@ model Home {
   lawnProfile LawnProfile?
 
   // Users who have this as their default
-  usersDefaultingHere User[] @relation("UserDefaultHome")
+  usersDefaultingHere User[]     @relation("UserDefaultHome")
+  UserTask            UserTask[]
 }
 
 model Room {
@@ -402,10 +403,10 @@ model Trackable {
   applianceCatalog   ApplianceCatalog? @relation(fields: [applianceCatalogId], references: [id])
 
   // NEW: per-item overrides (nullable; take precedence over catalog)
-  brand    String?   @db.VarChar(128)
-  model    String?   @db.VarChar(128)
-  category String?   @db.VarChar(64)
-  kind     String?   @db.VarChar(64) // UI "type" maps to "kind"
+  brand    String? @db.VarChar(128)
+  model    String? @db.VarChar(128)
+  category String? @db.VarChar(64)
+  kind     String? @db.VarChar(64) // UI "type" maps to "kind"
 
   userDefinedName String?
   purchaseDate    DateTime?
@@ -513,7 +514,7 @@ model ApplianceTaskTemplate {
 model UserTask {
   id             String             @id @default(uuid())
   userId         String
-  homeId         String?                               // NEW ✅
+  homeId         String? // NEW ✅
   roomId         String?
   trackableId    String?
   taskTemplateId String?
@@ -555,7 +556,7 @@ model UserTask {
   equipmentNeeded Json?
   resources       Json?
 
-  stepProgress Json?   // { [stepId]: { checked: boolean, note?: string } }
+  stepProgress Json? // { [stepId]: { checked: boolean, note?: string } }
 
   imageUrl String?
   icon     String?
@@ -563,11 +564,11 @@ model UserTask {
   createdAt DateTime @default(now())
 
   // relations
-  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  home         Home?         @relation(fields: [homeId], references: [id], onDelete: Cascade)   // NEW ✅
-  room         Room?         @relation("RoomTasks", fields: [roomId], references: [id], onDelete: Cascade)
-  trackable    Trackable?    @relation("TrackableTasks", fields: [trackableId], references: [id], onDelete: Cascade)
-  taskTemplate TaskTemplate? @relation(fields: [taskTemplateId], references: [id])
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  home         Home?               @relation(fields: [homeId], references: [id], onDelete: Cascade) // NEW ✅
+  room         Room?               @relation("RoomTasks", fields: [roomId], references: [id], onDelete: Cascade)
+  trackable    Trackable?          @relation("TrackableTasks", fields: [trackableId], references: [id], onDelete: Cascade)
+  taskTemplate TaskTemplate?       @relation(fields: [taskTemplateId], references: [id])
   dismissals   DismissedUserTask[]
 
   // Snapshots backref
@@ -580,8 +581,8 @@ model UserTask {
   @@index([taskTemplateId], name: "idx_usertask_template")
   @@index([pausedAt, archivedAt])
   @@index([userId, completedDate])
-  @@index([homeId])                                      
-  @@index([userId, homeId, status, dueDate])             
+  @@index([homeId])
+  @@index([userId, homeId, status, dueDate])
 }
 
 model TaskSnapshotHistory {
@@ -736,22 +737,126 @@ enum TaskGenIssueCode {
 }
 
 model TaskGenerationIssue {
-  id           String            @id @default(cuid())
-  userId       String
-  homeId       String?
-  roomId       String?
-  trackableId  String?
+  id          String  @id @default(cuid())
+  userId      String
+  homeId      String?
+  roomId      String?
+  trackableId String?
 
   code         TaskGenIssueCode
   status       TaskGenIssueStatus @default(open)
   message      String?
   debugPayload Json?
 
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([userId, createdAt])
   @@index([homeId])
   @@index([trackableId])
   @@index([code, status])
+}
+
+// =========================
+// DB-backed TaskGen Rules
+// =========================
+
+enum RuleScope {
+  home
+  room
+  trackable
+}
+
+enum ConditionTarget {
+  home
+  room
+  room_detail
+  trackable
+}
+
+enum ConditionOp {
+  eq
+  ne
+  contains
+  not_contains
+  exists
+  not_exists
+  gte
+  lte
+  in
+  not_in
+}
+
+/**
+ * A rule that can create/update a TaskTemplate and upsert UserTasks
+ * when its conditions are satisfied.
+ */
+model TaskGenRule {
+  id      String    @id @default(cuid())
+  key     String    @unique
+  scope   RuleScope
+  enabled Boolean   @default(true)
+
+  // Optional hint: when any of these fields change on Home/Room/Detail,
+  // we should consider re-evaluating this rule (keeps runtime efficient).
+  reevalOn String[] @default([])
+
+  // Template seed used by ensureTemplate()
+  template TaskGenRuleTemplate?
+
+  // Predicate set
+  conditions TaskGenRuleCondition[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/**
+ * Template seed for a rule (roughly mirrors TaskTemplate)
+ */
+model TaskGenRuleTemplate {
+  id     String      @id @default(cuid())
+  ruleId String      @unique
+  rule   TaskGenRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  title              String
+  description        String?
+  icon               String?
+  imageUrl           String?
+  category           String?
+  recurrenceInterval String
+  taskType           TaskType        @default(GENERAL)
+  criticality        TaskCriticality @default(medium)
+
+  canDefer             Boolean @default(true)
+  deferLimitDays       Int     @default(0)
+  estimatedTimeMinutes Int     @default(30)
+  estimatedCost        Int     @default(0)
+  canBeOutsourced      Boolean @default(false)
+
+  steps           String[] @default([])
+  equipmentNeeded String[] @default([])
+  resources       Json?
+}
+
+/**
+ * A single condition clause for a rule.
+ * Example: target=home, field="roofType", op=exists
+ * Example: target=room_detail, field="hasSmokeDetector", op=eq, value="true"
+ */
+model TaskGenRuleCondition {
+  id     String      @id @default(cuid())
+  ruleId String
+  rule   TaskGenRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  target ConditionTarget
+  field  String
+  op     ConditionOp
+  value  String?
+  // When ARRAY ops are used (in/not_in), use values[]
+  values String[]
+
+  idx Int @default(0)
+
+  @@index([ruleId, idx])
 }

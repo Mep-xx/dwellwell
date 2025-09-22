@@ -8,13 +8,14 @@ export default asyncHandler(async (req: Request, res: Response) => {
   const userId = (req as any).user?.id;
   const { homeId } = req.params as any;
 
-  const home = await prisma.home.findFirst({ where: { id: homeId, userId } });
-  if (!home) return res.status(404).json({ error: "HOME_NOT_FOUND" });
+  const before = await prisma.home.findFirst({ where: { id: homeId, userId } });
+  if (!before) return res.status(404).json({ error: "HOME_NOT_FOUND" });
 
   const {
-    nickname, squareFeet, yearBuilt,
+    nickname, squareFeet, lotSize, yearBuilt,
     hasCentralAir, hasBaseboard, hasHeatPump,
-    roofType, sidingType, architecturalStyle, features,
+    roofType, sidingType, architecturalStyle, numberOfRooms,
+    features, imageUrl, latitude, longitude, timeZone, position,
   } = req.body ?? {};
 
   const updated = await prisma.home.update({
@@ -22,6 +23,7 @@ export default asyncHandler(async (req: Request, res: Response) => {
     data: {
       ...(nickname !== undefined ? { nickname } : {}),
       ...(squareFeet !== undefined ? { squareFeet } : {}),
+      ...(lotSize !== undefined ? { lotSize } : {}),
       ...(yearBuilt !== undefined ? { yearBuilt } : {}),
       ...(hasCentralAir !== undefined ? { hasCentralAir } : {}),
       ...(hasBaseboard !== undefined ? { hasBaseboard } : {}),
@@ -29,12 +31,33 @@ export default asyncHandler(async (req: Request, res: Response) => {
       ...(roofType !== undefined ? { roofType } : {}),
       ...(sidingType !== undefined ? { sidingType } : {}),
       ...(architecturalStyle !== undefined ? { architecturalStyle } : {}),
+      ...(numberOfRooms !== undefined ? { numberOfRooms } : {}),
       ...(Array.isArray(features) ? { features } : {}),
+      ...(imageUrl !== undefined ? { imageUrl } : {}),
+      ...(latitude !== undefined ? { latitude } : {}),
+      ...(longitude !== undefined ? { longitude } : {}),
+      ...(timeZone !== undefined ? { timeZone } : {}),
+      ...(position !== undefined ? { position } : {}),
     },
   });
 
-  // 🔔 kick off (idempotent) task generation for home-level rules
-  try { await generateTasksForHomeBasics(updated.id); } catch (e) { console.error(e); }
+  // Only kick taskgen when relevant flags changed (keeps it efficient)
+  const hvacChanged =
+    before.hasCentralAir !== updated.hasCentralAir ||
+    before.hasHeatPump !== updated.hasHeatPump;
+
+  const roofChanged   = before.roofType   !== updated.roofType;
+  const sidingChanged = before.sidingType !== updated.sidingType;
+
+  const shouldRegen = hvacChanged || roofChanged || sidingChanged;
+
+  if (shouldRegen) {
+    try {
+      await generateTasksForHomeBasics(updated.id);
+    } catch (e) {
+      console.error("[homes/update] taskgen error:", e);
+    }
+  }
 
   res.json(updated);
 });

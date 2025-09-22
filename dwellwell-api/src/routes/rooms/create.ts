@@ -1,8 +1,8 @@
-//dwellwell-api\src\routes\rooms\create.ts
+// dwellwell-api/src/routes/rooms/create.ts
 import { Request, Response } from "express";
 import { prisma } from "../../db/prisma";
 import { asyncHandler } from "../../middleware/asyncHandler";
-import { generateTasksForRoom } from "../../services/taskGenerator";
+import { generateTasksForRoom } from "../../services/taskgen";
 
 function stripUndefined(obj: Record<string, any>) {
   const out: Record<string, any> = {};
@@ -10,6 +10,9 @@ function stripUndefined(obj: Record<string, any>) {
   return out;
 }
 
+/**
+ * Create a room (and optional RoomDetail), then generate room-scoped tasks.
+ */
 export default asyncHandler(async (req: Request, res: Response) => {
   const userId = (req as any).user?.id as string;
 
@@ -60,8 +63,12 @@ export default asyncHandler(async (req: Request, res: Response) => {
     }
   }
 
-  // Generate tasks based on room type
-  await generateTasksForRoom(created.id);
+  // Generate room-scoped tasks (idempotent via dedupeKey)
+  try {
+    await generateTasksForRoom(created.id);
+  } catch (e) {
+    console.error("[rooms/create] taskgen error:", e);
+  }
 
   const full = await prisma.room.findUnique({
     where: { id: created.id },
