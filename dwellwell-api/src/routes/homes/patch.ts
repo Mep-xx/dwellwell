@@ -2,8 +2,7 @@
 import { Request, Response, Router } from "express";
 import { prisma } from "../../db/prisma";
 import { asyncHandler } from "../../middleware/asyncHandler";
-// If/when you re-enable task generation, import here:
-// import { generateTasksForHomeFeatures } from "../../services/taskGenerator";
+import { generateTasksForHomeBasics } from "../../services/taskgen";
 
 const router = Router();
 
@@ -41,10 +40,7 @@ router.patch(
       data,
     });
 
-    // If you want auto task generation when features change, re-enable this:
-    // if (Object.prototype.hasOwnProperty.call(incoming, "features")) {
-    //   await generateTasksForHomeFeatures(homeId);
-    // }
+    await generateTasksForHomeBasics(home.id);
 
     res.json(updated);
   })

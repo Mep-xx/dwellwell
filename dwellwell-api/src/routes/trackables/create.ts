@@ -86,18 +86,14 @@ export default asyncHandler(async (req: Request, res: Response) => {
 
   const created = await prisma.trackable.create({ data });
 
-  // Seed tasks from ApplianceTaskTemplate if we have a catalog link
   try {
-    await seedTasksForTrackable({
-      prisma,
-      userId,
-      trackableId: created.id,
-      applianceCatalogId: created.applianceCatalogId ?? null,
-    });
-  } catch (e) {
-    // non-fatal; log and move on
-    console.error("[trackables/create] seedTasks error:", e);
-  }
+    await seedTasksForTrackable({ prisma, userId, trackableId: created.id, applianceCatalogId: created.applianceCatalogId ?? null });
+  } catch (e) { console.error("[seed catalog]", e); }
+
+  try {
+    const { generateTasksForTrackable } = await import("../../services/taskgen");
+    await generateTasksForTrackable(created.id);
+  } catch (e) { console.error("[taskgen rules]", e); }
 
   res.status(201).json(created);
 });

@@ -203,4 +203,11 @@ export default asyncHandler(async (req: Request, res: Response) => {
   };
 
   res.json(view);
+
+  try {
+    const { generateTasksForTrackable } = await import("../../services/taskgen");
+    await generateTasksForTrackable(trackableId);
+  } catch (e) {
+    console.error("[trackables/update] taskgen error:", e);
+  }
 });

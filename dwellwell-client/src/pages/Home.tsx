@@ -145,7 +145,7 @@ export default function HomePage() {
             for (const t of r.value.data) {
               rows.push({
                 id: t.id,
-                name: t.userDefinedName || t.name || "Trackable",
+                name: t.displayName || t.userDefinedName || t.name || "Trackable",
                 status: t.status || null,
                 nextDueDate: t.nextDueDate || t.next_due || null,
               });
@@ -237,7 +237,7 @@ export default function HomePage() {
     if (j < 0 || j >= next.length) return;
     [next[idx], next[j]] = [next[j], next[idx]];
     setHome({ ...home, rooms: next });
-    try { await api.post("/rooms/reorder", { roomIds: next.map((r) => r.id) }); } catch {}
+    try { await api.post("/rooms/reorder", { roomIds: next.map((r) => r.id) }); } catch { }
   };
 
   /* -------- guards -------- */
@@ -325,20 +325,19 @@ export default function HomePage() {
 
       {/* ======= Tabs ======= */}
       <div className="mt-4 border-b">
-        {(["overview","details","rooms","features","services","docs"] as TabKey[]).map(key => (
+        {(["overview", "details", "rooms", "features", "services", "docs"] as TabKey[]).map(key => (
           <button
             key={key}
             onClick={() => setTab(key)}
-            className={`px-3 py-2 text-sm -mb-px border-b-2 mr-1 ${
-              tab === key ? "border-brand-primary text-brand-primary font-semibold"
-                          : "border-transparent text-gray-600 hover:text-brand-primary"
-            }`}
+            className={`px-3 py-2 text-sm -mb-px border-b-2 mr-1 ${tab === key ? "border-brand-primary text-brand-primary font-semibold"
+                : "border-transparent text-gray-600 hover:text-brand-primary"
+              }`}
           >
             {key === "overview" ? "Overview" :
-             key === "details"  ? "Details"  :
-             key === "rooms"    ? "Rooms"    :
-             key === "features" ? "Features" :
-             key === "services" ? "Services" : "Photos & Docs"}
+              key === "details" ? "Details" :
+                key === "rooms" ? "Rooms" :
+                  key === "features" ? "Features" :
+                    key === "services" ? "Services" : "Photos & Docs"}
           </button>
         ))}
       </div>
@@ -415,14 +414,14 @@ export default function HomePage() {
               setSummary((s) =>
                 s
                   ? {
-                      ...s,
-                      squareFeet: (next.squareFeet as any) ?? s.squareFeet,
-                      yearBuilt: (next.yearBuilt as any) ?? s.yearBuilt,
-                      hasCentralAir: typeof (next as any).hasCentralAir === "boolean" ? (next as any).hasCentralAir : s.hasCentralAir,
-                      hasBaseboard: typeof (next as any).hasBaseboard === "boolean" ? (next as any).hasBaseboard : s.hasBaseboard,
-                      features: Array.isArray((next as any).features) ? ((next as any).features as string[]) : s.features,
-                      nickname: typeof next.nickname === "string" ? (next.nickname as string) : s.nickname,
-                    }
+                    ...s,
+                    squareFeet: (next.squareFeet as any) ?? s.squareFeet,
+                    yearBuilt: (next.yearBuilt as any) ?? s.yearBuilt,
+                    hasCentralAir: typeof (next as any).hasCentralAir === "boolean" ? (next as any).hasCentralAir : s.hasCentralAir,
+                    hasBaseboard: typeof (next as any).hasBaseboard === "boolean" ? (next as any).hasBaseboard : s.hasBaseboard,
+                    features: Array.isArray((next as any).features) ? ((next as any).features as string[]) : s.features,
+                    nickname: typeof next.nickname === "string" ? (next.nickname as string) : s.nickname,
+                  }
                   : s
               );
             }}
@@ -499,17 +498,17 @@ function StatusCard({
   tone?: "neutral" | "good" | "ok" | "warn" | "danger";
 }) {
   const toneClasses =
-    tone === "good"   ? "border-emerald-200 bg-emerald-50/70" :
-    tone === "ok"     ? "border-blue-200 bg-blue-50/70" :
-    tone === "warn"   ? "border-amber-200 bg-amber-50/70" :
-    tone === "danger" ? "border-red-200 bg-red-50/70" :
-                        "border-gray-200 bg-white";
+    tone === "good" ? "border-emerald-200 bg-emerald-50/70" :
+      tone === "ok" ? "border-blue-200 bg-blue-50/70" :
+        tone === "warn" ? "border-amber-200 bg-amber-50/70" :
+          tone === "danger" ? "border-red-200 bg-red-50/70" :
+            "border-gray-200 bg-white";
   const textTone =
-    tone === "good"   ? "text-emerald-700" :
-    tone === "ok"     ? "text-blue-700" :
-    tone === "warn"   ? "text-amber-700" :
-    tone === "danger" ? "text-red-700" :
-                        "text-gray-800";
+    tone === "good" ? "text-emerald-700" :
+      tone === "ok" ? "text-blue-700" :
+        tone === "warn" ? "text-amber-700" :
+          tone === "danger" ? "text-red-700" :
+            "text-gray-800";
 
   return (
     <div className={`rounded-2xl border ${toneClasses} p-4`}>

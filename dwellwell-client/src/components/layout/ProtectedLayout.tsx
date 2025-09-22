@@ -67,7 +67,10 @@ export default function ProtectedLayout() {
                   🏘 Homes
                 </NavLink>
                 <NavLink to="/admin/AdminTrackables" className={({ isActive }) => navLinkClasses(isActive)}>
-                  📚 Trackables (Resources)
+                  📚 Trackables
+                </NavLink>
+                <NavLink to="/admin/AdminTaskGenIssues" className={({ isActive }) => navLinkClasses(isActive)}>
+                  ⚠️ Task Gen Issues
                 </NavLink>
               </div>
             )}

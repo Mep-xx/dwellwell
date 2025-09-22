@@ -1,31 +1,102 @@
 // dwellwell-api/src/routes/tasks/list.ts
-import { Request, Response } from 'express';
-import { asyncHandler } from '../../middleware/asyncHandler';
-import { prisma } from '../../db/prisma';
+import { Request, Response } from "express";
+import { asyncHandler } from "../../middleware/asyncHandler";
+import { prisma } from "../../db/prisma";
+
+function parseStatus(s?: string | null) {
+  const v = (s || "").toLowerCase();
+  if (v === "active") return "active";
+  if (v === "completed") return "completed";
+  if (v === "overdue") return "overdue";
+  if (v === "duesoon" || v === "due_soon") return "dueSoon";
+  return "active";
+}
 
 export default asyncHandler(async (req: Request, res: Response) => {
   const userId = (req as any).user?.id;
-  const { trackableId, status } = req.query as { trackableId?: string; status?: string };
+  if (!userId) return res.status(401).json({ error: "UNAUTHORIZED" });
 
-  const where: any = { userId };
+  const homeId = (req.query.homeId as string) || undefined;
+  const statusQ = parseStatus(req.query.status as string | undefined);
+  const limit = Math.max(1, Math.min(parseInt((req.query.limit as string) || "100", 10) || 100, 500));
+  const sort = (req.query.sort as string) || "dueDate"; // "-completedAt" for recent
 
-  // Trackable scoping
-  if (trackableId) where.trackableId = String(trackableId);
+  const now = new Date();
+  const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 3600 * 1000);
 
-  // Accept friendly status param
-  // - "active" → not archived, status=PENDING (and not paused; paused tasks still exist but are flagged)
-  // - otherwise allow raw enum values if you use them directly
-  if (status && String(status).toLowerCase() === 'active') {
-    where.archivedAt = null;
-    where.status = 'PENDING'; // adjust if you want to include SKIPPED; usually "active" = do-able
-  } else if (status) {
-    where.status = String(status).toUpperCase();
-  }
+  const base: any = { userId, archivedAt: null };
+
+  if (statusQ === "active") base.status = "PENDING";
+  else if (statusQ === "completed") base.status = "COMPLETED";
+  else if (statusQ === "overdue") { base.status = "PENDING"; base.dueDate = { lt: now }; }
+  else if (statusQ === "dueSoon") { base.status = "PENDING"; base.dueDate = { gte: now, lte: sevenDaysFromNow }; }
+
+  const where = homeId
+    ? {
+        AND: [
+          base,
+          {
+            OR: [
+              { homeId },
+              { room: { is: { homeId } } },
+              { trackable: { is: { homeId } } },
+            ],
+          },
+        ],
+      }
+    : base;
+
+  const orderBy =
+    sort === "-completedAt"
+      ? [{ completedDate: "desc" as const }, { createdAt: "desc" as const }]
+      : [{ dueDate: "asc" as const }, { createdAt: "asc" as const }];
 
   const tasks = await prisma.userTask.findMany({
     where,
-    orderBy: [{ dueDate: 'asc' }, { createdAt: 'desc' }],
+    orderBy,
+    take: limit,
+    include: {
+      room: { select: { id: true, name: true, homeId: true } },
+      trackable: {
+        select: {
+          id: true,
+          userDefinedName: true,
+          brand: true,
+          model: true,
+          kind: true,
+          applianceCatalog: { select: { brand: true, model: true, type: true } },
+          homeId: true,
+          roomId: true,
+        },
+      },
+    },
   });
 
-  res.json(tasks);
+  const out = tasks.map((t) => {
+    const tr = t.trackable;
+    const brand = tr?.brand ?? tr?.applianceCatalog?.brand ?? null;
+    const model = tr?.model ?? tr?.applianceCatalog?.model ?? null;
+    const type = tr?.kind ?? tr?.applianceCatalog?.type ?? null;
+
+    return {
+      id: t.id,
+      title: t.title,
+      description: t.description ?? "",
+      status: t.status,
+      dueDate: t.dueDate?.toISOString() ?? null,
+      completedAt: t.completedDate?.toISOString() ?? null,
+      itemName: t.itemName ?? "",
+      roomId: t.roomId ?? null,
+      roomName: t.room?.name ?? null,
+      trackableId: tr?.id ?? null,
+      trackableBrand: brand,
+      trackableModel: model,
+      trackableType: type,
+      category: t.category,
+      icon: t.icon ?? null,
+      createdAt: (t as any).createdAt?.toISOString?.() ?? undefined,
+    };
+  });
+
+  res.json(out);
 });

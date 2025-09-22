@@ -19,7 +19,7 @@ import Room from '@/pages/Room';
 import HomesRedesign from '@/pages/HomesRedesign';
 
 // NEW
-import TasksPage from '@/pages/TasksPage';
+import Tasks from '@/pages/Tasks';
 import TaskDetailPage from '@/pages/TaskDetailPage';
 
 // layouts
@@ -32,6 +32,7 @@ import AdminTaskTemplates from '@/pages/admin/AdminTaskTemplates';
 import AdminHomes from '@/pages/admin/AdminHomes';
 import AdminUsers from '@/pages/admin/AdminUsers';
 import AdminTrackables from '@/pages/admin/AdminTrackables';
+import AdminTaskGenIssues from '@/pages/admin/AdminTaskGenIssues';
 
 function RequireGuest() {
   const { user, loading } = useAuth();
@@ -71,7 +72,7 @@ export default function AppRoutes() {
         <Route path="/app/v2/homes" element={<HomesRedesign />} />
 
         {/* Tasks */}
-        <Route path="/app/tasks" element={<TasksPage />} />
+        <Route path="/app/tasks" element={<Tasks />} />
         <Route path="/app/tasks/:taskId" element={<TaskDetailPage />} />
 
         {/* Account */}
@@ -84,6 +85,7 @@ export default function AppRoutes() {
         <Route path="/admin/AdminUsers" element={<AdminUsers />} />
         <Route path="/admin/AdminHomes" element={<AdminHomes />} />
         <Route path="/admin/AdminTrackables" element={<AdminTrackables />} />
+        <Route path="/admin/AdminTaskGenIssues" element={<AdminTaskGenIssues />} />
 
         {/* Legacy redirects */}
         <Route path="/app/homes/:id/edit" element={<Navigate to="/app/homes/:id" replace />} />

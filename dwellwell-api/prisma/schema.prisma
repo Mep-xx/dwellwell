@@ -253,7 +253,8 @@ model Home {
   lawnProfile LawnProfile?
 
   // Users who have this as their default
-  usersDefaultingHere User[] @relation("UserDefaultHome")
+  usersDefaultingHere User[]     @relation("UserDefaultHome")
+  UserTask            UserTask[]
 }
 
 model Room {
@@ -402,10 +403,10 @@ model Trackable {
   applianceCatalog   ApplianceCatalog? @relation(fields: [applianceCatalogId], references: [id])
 
   // NEW: per-item overrides (nullable; take precedence over catalog)
-  brand    String?   @db.VarChar(128)
-  model    String?   @db.VarChar(128)
-  category String?   @db.VarChar(64)
-  kind     String?   @db.VarChar(64) // UI "type" maps to "kind"
+  brand    String? @db.VarChar(128)
+  model    String? @db.VarChar(128)
+  category String? @db.VarChar(64)
+  kind     String? @db.VarChar(64) // UI "type" maps to "kind"
 
   userDefinedName String?
   purchaseDate    DateTime?
@@ -439,6 +440,7 @@ model Trackable {
   @@index([model])
   @@index([category])
   @@index([kind])
+  @@index([ownerUserId, homeId])
 }
 
 model TrackableAssignment {
@@ -512,6 +514,7 @@ model ApplianceTaskTemplate {
 model UserTask {
   id             String             @id @default(uuid())
   userId         String
+  homeId         String? // NEW ✅
   roomId         String?
   trackableId    String?
   taskTemplateId String?
@@ -553,14 +556,16 @@ model UserTask {
   equipmentNeeded Json?
   resources       Json?
 
-  stepProgress Json?   // { [stepId]: { checked: boolean, note?: string } }
+  stepProgress Json? // { [stepId]: { checked: boolean, note?: string } }
 
   imageUrl String?
   icon     String?
 
   createdAt DateTime @default(now())
 
+  // relations
   user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  home         Home?               @relation(fields: [homeId], references: [id], onDelete: Cascade) // NEW ✅
   room         Room?               @relation("RoomTasks", fields: [roomId], references: [id], onDelete: Cascade)
   trackable    Trackable?          @relation("TrackableTasks", fields: [trackableId], references: [id], onDelete: Cascade)
   taskTemplate TaskTemplate?       @relation(fields: [taskTemplateId], references: [id])
@@ -569,11 +574,15 @@ model UserTask {
   // Snapshots backref
   snapshots TaskSnapshotHistory[]
 
+  // indexes
   @@index([userId, status, dueDate], name: "idx_usertask_user_status_due")
   @@index([roomId], name: "idx_usertask_room")
   @@index([trackableId], name: "idx_usertask_trackable")
   @@index([taskTemplateId], name: "idx_usertask_template")
   @@index([pausedAt, archivedAt])
+  @@index([userId, completedDate])
+  @@index([homeId]) // NEW ✅
+  @@index([userId, homeId, status, dueDate]) // NEW ✅ fast home views
 }
 
 model TaskSnapshotHistory {
@@ -708,4 +717,42 @@ model LifecycleEvent {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, entity, action, createdAt])
+}
+
+// =========================
+// Task Generation Issues (Admin visibility)
+// =========================
+
+enum TaskGenIssueStatus {
+  open
+  in_progress
+  resolved
+}
+
+enum TaskGenIssueCode {
+  no_matching_template
+  enrichment_lookup_failed
+  template_eval_error
+  upsert_error
+}
+
+model TaskGenerationIssue {
+  id          String  @id @default(cuid())
+  userId      String
+  homeId      String?
+  roomId      String?
+  trackableId String?
+
+  code         TaskGenIssueCode
+  status       TaskGenIssueStatus @default(open)
+  message      String?
+  debugPayload Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([homeId])
+  @@index([trackableId])
+  @@index([code, status])
 }
