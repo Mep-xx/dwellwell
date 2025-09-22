@@ -28,7 +28,7 @@ import RoomEditModal from "@/components/redesign/RoomEditModal";
 import { SortableRoomRow } from "@/components/features/SortableRoomRow";
 import { useNavigate } from "react-router-dom";
 
-/* ---------- helpers (unchanged) ---------- */
+/* ---------- helpers ---------- */
 function groupByBucket(list: Room[]) {
   const map = new Map<FloorKey, Room[]>();
   BUCKETS.forEach((b) => map.set(b.key, []));
@@ -54,7 +54,7 @@ function findInsertIndexForFloor(flat: Room[], floor: FloorKey): number {
   return flat.length;
 }
 
-/* ---------- droppable section (quieter) ---------- */
+/* ---------- droppable section ---------- */
 function DroppableSection({
   id,
   title,
@@ -187,6 +187,11 @@ export default function RoomsPanel({ homeId, tasksByRoom }: Props) {
     setModalOpen(true);
   };
 
+  const openRoomPage = (roomId: string) => {
+    // If you have a dedicated room page route:
+    navigate(`/app/rooms/${encodeURIComponent(roomId)}`);
+  };
+
   const onDragStart = (e: DragStartEvent) => {
     activeIdRef.current = e.active.id;
     fromContainerRef.current = findContainerIdForItem(e.active.id) ?? null;
@@ -294,6 +299,7 @@ export default function RoomsPanel({ homeId, tasksByRoom }: Props) {
                               }
                             }}
                             onViewTasks={() => navigate(`/app/tasks?roomId=${encodeURIComponent(r.id)}`)}
+                            onOpenRoom={() => openRoomPage(r.id)}
                           />
                         );
                       })}

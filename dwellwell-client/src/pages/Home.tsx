@@ -9,14 +9,13 @@ import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import {
   Pencil, Trash2, MapPin, AlertCircle, Clock, Target, ListChecks,
-  Plus, ArrowUp, ArrowDown, CheckCircle2
+  CheckCircle2
 } from "lucide-react";
 import HomePhotoDropzone from "@/components/ui/HomePhotoDropzone";
 import { useToast } from "@/components/ui/use-toast";
 import { buildZillowUrl } from "@/utils/zillowUrl";
 import HomeMetaCard from "@/components/redesign/HomeMetaCard";
 import type { HomeWithMeta } from "@/types/extended";
-import { getRoomVisual } from "@/utils/roomVisuals";
 import RoomsPanel from "@/components/redesign/RoomsPanel";
 
 /* ====================== Types ====================== */
@@ -31,7 +30,7 @@ type Summary = {
 };
 
 type RecentItem = { id: string; title: string; when?: string; status?: string };
-type TrackableRow = { id: string; name: string; status?: string | null; nextDueDate?: string | null };
+type TabKey = "overview" | "details" | "rooms" | "features" | "services" | "docs";
 
 /* ====================== Helpers ====================== */
 function clamp(n: number, min: number, max: number) { return Math.max(min, Math.min(max, n)); }
@@ -42,8 +41,11 @@ function isDueSoon(t: Task) {
   return due >= now && due <= now + seven;
 }
 function maintenanceScore(overdue: number, soon: number) { return clamp(100 - overdue * 60 - soon * 20, 0, 100); }
-
-type TabKey = "overview" | "details" | "rooms" | "features" | "services" | "docs";
+function sortByDateAsc(a?: string | null, b?: string | null) {
+  const ta = a ? new Date(a).getTime() : Number.MAX_SAFE_INTEGER;
+  const tb = b ? new Date(b).getTime() : Number.MAX_SAFE_INTEGER;
+  return ta - tb;
+}
 
 /* ====================== Page ====================== */
 export default function HomePage() {
@@ -60,16 +62,12 @@ export default function HomePage() {
   const [activeTasks, setActiveTasks] = useState<Task[]>([]);
   const [taskError, setTaskError] = useState<string | null>(null);
 
-  // extras
   const [recent, setRecent] = useState<RecentItem[]>([]);
-  const [homeTrackables, setHomeTrackables] = useState<TrackableRow[]>([]);
-
   const [addOpen, setAddOpen] = useState(false);
   const [adding, setAdding] = useState(false);
   const [newRoom, setNewRoom] = useState<{ name: string; type: string; floor: number | null }>({ name: "", type: "", floor: 1 });
 
   const metaRef = useRef<HTMLDivElement | null>(null);
-
   const [tab, setTab] = useState<TabKey>("overview");
 
   /* -------- load home + summary -------- */
@@ -91,18 +89,23 @@ export default function HomePage() {
     return () => { cancelled = true; };
   }, [id]);
 
-  /* -------- load tasks for status strip -------- */
+  /* -------- load ALL active tasks under this home (home + rooms + trackables) -------- */
   useEffect(() => {
     let cancelled = false;
     async function load() {
       if (!id) return;
       setTasksLoading(true); setTaskError(null);
       try {
-        const res = await api.get("/tasks", { params: { homeId: id, status: "active" } });
+        // If your API ever requires a switch to include room/trackable scoped tasks, use:
+        // const res = await api.get("/tasks", { params: { homeId: id, status: "active", includeRooms: 1, includeTrackables: 1, limit: 500 } });
+        const res = await api.get("/tasks", { params: { homeId: id, status: "active", limit: 500 } });
         if (cancelled) return;
         setActiveTasks(Array.isArray(res.data) ? res.data : []);
-      } catch { if (!cancelled) setTaskError("Could not load tasks"); }
-      finally { if (!cancelled) setTasksLoading(false); }
+      } catch {
+        if (!cancelled) setTaskError("Could not load tasks");
+      } finally {
+        if (!cancelled) setTasksLoading(false);
+      }
     }
     load(); return () => { cancelled = true; };
   }, [id]);
@@ -127,38 +130,6 @@ export default function HomePage() {
     return () => { cancelled = true; };
   }, [id]);
 
-  /* -------- home-level trackables -------- */
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      if (!id) return;
-      try {
-        const [a, b] = await Promise.allSettled([
-          api.get("/trackables", { params: { homeId: id, scope: "home" } }),
-          api.get("/trackables", { params: { homeId: id, roomId: null } }),
-        ]);
-        if (cancelled) return;
-
-        const rows: TrackableRow[] = [];
-        for (const r of [a, b]) {
-          if (r.status === "fulfilled" && Array.isArray(r.value.data)) {
-            for (const t of r.value.data) {
-              rows.push({
-                id: t.id,
-                name: t.displayName || t.userDefinedName || t.name || "Trackable",
-                status: t.status || null,
-                nextDueDate: t.nextDueDate || t.next_due || null,
-              });
-            }
-          }
-        }
-        const seen = new Set<string>(); const dedup = rows.filter(x => (seen.has(x.id) ? false : (seen.add(x.id), true)));
-        setHomeTrackables(dedup.slice(0, 6));
-      } catch { setHomeTrackables([]); }
-    })();
-    return () => { cancelled = true; };
-  }, [id]);
-
   /* -------- derived values -------- */
   const img = resolveHomeImageUrl(home?.imageUrl);
   const zillowUrl = home && buildZillowUrl({
@@ -170,6 +141,7 @@ export default function HomePage() {
   const dueSoonCount = activeTasks.filter(isDueSoon).length;
   const score = maintenanceScore(overdueCount, dueSoonCount);
 
+  // Room heatmap for Rooms tab
   const tasksByRoom: Record<string, { overdue: number; soon: number }> = {};
   for (const t of activeTasks) {
     const rid = (t as any).roomId as string | undefined;
@@ -177,6 +149,33 @@ export default function HomePage() {
     if (!tasksByRoom[rid]) tasksByRoom[rid] = { overdue: 0, soon: 0 };
     if (isOverdue(t)) tasksByRoom[rid].overdue++; else if (isDueSoon(t)) tasksByRoom[rid].soon++;
   }
+
+  // Prioritized list for the "Home Maintenance" panel:
+  // Overdue → Due soon (7d) → Everything else by due date
+  const prioritized = useMemo(() => {
+    const overdue = activeTasks.filter(isOverdue).sort((a, b) => sortByDateAsc(a.dueDate, b.dueDate));
+    const soon = activeTasks.filter((t) => !isOverdue(t) && isDueSoon(t)).sort((a, b) => sortByDateAsc(a.dueDate, b.dueDate));
+    const rest = activeTasks
+      .filter((t) => !isOverdue(t) && !isDueSoon(t))
+      .sort((a, b) => sortByDateAsc(a.dueDate, b.dueDate));
+    return [...overdue, ...soon, ...rest];
+  }, [activeTasks]);
+
+  // Map roomId → room name for location badges
+  const roomNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const r of home?.rooms ?? []) map.set(r.id, r.name || r.type);
+    return map;
+  }, [home?.rooms]);
+
+  // Determine a human location label for each task
+  const getTaskLocation = (t: any) => {
+    const rid = t.roomId as string | undefined;
+    const tid = t.trackableId as string | undefined;
+    if (rid && roomNameById.has(rid)) return roomNameById.get(rid)!;
+    if (tid && t.itemName) return t.itemName as string;
+    return "Home";
+  };
 
   /* -------- actions -------- */
   const onUploaded = (absoluteUrl: string) => setHome((h) => (h ? { ...h, imageUrl: absoluteUrl } : h));
@@ -229,15 +228,6 @@ export default function HomePage() {
       setAddOpen(false); setNewRoom({ name: "", type: "", floor: 1 });
     } catch { toast({ title: "Could not create room", variant: "destructive" }); }
     finally { setAdding(false); }
-  };
-
-  const moveRoom = async (idx: number, dir: -1 | 1) => {
-    if (!home?.rooms) return;
-    const next = [...home.rooms]; const j = idx + dir;
-    if (j < 0 || j >= next.length) return;
-    [next[idx], next[j]] = [next[j], next[idx]];
-    setHome({ ...home, rooms: next });
-    try { await api.post("/rooms/reorder", { roomIds: next.map((r) => r.id) }); } catch { }
   };
 
   /* -------- guards -------- */
@@ -294,15 +284,17 @@ export default function HomePage() {
             <Button
               variant="secondary"
               onClick={() => {
-                if (!zillowUrl) {
+                const url = buildZillowUrl({
+                  address: home.address, apartment: (home as any).apartment ?? null,
+                  city: home.city, state: home.state, zip: home.zip,
+                });
+                if (!url) {
                   toast({ title: "Missing address", description: "Need address, city, state, and ZIP to open Zillow.", variant: "destructive" });
                   return;
                 }
-                window.open(zillowUrl, "_blank", "noopener,noreferrer");
+                window.open(url, "_blank", "noopener,noreferrer");
               }}
               className="flex items-center gap-2"
-              disabled={!zillowUrl}
-              title={zillowUrl ? "Open this address on Zillow" : "Enter full address to enable"}
             >
               <img src="/images/zillow-logo.png" alt="Zillow" className="h-5 w-5 object-contain" />
               <span>View on Zillow</span>
@@ -316,7 +308,11 @@ export default function HomePage() {
 
             {/* Edit / Delete */}
             <Button variant="outline" className="gap-2" onClick={handleEditMeta}><Pencil className="h-4 w-4" /> Edit</Button>
-            <Button variant="destructive" className="gap-2" onClick={deleteHome} disabled={deleting}>
+            <Button variant="destructive" className="gap-2" onClick={() => {
+              if (deleting) return;
+              if (!confirm("Delete this home? This cannot be undone.")) return;
+              deleteHome();
+            }} disabled={deleting}>
               <Trash2 className="h-4 w-4" /> Delete
             </Button>
           </div>
@@ -362,6 +358,7 @@ export default function HomePage() {
 
           {/* Recent + Home Maintenance */}
           <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {/* Recent activity */}
             <div className="rounded-2xl border bg-white p-4">
               <div className="mb-2 font-semibold">Recent Activity</div>
               {recent.length === 0 ? (
@@ -381,23 +378,58 @@ export default function HomePage() {
               )}
             </div>
 
+            {/* Home Maintenance - prioritized tasks (includes room + trackable) */}
             <div className="rounded-2xl border bg-white p-4">
-              <div className="mb-2 font-semibold">Home Maintenance</div>
-              {homeTrackables.length === 0 ? (
-                <div className="text-sm text-muted-foreground">No home-based items yet.</div>
+              <div className="mb-2 flex items-center justify-between">
+                <div className="font-semibold">Home Maintenance</div>
+                <Button size="sm" variant="outline" onClick={() => navigate(`/app/tasks?homeId=${encodeURIComponent(home.id)}`)}>
+                  View all
+                </Button>
+              </div>
+
+              {tasksLoading ? (
+                <div className="text-sm text-muted-foreground">Loading…</div>
+              ) : taskError ? (
+                <div className="text-sm text-red-600">{taskError}</div>
+              ) : prioritized.length === 0 ? (
+                <div className="text-sm text-muted-foreground">No active tasks yet for this home.</div>
               ) : (
                 <ul className="space-y-2">
-                  {homeTrackables.map((t) => (
-                    <li key={t.id} className="flex items-center justify-between rounded-lg border bg-white px-3 py-2">
-                      <div>
-                        <div className="text-sm">{t.name}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {(t.status || "In Use")}{t.nextDueDate ? ` • Next: ${new Date(t.nextDueDate).toLocaleDateString()}` : ""}
+                  {prioritized.slice(0, 6).map((t: any) => {
+                    const overdue = isOverdue(t);
+                    const soon = !overdue && isDueSoon(t);
+                    const badge =
+                      overdue ? <span className="rounded bg-red-50 text-red-700 border border-red-200 px-1.5 py-0.5 text-[11px]">Overdue</span> :
+                      soon ? <span className="rounded bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 text-[11px]">Due soon</span> :
+                              null;
+
+                    const loc = getTaskLocation(t);
+
+                    return (
+                      <li key={t.id} className="flex items-center justify-between rounded-lg border bg-white px-3 py-2 hover:shadow-sm">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <div className="text-sm truncate">{t.title}</div>
+                            {/* Location pill */}
+                            <span className="shrink-0 rounded-full border bg-white px-2 py-0.5 text-[11px] text-muted-foreground">
+                              {loc}
+                            </span>
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {(t.estimatedTimeMinutes ? `${t.estimatedTimeMinutes}m` : "—")}
+                            {t.dueDate ? ` • due ${new Date(t.dueDate).toLocaleDateString()}` : ""}
+                            {t.category ? ` • ${t.category}` : ""}
+                          </div>
                         </div>
-                      </div>
-                      <Button size="sm" variant="ghost" onClick={() => navigate(`/app/trackables/${encodeURIComponent(t.id)}`)}>Open</Button>
-                    </li>
-                  ))}
+                        <div className="ml-3 flex items-center gap-2">
+                          {badge}
+                          <Button size="sm" variant="ghost" onClick={() => navigate(`/app/tasks/${encodeURIComponent(t.id)}`)}>
+                            Open
+                          </Button>
+                        </div>
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </div>
@@ -414,14 +446,14 @@ export default function HomePage() {
               setSummary((s) =>
                 s
                   ? {
-                    ...s,
-                    squareFeet: (next.squareFeet as any) ?? s.squareFeet,
-                    yearBuilt: (next.yearBuilt as any) ?? s.yearBuilt,
-                    hasCentralAir: typeof (next as any).hasCentralAir === "boolean" ? (next as any).hasCentralAir : s.hasCentralAir,
-                    hasBaseboard: typeof (next as any).hasBaseboard === "boolean" ? (next as any).hasBaseboard : s.hasBaseboard,
-                    features: Array.isArray((next as any).features) ? ((next as any).features as string[]) : s.features,
-                    nickname: typeof next.nickname === "string" ? (next.nickname as string) : s.nickname,
-                  }
+                      ...s,
+                      squareFeet: (next.squareFeet as any) ?? s.squareFeet,
+                      yearBuilt: (next.yearBuilt as any) ?? s.yearBuilt,
+                      hasCentralAir: typeof (next as any).hasCentralAir === "boolean" ? (next as any).hasCentralAir : s.hasCentralAir,
+                      hasBaseboard: typeof (next as any).hasBaseboard === "boolean" ? (next as any).hasBaseboard : s.hasBaseboard,
+                      features: Array.isArray((next as any).features) ? ((next as any).features as string[]) : s.features,
+                      nickname: typeof next.nickname === "string" ? (next.nickname as string) : s.nickname,
+                    }
                   : s
               );
             }}
@@ -453,37 +485,6 @@ export default function HomePage() {
         <div className="mt-6 rounded-2xl border bg-white p-4">
           <h2 className="text-sm font-semibold mb-1">Photos & Docs</h2>
           <p className="text-sm text-muted-foreground">Upload invoices, warranties, manuals, etc. (MVP placeholder.)</p>
-        </div>
-      )}
-
-      {/* Add Room Modal */}
-      {addOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-xl w-full max-w-md p-6 shadow-lg relative">
-            <div className="text-lg font-semibold mb-2">Add Room</div>
-            <div className="space-y-3">
-              <div>
-                <div className="text-sm text-gray-700 mb-1">Name</div>
-                <input className="w-full border rounded px-3 py-2" placeholder="e.g., Living Room"
-                  value={newRoom.name} onChange={(e) => setNewRoom((v) => ({ ...v, name: e.target.value }))} />
-              </div>
-              <div>
-                <div className="text-sm text-gray-700 mb-1">Type</div>
-                <input className="w-full border rounded px-3 py-2" placeholder="e.g., Living Room"
-                  value={newRoom.type} onChange={(e) => setNewRoom((v) => ({ ...v, type: e.target.value }))} />
-              </div>
-              <div>
-                <div className="text-sm text-gray-700 mb-1">Floor</div>
-                <input type="number" className="w-full border rounded px-3 py-2" placeholder="e.g., 1"
-                  value={newRoom.floor ?? ""} onChange={(e) => setNewRoom((v) => ({ ...v, floor: e.target.value ? Number(e.target.value) : null }))} />
-              </div>
-            </div>
-
-            <div className="mt-5 flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
-              <Button onClick={createRoom} disabled={adding}>{adding ? "Saving…" : "Save Room"}</Button>
-            </div>
-          </div>
         </div>
       )}
     </div>
