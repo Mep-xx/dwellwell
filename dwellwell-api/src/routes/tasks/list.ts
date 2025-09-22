@@ -17,35 +17,62 @@ export default asyncHandler(async (req: Request, res: Response) => {
   if (!userId) return res.status(401).json({ error: "UNAUTHORIZED" });
 
   const homeId = (req.query.homeId as string) || undefined;
+  const roomId = (req.query.roomId as string) || undefined;
+  const trackableId = (req.query.trackableId as string) || undefined;
+
   const statusQ = parseStatus(req.query.status as string | undefined);
-  const limit = Math.max(1, Math.min(parseInt((req.query.limit as string) || "100", 10) || 100, 500));
+  const limit = Math.max(
+    1,
+    Math.min(parseInt((req.query.limit as string) || "100", 10) || 100, 500)
+  );
   const sort = (req.query.sort as string) || "dueDate"; // "-completedAt" for recent
 
   const now = new Date();
   const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 3600 * 1000);
 
-  const base: any = { userId, archivedAt: null };
+  // ---------- base (all queries) ----------
+  const base: any = {
+    userId,
+    archivedAt: null,
+  };
 
+  // Status filter
   if (statusQ === "active") base.status = "PENDING";
   else if (statusQ === "completed") base.status = "COMPLETED";
-  else if (statusQ === "overdue") { base.status = "PENDING"; base.dueDate = { lt: now }; }
-  else if (statusQ === "dueSoon") { base.status = "PENDING"; base.dueDate = { gte: now, lte: sevenDaysFromNow }; }
+  else if (statusQ === "overdue") {
+    base.status = "PENDING";
+    base.dueDate = { lt: now };
+  } else if (statusQ === "dueSoon") {
+    base.status = "PENDING";
+    base.dueDate = { gte: now, lte: sevenDaysFromNow };
+  }
 
-  const where = homeId
-    ? {
+  // ---------- scope filters ----------
+  // Explicit room/trackable filters take precedence.
+  if (roomId) base.roomId = roomId;
+  if (trackableId) base.trackableId = trackableId;
+
+  // Home filter: match ANY of…
+  //   - task.homeId (NEW)
+  //   - task.room.homeId
+  //   - task.trackable.homeId
+  const where =
+    homeId && !roomId && !trackableId
+      ? {
         AND: [
           base,
           {
             OR: [
-              { homeId },
+              { homeId }, // ✅ new direct column
               { room: { is: { homeId } } },
               { trackable: { is: { homeId } } },
             ],
           },
         ],
       }
-    : base;
+      : base;
 
+  // Sorting
   const orderBy =
     sort === "-completedAt"
       ? [{ completedDate: "desc" as const }, { createdAt: "desc" as const }]
@@ -69,6 +96,7 @@ export default asyncHandler(async (req: Request, res: Response) => {
           roomId: true,
         },
       },
+      home: { select: { id: true } }, // optional, for completeness
     },
   });
 
@@ -85,13 +113,21 @@ export default asyncHandler(async (req: Request, res: Response) => {
       status: t.status,
       dueDate: t.dueDate?.toISOString() ?? null,
       completedAt: t.completedDate?.toISOString() ?? null,
-      itemName: t.itemName ?? "",
+
+      estimatedTimeMinutes: t.estimatedTimeMinutes ?? null,
+
+      // scope
+      homeId: t.homeId ?? null,
       roomId: t.roomId ?? null,
       roomName: t.room?.name ?? null,
       trackableId: tr?.id ?? null,
+      itemName: t.itemName ?? "",
+
+      // trackable adornments (for UI badges)
       trackableBrand: brand,
       trackableModel: model,
       trackableType: type,
+
       category: t.category,
       icon: t.icon ?? null,
       createdAt: (t as any).createdAt?.toISOString?.() ?? undefined,

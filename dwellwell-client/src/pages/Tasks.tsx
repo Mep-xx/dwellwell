@@ -15,7 +15,7 @@ type Task = {
   icon?: string | null;
 };
 
-export default function TasksPage() {
+export default function Tasks() {
   const [items, setItems] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -26,12 +26,9 @@ export default function TasksPage() {
     let cancelled = false;
     (async () => {
       setLoading(true);
-      setErr(null);
       try {
-        const res = await api.get<Task[]>("/tasks", { params: { homeId, status: "active" } });
-        if (!cancelled) setItems(Array.isArray(res.data) ? res.data : []);
-      } catch (e: any) {
-        if (!cancelled) setErr("Could not load tasks");
+        const r = await api.get('/tasks', { params: { homeId, status: 'active' } });
+        if (!cancelled) setItems(Array.isArray(r.data) ? r.data : []);
       } finally {
         if (!cancelled) setLoading(false);
       }

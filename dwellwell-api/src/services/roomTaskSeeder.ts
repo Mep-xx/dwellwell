@@ -17,6 +17,7 @@ export async function seedRoomTasksForRoom(roomId: string, userId: string) {
     await prisma.userTask.create({
       data: {
         userId,
+        homeId: room.homeId,
         roomId: room.id,
         trackableId: null,
         taskTemplateId: null, // room templates can be non-catalog
@@ -32,7 +33,7 @@ export async function seedRoomTasksForRoom(roomId: string, userId: string) {
         criticality: (t.criticality as any) ?? "medium",
         deferLimitDays: t.deferLimitDays ?? 0,
         canBeOutsourced: t.canBeOutsourced ?? false,
-        canDefer: t.canDefer ?? true, // FIX: don’t mirror canBeOutsourced
+        canDefer: t.canDefer ?? true,
         recurrenceInterval: t.recurrenceInterval ?? "",
         taskType: "GENERAL",
         dedupeKey: crypto.randomUUID(),

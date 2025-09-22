@@ -105,12 +105,18 @@ export async function seedTasksForTrackable(opts: {
     const dedupeKey = makeDedupeKey(["catalogTpl", tpl.id, "u", userId, "t", trackableId]);
     const due = initialDueDate(anchor, tpl.recurrenceInterval);
 
+    const trackableHome = await prisma.trackable.findUnique({
+      where: { id: trackableId },
+      select: { homeId: true },
+    });
+    const homeId = context.homeId ?? tctx?.homeId ?? null;
+
     await prisma.userTask.upsert({
       where: { dedupeKey },
       update: {
         // identifiers / scope
-        homeId: ctxHomeId ?? undefined,
-        roomId: ctxRoomId ?? undefined,
+        homeId,
+        roomId: context.roomId ?? undefined,
 
         // presentation / details
         title: tpl.title,
@@ -145,9 +151,8 @@ export async function seedTasksForTrackable(opts: {
       create: {
         userId,
 
-        // ✅ scope for home/room queries
-        homeId: ctxHomeId,
-        roomId: ctxRoomId,
+        homeId,
+        roomId: context.roomId ?? null,
 
         trackableId,
         taskTemplateId: tpl.id,

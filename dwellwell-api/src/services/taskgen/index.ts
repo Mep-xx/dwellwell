@@ -137,6 +137,10 @@ async function upsertUserTask(opts: {
     await prisma.userTask.upsert({
         where: { dedupeKey },
         update: {
+            homeId,                     
+            roomId: roomId ?? undefined,
+            trackableId: trackableId ?? undefined,
+
             title: titleOverride ?? taskTemplate.title,
             description: descriptionOverride ?? taskTemplate.description ?? "",
             dueDate: due,
@@ -151,22 +155,22 @@ async function upsertUserTask(opts: {
             canDefer: taskTemplate.canDefer ?? true,
             recurrenceInterval: taskTemplate.recurrenceInterval,
             taskType: taskTemplate.taskType,
-            steps: (taskTemplate.steps as any) ?? undefined,
-            equipmentNeeded: (taskTemplate.equipmentNeeded as any) ?? undefined,
-            resources: (taskTemplate as any).resources ?? undefined,
+            steps: taskTemplate.steps ? (taskTemplate.steps as any) : undefined,
+            equipmentNeeded: taskTemplate.equipmentNeeded ? (taskTemplate.equipmentNeeded as any) : undefined,
+            resources: taskTemplate.resources ? (taskTemplate.resources as any) : undefined,
             icon: taskTemplate.icon ?? undefined,
             imageUrl: taskTemplate.imageUrl ?? undefined,
             sourceTemplateVersion: taskTemplate.version,
             location: location ?? undefined,
-            // keep roomId/trackableId as-is on update (don’t relocate existing tasks implicitly)
         },
         create: {
             userId,
-            homeId,
+            homeId,                     
             roomId,
             trackableId,
             taskTemplateId: taskTemplate.id,
             sourceType, // "room" | "trackable"
+
             title: titleOverride ?? taskTemplate.title,
             description: descriptionOverride ?? taskTemplate.description ?? "",
             dueDate: due,
@@ -182,9 +186,9 @@ async function upsertUserTask(opts: {
             recurrenceInterval: taskTemplate.recurrenceInterval,
             taskType: taskTemplate.taskType,
             dedupeKey,
-            steps: (taskTemplate.steps as any) ?? undefined,
-            equipmentNeeded: (taskTemplate.equipmentNeeded as any) ?? undefined,
-            resources: (taskTemplate as any).resources ?? undefined,
+            steps: taskTemplate.steps ? (taskTemplate.steps as any) : undefined,
+            equipmentNeeded: taskTemplate.equipmentNeeded ? (taskTemplate.equipmentNeeded as any) : undefined,
+            resources: taskTemplate.resources ? (taskTemplate.resources as any) : undefined,
             icon: taskTemplate.icon ?? undefined,
             imageUrl: taskTemplate.imageUrl ?? undefined,
             sourceTemplateVersion: taskTemplate.version,
