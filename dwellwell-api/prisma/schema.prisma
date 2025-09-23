@@ -173,7 +173,12 @@ model User {
   refreshSessions RefreshSession[]
 
   // Lifecycle events backref
-  lifecycleEvents LifecycleEvent[]
+  lifecycleEvents    LifecycleEvent[]
+  ForumThread        ForumThread[]
+  ForumPost          ForumPost[]
+  ForumVote          ForumVote[]
+  ForumPostEdit      ForumPostEdit[]
+  ReputationSnapshot ReputationSnapshot[]
 }
 
 model LoginActivity {
@@ -860,3 +865,134 @@ model TaskGenRuleCondition {
 
   @@index([ruleId, idx])
 }
+
+/// ---------- Forum core ----------
+model ForumCategory {
+  id          String        @id @default(uuid())
+  slug        String        @unique
+  name        String
+  description String?
+  order       Int           @default(0)
+  threads     ForumThread[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model ForumThread {
+  id             String             @id @default(uuid())
+  categoryId     String
+  category       ForumCategory      @relation(fields: [categoryId], references: [id])
+  authorId       String
+  author         User               @relation(fields: [authorId], references: [id])
+  title          String
+  type           ThreadType         @default(discussion) // discussion | bug | tip | correction
+  trackableId    String? // optional: link to a specific Trackable template/brand/model
+  taskTemplateId String?
+  status         ThreadStatus       @default(open) // open | acknowledged | in_progress | resolved | rejected
+  pinned         Boolean            @default(false)
+  locked         Boolean            @default(false)
+  score          Int                @default(0) // denormalized votes sum
+  posts          ForumPost[]
+  tags           ForumTagOnThread[]
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  // fast counts
+  commentCount   Int                @default(0)
+  lastPostAt     DateTime?
+  ForumVote      ForumVote[]
+}
+
+enum ThreadType {
+  discussion
+  bug
+  tip
+  correction
+}
+
+enum ThreadStatus {
+  open
+  acknowledged
+  in_progress
+  resolved
+  rejected
+}
+
+model ForumPost {
+  id        String          @id @default(uuid())
+  threadId  String
+  thread    ForumThread     @relation(fields: [threadId], references: [id])
+  authorId  String
+  author    User            @relation(fields: [authorId], references: [id])
+  body      String
+  score     Int             @default(0)
+  isAnswer  Boolean         @default(false) // optional: mark a correction/tip as the “accepted” one
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  edits     ForumPostEdit[]
+  ForumVote ForumVote[]
+}
+
+model ForumVote {
+  id        String       @id @default(uuid())
+  userId    String
+  user      User         @relation(fields: [userId], references: [id])
+  postId    String?
+  post      ForumPost?   @relation(fields: [postId], references: [id])
+  threadId  String?
+  thread    ForumThread? @relation(fields: [threadId], references: [id])
+  value     Int // -1 or +1
+  createdAt DateTime     @default(now())
+
+  @@unique([userId, postId])
+  @@unique([userId, threadId])
+}
+
+model ForumTag {
+  id               String             @id @default(uuid())
+  slug             String             @unique
+  label            String
+  ForumTagOnThread ForumTagOnThread[]
+}
+
+model ForumTagOnThread {
+  threadId String
+  tagId    String
+  thread   ForumThread @relation(fields: [threadId], references: [id])
+  tag      ForumTag    @relation(fields: [tagId], references: [id])
+
+  @@id([threadId, tagId])
+}
+
+model ForumPostEdit {
+  id        String    @id @default(uuid())
+  postId    String
+  post      ForumPost @relation(fields: [postId], references: [id])
+  editorId  String
+  editor    User      @relation(fields: [editorId], references: [id])
+  prevBody  String
+  newBody   String
+  createdAt DateTime  @default(now())
+}
+
+/// ---------- Gamification tie-in ----------
+model ReputationSnapshot {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id])
+  totalXP   Int      @default(0)
+  level     Int      @default(1)
+  updatedAt DateTime @updatedAt
+}
+
+model GamificationEvent {
+  id        String   @id @default(uuid())
+  userId    String
+  kind      String
+  refType   String
+  refId     String
+  deltaXP   Int
+  createdAt DateTime @default(now())
+
+  @@unique([userId, kind, refType, refId]) // prevents double-award of same event
+}
+

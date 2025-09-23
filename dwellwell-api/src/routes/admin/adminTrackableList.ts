@@ -89,25 +89,30 @@ router.get('/', async (req, res) => {
     });
     const countMap = new Map(resourceCounts.map(rc => [rc.trackableId, rc._count._all]));
 
-    const items = itemsRaw.map((t) => ({
-      id: t.id,
-      createdAt: t.createdAt,
-      imageUrl: t.imageUrl,
-      serialNumber: t.serialNumber,
-      userDefinedName: t.userDefinedName,
-      brand: t.applianceCatalog?.brand ?? null,
-      model: t.applianceCatalog?.model ?? null,
-      type: t.applianceCatalog?.type ?? null,
-      category: t.applianceCatalog?.category ?? null,
-      home: {
-        id: t.home.id,
-        address: t.home.address,
-        city: t.home.city,
-        state: t.home.state,
-      },
-      user: t.home.user,
-      resourceCount: countMap.get(t.id) ?? 0,
-    }));
+    const items = itemsRaw.map((t) => {
+      const h = t.home;
+      return {
+        id: t.id,
+        createdAt: t.createdAt,
+        imageUrl: t.imageUrl,
+        serialNumber: t.serialNumber,
+        userDefinedName: t.userDefinedName,
+        brand: t.applianceCatalog?.brand ?? null,
+        model: t.applianceCatalog?.model ?? null,
+        type: t.applianceCatalog?.type ?? null,
+        category: t.applianceCatalog?.category ?? null,
+        home: h
+          ? {
+            id: h.id,
+            address: h.address,
+            city: h.city,
+            state: h.state,
+          }
+          : null,
+        user: h?.user ?? null,
+        resourceCount: countMap.get(t.id) ?? 0,
+      };
+    });
 
     res.json({
       page: pageNum,

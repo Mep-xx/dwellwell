@@ -3,6 +3,7 @@ import { api } from "@/utils/api";
 import { sanitize } from "@/utils/sanitize";
 import type { TrackableCategory } from "@shared/types/trackable";
 import type { Room } from "@shared/types/room";
+import Combobox from "@/components/ui/Combobox";
 import { ChevronDown, ChevronUp, X } from "lucide-react";
 import {
   CATEGORY_OPTIONS,
@@ -424,27 +425,20 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
                 className="w-full border rounded px-3 py-2"
               >
                 {CATEGORY_OPTIONS.map((c) => (
-                  <option key={c.value} value={c.value}>
-                    {c.label}
-                  </option>
+                  <option key={c.value} value={c.value}>{c.label}</option>
                 ))}
               </select>
             </Section>
 
             <Section title="Type">
-              <select
-                name="type"
+              <Combobox
+                aria-label="Trackable type"
+                options={typeOptions}
                 value={form.type ?? ""}
-                onChange={(e) => onField("type", e.target.value)}
-                className="w-full border rounded px-3 py-2"
-              >
-                <option value="">Select a type…</option>
-                {typeOptions.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => onField("type", val)}
+                placeholder="Search types…"
+                allowCustom
+              />
             </Section>
           </div>
 

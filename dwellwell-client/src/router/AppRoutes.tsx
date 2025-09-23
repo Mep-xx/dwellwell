@@ -2,6 +2,10 @@
 import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 
+// layouts
+import Layout from '@/components/layout/Layout';
+import ProtectedLayout from '@/components/layout/ProtectedLayout';
+
 // pages
 import LandingPage from '@/pages/LandingPage';
 import Login from '@/pages/Login';
@@ -23,9 +27,10 @@ import HomesRedesign from '@/pages/HomesRedesign';
 import Tasks from '@/pages/Tasks';
 import TaskDetailPage from '@/pages/TaskDetailPage';
 
-// layouts
-import Layout from '@/components/layout/Layout';
-import ProtectedLayout from '@/components/layout/ProtectedLayout';
+// community
+import CommunityHome from '@/pages/community/CommunityHome';
+import CommunityCategory from '@/pages/community/CommunityCategory';
+import CommunityThread from '@/pages/community/CommunityThread';
 
 // admin (unchanged)
 import AdminDashboard from '@/pages/admin/AdminDashboard';
@@ -88,6 +93,10 @@ export default function AppRoutes() {
         <Route path="/admin/AdminHomes" element={<AdminHomes />} />
         <Route path="/admin/AdminTrackables" element={<AdminTrackables />} />
         <Route path="/admin/AdminTaskGenIssues" element={<AdminTaskGenIssues />} />
+
+        <Route path="/community" element={<CommunityHome />} />
+        <Route path="/community/:categorySlug" element={<CommunityCategory />} />
+        <Route path="/community/thread/:threadId" element={<CommunityThread />} />
 
         {/* Legacy redirects */}
         <Route path="/app/homes/:id/edit" element={<Navigate to="/app/homes/:id" replace />} />

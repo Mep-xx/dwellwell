@@ -225,7 +225,6 @@ export default function Profile() {
               ) : badges.map((b) => (
                 <Badge
                   key={b.id}
-                  variant="secondary"
                   className="flex items-center gap-1 px-2 py-1"
                   title={b.earnedAt ? `Earned ${new Date(b.earnedAt).toLocaleDateString()}` : undefined}
                 >

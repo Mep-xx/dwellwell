@@ -79,7 +79,9 @@ export default function ProtectedLayout() {
 
           {/* Bottom actions */}
           <div className="p-4 border-t space-y-2">
-            {/* New: Profile */}
+            <NavLink to="/community" className={({ isActive }) => navLinkClasses(isActive)}>
+              💬 Community
+            </NavLink>
             <NavLink to="/app/profile" className={({ isActive }) => navLinkClasses(isActive)}>
               👤 Profile
             </NavLink>

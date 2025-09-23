@@ -90,20 +90,34 @@ router.get('/', async (req, res) => {
       }),
       userIds.length
         ? prisma.user.findMany({
-            where: { id: { in: userIds } },
-            select: { id: true, email: true },
-          })
+          where: { id: { in: userIds } },
+          select: { id: true, email: true },
+        })
         : Promise.resolve([] as { id: string; email: string }[]),
     ]);
 
-    const roomCountMap = new Map<string, number>(
-      roomCounts.map((r) => [r.homeId, r._count._all])
+    const roomCountMap = roomCounts.reduce(
+      (m, r) => {
+        if (r.homeId) m.set(r.homeId, r._count._all);
+        return m;
+      },
+      new Map<string, number>()
     );
-    const trackableCountMap = new Map<string, number>(
-      trackableCounts.map((t) => [t.homeId, t._count._all])
+
+    const trackableCountMap = trackableCounts.reduce(
+      (m, t) => {
+        if (t.homeId) m.set(t.homeId, t._count._all);
+        return m;
+      },
+      new Map<string, number>()
     );
-    const ownerMap = new Map<string, { id: string; email: string }>(
-      owners.map((o) => [o.id, o])
+
+    const ownerMap = owners.reduce(
+      (m, o) => {
+        if (o.id) m.set(o.id, o);
+        return m;
+      },
+      new Map<string, { id: string; email: string }>()
     );
 
     const items = itemsRaw.map((h) => ({

@@ -47,7 +47,7 @@ router.post('/', async (req, res) => {
 
   const pwd = await hashPassword(password);
   const user = await prisma.user.create({
-    data: { email, password: pwd, role },
+    data: { email, passwordHash: pwd, role },
     select: { id: true, email: true, role: true, createdAt: true },
   });
 
@@ -86,7 +86,7 @@ router.post('/:userId/password', async (req, res) => {
   const pwd = await hashPassword(password);
   await prisma.user.update({
     where: { id: userId },
-    data: { password: pwd },
+    data: { passwordHash: pwd },
   });
 
   res.json({ ok: true });

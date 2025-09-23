@@ -1,0 +1,12 @@
+//dwellwell-api/src/routes/forum/acknowledgeThread.ts
+import { Request, Response } from "express";
+import { prisma } from "../../../db/prisma";
+import { asyncHandler } from "../../../middleware/asyncHandler";
+import { awardXP } from "../../../services/gamification/awardXP";
+
+export default asyncHandler(async (req: Request, res: Response) => {
+  const { threadId } = req.params;
+  const t = await prisma.forumThread.update({ where: { id: threadId }, data: { status: "acknowledged" }, select: { id: true, authorId: true }});
+  await awardXP({ userId: t.authorId, kind: "forum.bug.acknowledged", refType: "thread", refId: t.id, deltaXP: 10 });
+  res.json({ ok: true });
+});
