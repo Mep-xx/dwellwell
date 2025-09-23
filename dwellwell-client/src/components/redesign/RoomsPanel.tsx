@@ -21,7 +21,6 @@ import {
   FloorKey,
   bucketIdSet,
   bucketKeyById,
-  bucketOrderIndex,
   keyForFloor,
 } from "@shared/constants/floors";
 import RoomEditModal from "@/components/redesign/RoomEditModal";
@@ -39,19 +38,6 @@ function flatten(map: Map<FloorKey, Room[]>) {
   const out: Room[] = [];
   BUCKETS.forEach(({ key }) => out.push(...(map.get(key) ?? [])));
   return out;
-}
-function findInsertIndexForFloor(flat: Room[], floor: FloorKey): number {
-  let lastIdx = -1;
-  for (let i = 0; i < flat.length; i++) {
-    if (keyForFloor((flat[i] as any).floor) === floor) lastIdx = i;
-  }
-  if (lastIdx >= 0) return lastIdx + 1;
-  const thisOrder = bucketOrderIndex.get(floor)!;
-  for (let i = 0; i < flat.length; i++) {
-    const order = bucketOrderIndex.get(keyForFloor((flat[i] as any).floor))!;
-    if (order > thisOrder) return i;
-  }
-  return flat.length;
 }
 
 /* ---------- droppable section ---------- */
@@ -73,12 +59,7 @@ function DroppableSection({
   const { isOver, setNodeRef } = useDroppable({ id });
 
   return (
-    <section
-      className={clsx(
-        "rounded-xl border bg-white shadow-sm",
-        isOver && "ring-2 ring-brand-primary/30"
-      )}
-    >
+    <section className={clsx("rounded-xl border bg-white shadow-sm", isOver && "ring-2 ring-brand-primary/30")}>
       <header className="flex items-center justify-between rounded-t-xl border-b bg-muted/40 px-4 py-2">
         <div className="flex items-center gap-3">
           <span className="text-sm font-semibold">{title}</span>
@@ -92,11 +73,7 @@ function DroppableSection({
       <div
         ref={setNodeRef}
         id={id}
-        className={clsx(
-          "p-2 space-y-2 rounded-b-xl transition-colors",
-          roomCount === 0 &&
-            "min-h-[112px] bg-muted/20 flex items-center justify-center"
-        )}
+        className={clsx("p-2 space-y-2 rounded-b-xl transition-colors", roomCount === 0 && "min-h-[112px] bg-muted/20 flex items-center justify-center")}
       >
         {roomCount === 0 ? (
           <button
@@ -127,17 +104,21 @@ function DroppableSection({
 }
 
 /* ================= Panel ================= */
-type Props = { homeId: string; tasksByRoom?: Record<string, { overdue: number; soon: number }> };
+type Props = {
+  homeId: string;
+  tasksByRoom?: Record<string, { overdue: number; soon: number }>;
+  /** Optional: when provided, shows “Add Trackable” controls and
+   *  calls back with an optional roomId to prefill the modal. */
+  onAddTrackable?: (roomId?: string) => void;
+};
 
-export default function RoomsPanel({ homeId, tasksByRoom }: Props) {
+export default function RoomsPanel({ homeId, tasksByRoom, onAddTrackable }: Props) {
   const { toast } = useToast();
   const navigate = useNavigate();
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
-  );
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   const activeIdRef = useRef<UniqueIdentifier | null>(null);
   const fromContainerRef = useRef<string | null>(null);
@@ -150,9 +131,7 @@ export default function RoomsPanel({ homeId, tasksByRoom }: Props) {
     (async () => {
       setLoading(true);
       try {
-        const { data } = await api.get("/rooms", {
-          params: { homeId, includeDetails: true },
-        });
+        const { data } = await api.get("/rooms", { params: { homeId, includeDetails: true } });
         setRooms(data);
       } finally {
         setLoading(false);
@@ -161,9 +140,7 @@ export default function RoomsPanel({ homeId, tasksByRoom }: Props) {
   }, [homeId]);
 
   const reloadRooms = async () => {
-    const { data } = await api.get("/rooms", {
-      params: { homeId, includeDetails: true },
-    });
+    const { data } = await api.get("/rooms", { params: { homeId, includeDetails: true } });
     setRooms(data);
   };
 
@@ -185,11 +162,6 @@ export default function RoomsPanel({ homeId, tasksByRoom }: Props) {
   const openEdit = (r: any) => {
     setEditingRoom({ ...r, homeId });
     setModalOpen(true);
-  };
-
-  const openRoomPage = (roomId: string) => {
-    // If you have a dedicated room page route:
-    navigate(`/app/rooms/${encodeURIComponent(roomId)}`);
   };
 
   const onDragStart = (e: DragStartEvent) => {
@@ -220,7 +192,6 @@ export default function RoomsPanel({ homeId, tasksByRoom }: Props) {
     const dest = working.get(toKey)!;
     const overIdx = (dest as any[]).findIndex((r) => (r as any).id === overId);
     const destIdx = bucketIdSet.has(overId) || overIdx < 0 ? dest.length : overIdx;
-
     (dest as any[]).splice(destIdx, 0, { ...(moved as any), floor: toKey });
 
     const nextFlat = flatten(working);
@@ -230,10 +201,7 @@ export default function RoomsPanel({ homeId, tasksByRoom }: Props) {
       if (fromKey !== toKey) {
         await api.put(`/rooms/${activeId}`, { floor: toKey });
       }
-      await api.put("/rooms/reorder", {
-        homeId,
-        roomIds: nextFlat.map((r: any) => r.id),
-      });
+      await api.put("/rooms/reorder", { homeId, roomIds: nextFlat.map((r: any) => r.id) });
     } catch {
       toast({ title: "Failed to save new order", variant: "destructive" });
       await reloadRooms();
@@ -247,7 +215,14 @@ export default function RoomsPanel({ homeId, tasksByRoom }: Props) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold">Rooms ({rooms.length})</h3>
-        <Button onClick={() => openCreateFor(1)}>+ Add Room</Button>
+        <div className="flex items-center gap-2">
+          {onAddTrackable && (
+            <Button variant="outline" onClick={() => onAddTrackable()}>
+              + Add Trackable
+            </Button>
+          )}
+          <Button onClick={() => openCreateFor(1)}>+ Add Room</Button>
+        </div>
       </div>
 
       <RoomEditModal
@@ -273,10 +248,7 @@ export default function RoomsPanel({ homeId, tasksByRoom }: Props) {
                   roomCount={list.length}
                   onAdd={() => openCreateFor(key)}
                 >
-                  <SortableContext
-                    items={list.map((r: any) => r.id)}
-                    strategy={verticalListSortingStrategy}
-                  >
+                  <SortableContext items={list.map((r: any) => r.id)} strategy={verticalListSortingStrategy}>
                     <div className="flex flex-col gap-2">
                       {list.map((r: any) => {
                         const stats = tasksByRoom?.[r.id] ?? { overdue: 0, soon: 0 };
@@ -299,7 +271,9 @@ export default function RoomsPanel({ homeId, tasksByRoom }: Props) {
                               }
                             }}
                             onViewTasks={() => navigate(`/app/tasks?roomId=${encodeURIComponent(r.id)}`)}
-                            onOpenRoom={() => openRoomPage(r.id)}
+                            onOpenRoom={() => navigate(`/app/rooms/${encodeURIComponent(r.id)}`, { state: { room: r } })}
+                            /** NEW (optional): small link inside the row */
+                            onAddTrackable={() => onAddTrackable?.(r.id)}
                           />
                         );
                       })}

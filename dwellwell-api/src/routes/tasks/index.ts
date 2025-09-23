@@ -1,8 +1,8 @@
 // dwellwell-api/src/routes/tasks/index.ts
 import { Router } from 'express';
 import { requireAuth } from '../../middleware/requireAuth';
+import taskgen from "./taskgen"
 
-// existing routes you already have
 import list from './list';
 import complete from './complete';
 import snooze from './snooze';
@@ -36,5 +36,7 @@ router.post('/:taskId/archive', archive);
 router.post('/:taskId/unarchive', unarchive);
 
 router.get('/:taskId', getDetail);
+
+router.use("/taskgen", taskgen);
 
 export default router;

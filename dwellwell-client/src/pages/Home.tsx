@@ -1,5 +1,5 @@
 // dwellwell-client/src/pages/Home.tsx
-import { useEffect, useRef, useState, useMemo } from "react";
+import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import type { Room } from "@shared/types/room";
 import type { Task } from "@shared/types/task";
@@ -17,6 +17,7 @@ import { buildZillowUrl } from "@/utils/zillowUrl";
 import HomeMetaCard from "@/components/redesign/HomeMetaCard";
 import type { HomeWithMeta } from "@/types/extended";
 import RoomsPanel from "@/components/redesign/RoomsPanel";
+import TrackableModal from "@/components/features/TrackableModal"; // NEW
 
 /* ====================== Types ====================== */
 type Summary = {
@@ -30,7 +31,6 @@ type Summary = {
 };
 
 type RecentItem = { id: string; title: string; when?: string; status?: string };
-type TabKey = "overview" | "details" | "rooms" | "features" | "services" | "docs";
 
 /* ====================== Helpers ====================== */
 function clamp(n: number, min: number, max: number) { return Math.max(min, Math.min(max, n)); }
@@ -41,11 +41,8 @@ function isDueSoon(t: Task) {
   return due >= now && due <= now + seven;
 }
 function maintenanceScore(overdue: number, soon: number) { return clamp(100 - overdue * 60 - soon * 20, 0, 100); }
-function sortByDateAsc(a?: string | null, b?: string | null) {
-  const ta = a ? new Date(a).getTime() : Number.MAX_SAFE_INTEGER;
-  const tb = b ? new Date(b).getTime() : Number.MAX_SAFE_INTEGER;
-  return ta - tb;
-}
+
+type TabKey = "overview" | "details" | "rooms" | "features" | "services" | "docs";
 
 /* ====================== Page ====================== */
 export default function HomePage() {
@@ -53,6 +50,7 @@ export default function HomePage() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  // ---- state hooks (ALWAYS run)
   const [home, setHome] = useState<(HomeWithMeta & { rooms?: Room[] }) | null>(null);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -60,17 +58,18 @@ export default function HomePage() {
 
   const [tasksLoading, setTasksLoading] = useState(true);
   const [activeTasks, setActiveTasks] = useState<Task[]>([]);
+  const [homeTasks, setHomeTasks] = useState<Task[]>([]);
   const [taskError, setTaskError] = useState<string | null>(null);
 
   const [recent, setRecent] = useState<RecentItem[]>([]);
-  const [addOpen, setAddOpen] = useState(false);
-  const [adding, setAdding] = useState(false);
-  const [newRoom, setNewRoom] = useState<{ name: string; type: string; floor: number | null }>({ name: "", type: "", floor: 1 });
-
   const metaRef = useRef<HTMLDivElement | null>(null);
   const [tab, setTab] = useState<TabKey>("overview");
 
-  /* -------- load home + summary -------- */
+  // Add Trackable modal controls (prefill room)
+  const [trackableOpen, setTrackableOpen] = useState(false);
+  const [prefillRoomId, setPrefillRoomId] = useState<string | undefined>(undefined);
+
+  // ---- effects (ALWAYS run)
   useEffect(() => {
     let cancelled = false;
     if (!id) return;
@@ -89,28 +88,46 @@ export default function HomePage() {
     return () => { cancelled = true; };
   }, [id]);
 
-  /* -------- load ALL active tasks under this home (home + rooms + trackables) -------- */
   useEffect(() => {
     let cancelled = false;
     async function load() {
       if (!id) return;
       setTasksLoading(true); setTaskError(null);
       try {
-        // If your API ever requires a switch to include room/trackable scoped tasks, use:
-        // const res = await api.get("/tasks", { params: { homeId: id, status: "active", includeRooms: 1, includeTrackables: 1, limit: 500 } });
-        const res = await api.get("/tasks", { params: { homeId: id, status: "active", limit: 500 } });
+        const res = await api.get("/tasks", { params: { homeId: id, status: "active", limit: 50 } });
         if (cancelled) return;
-        setActiveTasks(Array.isArray(res.data) ? res.data : []);
+        const list: Task[] = Array.isArray(res.data) ? res.data : [];
+        setActiveTasks(list);
+
+        let pool = list;
+        if (pool.length === 0) {
+          try {
+            const up = await api.get("/tasks", { params: { homeId: id, limit: 10, sort: "dueDate" } });
+            pool = Array.isArray(up.data) ? up.data : [];
+          } catch {/* ignore */}
+        }
+
+        const ranked = [...pool].sort((a, b) => {
+          const aRank = isOverdue(a) ? 2 : isDueSoon(a) ? 1 : 0;
+          const bRank = isOverdue(b) ? 2 : isDueSoon(b) ? 1 : 0;
+          if (aRank !== bRank) return bRank - aRank;
+          const ad = new Date(a.dueDate || 0).getTime();
+          const bd = new Date(b.dueDate || 0).getTime();
+          return ad - bd;
+        });
+
+        setHomeTasks(ranked.slice(0, 7));
       } catch {
-        if (!cancelled) setTaskError("Could not load tasks");
-      } finally {
-        if (!cancelled) setTasksLoading(false);
-      }
+        if (!cancelled) {
+          setTaskError("Could not load tasks");
+          setActiveTasks([]);
+          setHomeTasks([]);
+        }
+      } finally { if (!cancelled) setTasksLoading(false); }
     }
     load(); return () => { cancelled = true; };
   }, [id]);
 
-  /* -------- recent activity -------- */
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -121,7 +138,7 @@ export default function HomePage() {
         const list: any[] = Array.isArray(res.data) ? res.data : [];
         setRecent(list.slice(0, 5).map(t => ({
           id: t.id,
-          title: t.title || t.name || "Completed task",
+          title: t.title || "Completed task",
           when: t.completedAt || t.doneAt || t.updatedAt || null,
           status: "Completed"
         })));
@@ -130,54 +147,32 @@ export default function HomePage() {
     return () => { cancelled = true; };
   }, [id]);
 
-  /* -------- derived values -------- */
-  const img = resolveHomeImageUrl(home?.imageUrl);
-  const zillowUrl = home && buildZillowUrl({
-    address: home.address, apartment: (home as any).apartment ?? null,
-    city: home.city, state: home.state, zip: home.zip,
-  });
+  // ---- memoized derived data (ALWAYS run; never after a conditional return)
+  const img = useMemo(() => resolveHomeImageUrl(home?.imageUrl), [home?.imageUrl]);
+  const zillowUrl = useMemo(() => {
+    if (!home) return null;
+    return buildZillowUrl({
+      address: home.address, apartment: (home as any).apartment ?? null,
+      city: home.city, state: home.state, zip: home.zip,
+    });
+  }, [home]);
 
-  const overdueCount = activeTasks.filter(isOverdue).length;
-  const dueSoonCount = activeTasks.filter(isDueSoon).length;
-  const score = maintenanceScore(overdueCount, dueSoonCount);
+  const overdueCount = useMemo(() => activeTasks.filter(isOverdue).length, [activeTasks]);
+  const dueSoonCount = useMemo(() => activeTasks.filter(isDueSoon).length, [activeTasks]);
+  const score = useMemo(() => maintenanceScore(overdueCount, dueSoonCount), [overdueCount, dueSoonCount]);
 
-  // Room heatmap for Rooms tab
-  const tasksByRoom: Record<string, { overdue: number; soon: number }> = {};
-  for (const t of activeTasks) {
-    const rid = (t as any).roomId as string | undefined;
-    if (!rid) continue;
-    if (!tasksByRoom[rid]) tasksByRoom[rid] = { overdue: 0, soon: 0 };
-    if (isOverdue(t)) tasksByRoom[rid].overdue++; else if (isDueSoon(t)) tasksByRoom[rid].soon++;
-  }
-
-  // Prioritized list for the "Home Maintenance" panel:
-  // Overdue → Due soon (7d) → Everything else by due date
-  const prioritized = useMemo(() => {
-    const overdue = activeTasks.filter(isOverdue).sort((a, b) => sortByDateAsc(a.dueDate, b.dueDate));
-    const soon = activeTasks.filter((t) => !isOverdue(t) && isDueSoon(t)).sort((a, b) => sortByDateAsc(a.dueDate, b.dueDate));
-    const rest = activeTasks
-      .filter((t) => !isOverdue(t) && !isDueSoon(t))
-      .sort((a, b) => sortByDateAsc(a.dueDate, b.dueDate));
-    return [...overdue, ...soon, ...rest];
+  const tasksByRoom = useMemo(() => {
+    const by: Record<string, { overdue: number; soon: number }> = {};
+    for (const t of activeTasks) {
+      const rid = (t as any).roomId as string | undefined;
+      if (!rid) continue;
+      if (!by[rid]) by[rid] = { overdue: 0, soon: 0 };
+      if (isOverdue(t)) by[rid].overdue++; else if (isDueSoon(t)) by[rid].soon++;
+    }
+    return by;
   }, [activeTasks]);
 
-  // Map roomId → room name for location badges
-  const roomNameById = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const r of home?.rooms ?? []) map.set(r.id, r.name || r.type);
-    return map;
-  }, [home?.rooms]);
-
-  // Determine a human location label for each task
-  const getTaskLocation = (t: any) => {
-    const rid = t.roomId as string | undefined;
-    const tid = t.trackableId as string | undefined;
-    if (rid && roomNameById.has(rid)) return roomNameById.get(rid)!;
-    if (tid && t.itemName) return t.itemName as string;
-    return "Home";
-  };
-
-  /* -------- actions -------- */
+  // ---- actions (callbacks are stable; still declared before any conditional returns)
   const onUploaded = (absoluteUrl: string) => setHome((h) => (h ? { ...h, imageUrl: absoluteUrl } : h));
 
   const toggleChecked = async (value: boolean) => {
@@ -213,24 +208,12 @@ export default function HomePage() {
     }, 50);
   };
 
-  const createRoom = async () => {
-    if (!home) return;
-    if (!newRoom.name.trim()) { toast({ title: "Please enter a room name", variant: "destructive" }); return; }
-    setAdding(true);
-    try {
-      const res = await api.post("/rooms", {
-        homeId: home.id, name: newRoom.name.trim(), type: newRoom.type || undefined, floor: newRoom.floor ?? undefined,
-      });
-      const created: Room | null = res?.data ?? null;
-      setHome((h) =>
-        h ? { ...h, rooms: [...(h.rooms ?? []), created ?? { id: crypto.randomUUID(), name: newRoom.name, type: newRoom.type, floor: newRoom.floor } as any] } : h
-      );
-      setAddOpen(false); setNewRoom({ name: "", type: "", floor: 1 });
-    } catch { toast({ title: "Could not create room", variant: "destructive" }); }
-    finally { setAdding(false); }
-  };
+  const openAddTrackable = useCallback((roomId?: string) => {
+    setPrefillRoomId(roomId);
+    setTrackableOpen(true);
+  }, []);
 
-  /* -------- guards -------- */
+  /* -------- guards (AFTER all hooks) -------- */
   if (loading) {
     return (
       <div className="mx-auto w-full max-w-7xl px-4 py-6">
@@ -284,10 +267,7 @@ export default function HomePage() {
             <Button
               variant="secondary"
               onClick={() => {
-                const url = buildZillowUrl({
-                  address: home.address, apartment: (home as any).apartment ?? null,
-                  city: home.city, state: home.state, zip: home.zip,
-                });
+                const url = zillowUrl;
                 if (!url) {
                   toast({ title: "Missing address", description: "Need address, city, state, and ZIP to open Zillow.", variant: "destructive" });
                   return;
@@ -295,6 +275,8 @@ export default function HomePage() {
                 window.open(url, "_blank", "noopener,noreferrer");
               }}
               className="flex items-center gap-2"
+              disabled={!zillowUrl}
+              title={zillowUrl ? "Open this address on Zillow" : "Enter full address to enable"}
             >
               <img src="/images/zillow-logo.png" alt="Zillow" className="h-5 w-5 object-contain" />
               <span>View on Zillow</span>
@@ -308,11 +290,7 @@ export default function HomePage() {
 
             {/* Edit / Delete */}
             <Button variant="outline" className="gap-2" onClick={handleEditMeta}><Pencil className="h-4 w-4" /> Edit</Button>
-            <Button variant="destructive" className="gap-2" onClick={() => {
-              if (deleting) return;
-              if (!confirm("Delete this home? This cannot be undone.")) return;
-              deleteHome();
-            }} disabled={deleting}>
+            <Button variant="destructive" className="gap-2" onClick={deleteHome} disabled={deleting}>
               <Trash2 className="h-4 w-4" /> Delete
             </Button>
           </div>
@@ -325,9 +303,10 @@ export default function HomePage() {
           <button
             key={key}
             onClick={() => setTab(key)}
-            className={`px-3 py-2 text-sm -mb-px border-b-2 mr-1 ${tab === key ? "border-brand-primary text-brand-primary font-semibold"
-                : "border-transparent text-gray-600 hover:text-brand-primary"
-              }`}
+            className={`px-3 py-2 text-sm -mb-px border-b-2 mr-1 ${
+              tab === key ? "border-brand-primary text-brand-primary font-semibold"
+                           : "border-transparent text-gray-600 hover:text-brand-primary"
+            }`}
           >
             {key === "overview" ? "Overview" :
               key === "details" ? "Details" :
@@ -356,9 +335,8 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Recent + Home Maintenance */}
+          {/* Recent + Upcoming Tasks */}
           <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {/* Recent activity */}
             <div className="rounded-2xl border bg-white p-4">
               <div className="mb-2 font-semibold">Recent Activity</div>
               {recent.length === 0 ? (
@@ -378,54 +356,39 @@ export default function HomePage() {
               )}
             </div>
 
-            {/* Home Maintenance - prioritized tasks (includes room + trackable) */}
             <div className="rounded-2xl border bg-white p-4">
               <div className="mb-2 flex items-center justify-between">
-                <div className="font-semibold">Home Maintenance</div>
-                <Button size="sm" variant="outline" onClick={() => navigate(`/app/tasks?homeId=${encodeURIComponent(home.id)}`)}>
-                  View all
-                </Button>
+                <div className="font-semibold">Upcoming Tasks</div>
+                <Button size="sm" variant="ghost" onClick={() => navigate(`/app/tasks?homeId=${encodeURIComponent(home.id)}`)}>View all</Button>
               </div>
 
               {tasksLoading ? (
                 <div className="text-sm text-muted-foreground">Loading…</div>
-              ) : taskError ? (
-                <div className="text-sm text-red-600">{taskError}</div>
-              ) : prioritized.length === 0 ? (
-                <div className="text-sm text-muted-foreground">No active tasks yet for this home.</div>
+              ) : homeTasks.length === 0 ? (
+                <div className="text-sm text-muted-foreground">All caught up! No tasks due—check back soon.</div>
               ) : (
                 <ul className="space-y-2">
-                  {prioritized.slice(0, 6).map((t: any) => {
+                  {homeTasks.map((t) => {
                     const overdue = isOverdue(t);
-                    const soon = !overdue && isDueSoon(t);
-                    const badge =
-                      overdue ? <span className="rounded bg-red-50 text-red-700 border border-red-200 px-1.5 py-0.5 text-[11px]">Overdue</span> :
-                      soon ? <span className="rounded bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 text-[11px]">Due soon</span> :
-                              null;
-
-                    const loc = getTaskLocation(t);
-
+                    const soon = isDueSoon(t);
+                    // room / trackable context badges (best-effort)
+                    const roomName = (t as any).roomName as string | undefined;
+                    const trackableName = (t as any).trackableName as string | undefined;
                     return (
-                      <li key={t.id} className="flex items-center justify-between rounded-lg border bg-white px-3 py-2 hover:shadow-sm">
+                      <li key={t.id} className="flex items-center justify-between rounded-lg border bg-white px-3 py-2">
                         <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <div className="text-sm truncate">{t.title}</div>
-                            {/* Location pill */}
-                            <span className="shrink-0 rounded-full border bg-white px-2 py-0.5 text-[11px] text-muted-foreground">
-                              {loc}
-                            </span>
-                          </div>
+                          <div className="truncate text-sm">{t.title || "Task"}</div>
                           <div className="text-xs text-muted-foreground">
-                            {(t.estimatedTimeMinutes ? `${t.estimatedTimeMinutes}m` : "—")}
+                            {(t.category || t.taskType || "General")}
                             {t.dueDate ? ` • due ${new Date(t.dueDate).toLocaleDateString()}` : ""}
-                            {t.category ? ` • ${t.category}` : ""}
+                            {roomName ? ` • ${roomName}` : ""}
+                            {trackableName ? ` • ${trackableName}` : ""}
                           </div>
                         </div>
-                        <div className="ml-3 flex items-center gap-2">
-                          {badge}
-                          <Button size="sm" variant="ghost" onClick={() => navigate(`/app/tasks/${encodeURIComponent(t.id)}`)}>
-                            Open
-                          </Button>
+                        <div className="flex items-center gap-2">
+                          {overdue && <span className="rounded bg-red-50 px-1.5 py-0.5 text-[11px] text-red-700 border border-red-200">Overdue</span>}
+                          {!overdue && soon && <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[11px] text-amber-700 border border-amber-200">Due soon</span>}
+                          <Button size="sm" variant="ghost" onClick={() => navigate(`/app/tasks?taskId=${encodeURIComponent(t.id)}`)}>Open</Button>
                         </div>
                       </li>
                     );
@@ -463,14 +426,14 @@ export default function HomePage() {
 
       {tab === "rooms" && (
         <div className="mt-6 rounded-2xl border bg-white p-4">
-          <RoomsPanel homeId={home.id} tasksByRoom={tasksByRoom} />
+          <RoomsPanel homeId={home.id} tasksByRoom={tasksByRoom} onAddTrackable={(roomId) => { setPrefillRoomId(roomId); setTrackableOpen(true); }} />
         </div>
       )}
 
       {tab === "features" && (
         <div className="mt-6 rounded-2xl border bg-white p-4">
           <h2 className="text-sm font-semibold mb-1">Features</h2>
-          <p className="text-sm text-muted-foreground">Coming soon — curated quick-add + suggestions (from the old page).</p>
+          <p className="text-sm text-muted-foreground">Coming soon — curated quick-add + suggestions.</p>
         </div>
       )}
 
@@ -487,6 +450,14 @@ export default function HomePage() {
           <p className="text-sm text-muted-foreground">Upload invoices, warranties, manuals, etc. (MVP placeholder.)</p>
         </div>
       )}
+
+      {/* Add Trackable Modal */}
+      <TrackableModal
+        isOpen={trackableOpen}
+        onClose={() => { setTrackableOpen(false); setPrefillRoomId(undefined); }}
+        onSave={() => { /* optionally refresh trackables/rooms if needed */ }}
+        initialData={prefillRoomId ? { userDefinedName: "", roomId: prefillRoomId, homeId: home.id } : { userDefinedName: "", homeId: home.id }}
+      />
     </div>
   );
 }

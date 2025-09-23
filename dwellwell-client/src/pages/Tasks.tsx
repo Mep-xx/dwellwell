@@ -1,5 +1,5 @@
 //dwellwell-client/src/pages/Tasks.tsx
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api } from "@/utils/api";
 
@@ -21,14 +21,18 @@ export default function Tasks() {
   const [err, setErr] = useState<string | null>(null);
   const [sp] = useSearchParams();
   const homeId = sp.get("homeId") || undefined;
+  const preselectId = sp.get("taskId") || undefined;
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoading(true);
+      setErr(null);
       try {
-        const r = await api.get('/tasks', { params: { homeId, status: 'active' } });
+        const r = await api.get('/tasks', { params: { homeId, status: 'active', limit: 200, sort: 'dueDate' } });
         if (!cancelled) setItems(Array.isArray(r.data) ? r.data : []);
+      } catch (e) {
+        if (!cancelled) setErr("Failed to load tasks.");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -36,8 +40,24 @@ export default function Tasks() {
     return () => { cancelled = true; };
   }, [homeId]);
 
+  const grouped = useMemo(() => {
+    const buckets: Record<string, Task[]> = { Overdue: [], "Due Soon": [], Upcoming: [] };
+    const now = Date.now();
+    const soonCutoff = now + 7 * 24 * 60 * 60 * 1000;
+    for (const t of items) {
+      const due = t.dueDate ? new Date(t.dueDate).getTime() : Infinity;
+      if (due < now) buckets.Overdue.push(t);
+      else if (due <= soonCutoff) buckets["Due Soon"].push(t);
+      else buckets.Upcoming.push(t);
+    }
+    for (const key of Object.keys(buckets)) {
+      buckets[key].sort((a, b) => new Date(a.dueDate || 0).getTime() - new Date(b.dueDate || 0).getTime());
+    }
+    return buckets;
+  }, [items]);
+
   return (
-    <div className="mx-auto max-w-5xl p-4 md:p-8">
+    <div className="mx-auto max-w-6xl p-4 md:p-8">
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-semibold">Tasks</h1>
       </div>
@@ -49,29 +69,50 @@ export default function Tasks() {
         <div className="p-6 rounded-2xl border bg-white text-slate-600">No tasks yet.</div>
       )}
 
-      <div className="space-y-3">
-        {items.map((t) => (
-          <Link
-            key={t.id}
-            to={`/app/tasks/${t.id}`}
-            className="block rounded-2xl border bg-white p-4 hover:shadow-sm transition shadow-sm"
-          >
-            <div className="flex items-start gap-3">
-              <div className="h-2.5 w-2.5 rounded-full mt-1.5" style={{ background: statusDot(t.status) }} />
-              <div className="min-w-0 flex-1">
-                <div className="font-medium truncate">{t.title}</div>
-                <div className="text-sm text-slate-600">
-                  {t.estimatedTimeMinutes ? `${t.estimatedTimeMinutes}m` : "—"}
-                  {t.dueDate && ` • due ${new Date(t.dueDate).toLocaleDateString()}`}
-                  {t.category && ` • ${t.category}`}
-                </div>
+      {!loading && !err && items.length > 0 && (
+        <div className="space-y-8">
+          {Object.entries(grouped).map(([label, list]) => (
+            <section key={label}>
+              <h2 className="text-sm font-semibold text-slate-700 mb-2">{label} ({list.length})</h2>
+              <div className="space-y-3">
+                {list.map((t) => (
+                  <TaskRow key={t.id} task={t} highlight={preselectId === t.id} />
+                ))}
               </div>
-              <div className="text-blue-700 text-sm">View details →</div>
-            </div>
-          </Link>
-        ))}
-      </div>
+            </section>
+          ))}
+        </div>
+      )}
     </div>
+  );
+}
+
+function TaskRow({ task, highlight }: { task: Task; highlight?: boolean }) {
+  const due = task.dueDate ? new Date(task.dueDate).toLocaleDateString() : "No due date";
+  const chips =
+    task.status === "COMPLETED" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+    task.status === "SKIPPED" ? "bg-amber-50 text-amber-700 border-amber-200" :
+    "bg-slate-50 text-slate-700 border-slate-200";
+
+  return (
+    <Link
+      to={`/app/tasks/${task.id}`}
+      className={`block rounded-2xl border bg-white p-4 transition hover:shadow-sm shadow-sm ${highlight ? "ring-2 ring-brand-primary/40" : ""}`}
+    >
+      <div className="flex items-start gap-3">
+        <div className="h-2.5 w-2.5 rounded-full mt-1.5" style={{ background: statusDot(task.status) }} />
+        <div className="min-w-0 flex-1">
+          <div className="font-medium truncate">{task.title}</div>
+          <div className="text-sm text-slate-600">
+            {task.estimatedTimeMinutes ? `${task.estimatedTimeMinutes}m` : "—"}
+            {task.dueDate && ` • due ${due}`}
+            {task.category && ` • ${task.category}`}
+          </div>
+        </div>
+        <span className={`text-xs px-2 py-0.5 rounded border ${chips}`}>{task.status}</span>
+      </div>
+      <div className="text-blue-700 text-sm mt-1">View details →</div>
+    </Link>
   );
 }
 
