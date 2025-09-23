@@ -11,6 +11,7 @@ import lookupRouter from './lookup';
 import roomsRouter from "./rooms";
 
 import adminRouter from './admin';
+import meRouter from './me';
 
 import mapboxRouter from './mapbox';
 
@@ -34,6 +35,8 @@ router.use('/ai', aiRouter);
 router.use('/lookup', lookupRouter);
 
 router.use('/admin', adminRouter);
+
+router.use('/me', meRouter);
 
 router.use('/mapbox', mapboxRouter);
 

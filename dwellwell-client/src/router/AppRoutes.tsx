@@ -14,6 +14,7 @@ import Vehicles from '@/pages/Vehicles';
 import Settings from '@/pages/Settings';
 import Billing from '@/pages/Billing';
 import Room from '@/pages/Room';
+import Profile from '@/pages/Profile';
 
 // Redesign
 import HomesRedesign from '@/pages/HomesRedesign';
@@ -76,6 +77,7 @@ export default function AppRoutes() {
         <Route path="/app/tasks/:taskId" element={<TaskDetailPage />} />
 
         {/* Account */}
+        <Route path="/app/profile" element={<Profile />} />
         <Route path="/app/settings" element={<Settings />} />
         <Route path="/app/billing" element={<Billing />} />
 

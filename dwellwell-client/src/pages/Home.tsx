@@ -201,13 +201,6 @@ export default function HomePage() {
     } finally { setDeleting(false); }
   };
 
-  const handleEditMeta = () => {
-    setTab("details");
-    setTimeout(() => {
-      metaRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 50);
-  };
-
   const openAddTrackable = useCallback((roomId?: string) => {
     setPrefillRoomId(roomId);
     setTrackableOpen(true);
@@ -289,7 +282,6 @@ export default function HomePage() {
             </div>
 
             {/* Edit / Delete */}
-            <Button variant="outline" className="gap-2" onClick={handleEditMeta}><Pencil className="h-4 w-4" /> Edit</Button>
             <Button variant="destructive" className="gap-2" onClick={deleteHome} disabled={deleting}>
               <Trash2 className="h-4 w-4" /> Delete
             </Button>

@@ -2,6 +2,8 @@
 
 export const CATEGORY_OPTIONS = [
   { value: "appliance", label: "Appliance" },
+  { value: "hvac", label: "HVAC" },
+  { value: "water", label: "Water / Plumbing" },
   { value: "kitchen", label: "Kitchen" },
   { value: "bathroom", label: "Bathroom" },
   { value: "heating", label: "Heating" },
@@ -31,6 +33,21 @@ export const TYPE_BY_CATEGORY: Record<string, { value: string; label: string }[]
     { value: "water-heater", label: "Water Heater" },
     { value: "water-softener", label: "Water Softener" },
     { value: "dehumidifier", label: "Dehumidifier" },
+    { value: "air-purifier", label: "Air Purifier" },
+  ],
+  hvac: [                                                    
+    { value: "furnace", label: "Furnace" },
+    { value: "boiler", label: "Boiler" },
+    { value: "central-ac", label: "Central A/C" },
+    { value: "heat-pump", label: "Heat Pump" },
+    { value: "mini-split", label: "Mini Split" },
+    { value: "window-ac", label: "Window A/C" },
+    { value: "portable-ac", label: "Portable A/C" },
+    { value: "dehumidifier", label: "Dehumidifier" },
+    { value: "humidifier", label: "Humidifier" },
+    { value: "air-purifier", label: "Air Purifier" },
+    { value: "radiant-heat", label: "Radiant Heat" },
+    { value: "thermostat", label: "Thermostat" },
   ],
   kitchen: [
     { value: "coffee-maker", label: "Coffee Maker" },
@@ -154,6 +171,15 @@ export const TYPE_BY_CATEGORY: Record<string, { value: string; label: string }[]
     { value: "sofa", label: "Sofa" },
     { value: "bed", label: "Bed" },
     { value: "shelving", label: "Shelving" },
+  ],
+  water: [                                                    
+    { value: "water-heater", label: "Water Heater" },
+    { value: "water-softener", label: "Water Softener" },
+    { value: "main-shutoff", label: "Main Shutoff Valve" },
+    { value: "sump-pump", label: "Sump Pump" },
+    { value: "well-pump", label: "Well Pump" },
+    { value: "septic", label: "Septic System" },
+    { value: "water-filter", label: "Water Filter" },
   ],
 };
 

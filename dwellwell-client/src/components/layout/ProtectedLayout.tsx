@@ -40,6 +40,7 @@ export default function ProtectedLayout() {
             <NavLink to="/app" className={({ isActive }) => navLinkClasses(isActive)}>
               🏠 Dashboard
             </NavLink>
+
             <NavLink to="/app/v2/homes" className={({ isActive }) => navLinkClasses(isActive)}>
               🏡 Homes
             </NavLink>
@@ -78,6 +79,10 @@ export default function ProtectedLayout() {
 
           {/* Bottom actions */}
           <div className="p-4 border-t space-y-2">
+            {/* New: Profile */}
+            <NavLink to="/app/profile" className={({ isActive }) => navLinkClasses(isActive)}>
+              👤 Profile
+            </NavLink>
             <NavLink to="/app/settings" className={({ isActive }) => navLinkClasses(isActive)}>
               ⚙️ Settings
             </NavLink>

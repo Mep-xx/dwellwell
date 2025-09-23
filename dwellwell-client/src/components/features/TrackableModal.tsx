@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/utils/api";
 import { sanitize } from "@/utils/sanitize";
 import type { TrackableCategory } from "@shared/types/trackable";
+import type { Room } from "@shared/types/room";
 import { ChevronDown, ChevronUp, X } from "lucide-react";
 import {
   CATEGORY_OPTIONS,
@@ -53,7 +54,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 export default function TrackableModal({ isOpen, onClose, onSave, initialData }: Props) {
   const isEditing = Boolean(initialData?.id);
   const [advancedOpen, setAdvancedOpen] = useState(false);
-
+  const [rooms, setRooms] = useState<Room[]>([]);
   const [form, setForm] = useState<CreateTrackableDTO>({
     userDefinedName: "",
     brand: "",
@@ -157,6 +158,27 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
       document.removeEventListener("keydown", onKey);
     };
   }, []);
+
+  useEffect(() => {
+    const hid = initialData?.homeId;
+    if (!isOpen || !hid) { setRooms([]); return; }
+    (async () => {
+      try {
+        const res = await api.get("/rooms", { params: { homeId: hid, includeDetails: false } });
+        setRooms(Array.isArray(res.data) ? res.data : []);
+      } catch { setRooms([]); }
+    })();
+  }, [isOpen, initialData?.homeId]);
+
+  // when opening for a specific room, ensure it sticks
+  useEffect(() => {
+    if (!isOpen) return;
+    if (initialData?.roomId) {
+      setForm((prev) => ({ ...prev, roomId: initialData.roomId, homeId: initialData.homeId ?? prev.homeId }));
+    } else if (initialData?.homeId) {
+      setForm((prev) => ({ ...prev, homeId: initialData.homeId, roomId: prev.roomId ?? undefined }));
+    }
+  }, [isOpen, initialData?.roomId, initialData?.homeId]);
 
   const handleNameChange = (val: string) => {
     onField("userDefinedName", val);
@@ -358,6 +380,38 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
                   ))}
                 </ul>
               )}
+            </div>
+          </Section>
+
+          <Section title="Location">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <select
+                value={form.homeId ?? ""}
+                onChange={(e) => {
+                  const hid = e.target.value || undefined;
+                  setForm((p) => ({ ...p, homeId: hid, roomId: undefined }));
+                }}
+                className="w-full border rounded px-3 py-2"
+              >
+                {/* single home context—lock to current home if provided */}
+                {form.homeId ? (
+                  <option value={form.homeId}>This Home</option>
+                ) : (
+                  <option value="">No home</option>
+                )}
+              </select>
+
+              <select
+                value={form.roomId ?? ""}
+                onChange={(e) => setForm((p) => ({ ...p, roomId: e.target.value || undefined }))}
+                className="w-full border rounded px-3 py-2"
+                disabled={!form.homeId}
+              >
+                <option value="">(No room)</option>
+                {rooms.map((r) => (
+                  <option key={r.id} value={r.id}>{r.name}</option>
+                ))}
+              </select>
             </div>
           </Section>
 
