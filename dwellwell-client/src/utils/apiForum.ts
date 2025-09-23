@@ -8,7 +8,7 @@ export const forumApi = {
     api.get("/forum/threads", { params: p }).then(r => r.data),
 
   createThread: (data: {
-    categoryId: string; title: string; type?: "discussion"|"bug"|"tip"|"correction";
+    categoryId: string; title: string; type?: "discussion" | "bug" | "tip" | "correction";
     body: string; trackableId?: string; taskTemplateId?: string; tags?: string[];
   }) => api.post("/forum/threads", data).then(r => r.data),
 
@@ -23,10 +23,14 @@ export const forumApi = {
   vote: (payload: { threadId?: string; postId?: string; value: 1 | -1 }) =>
     api.post("/forum/votes", payload).then(r => r.data),
 
+  recent: (limit = 6) => api.get("/forum/recent", { params: { limit } }).then(r => r.data.items),
+
   // moderation (admin)
   acknowledge: (threadId: string) => api.post(`/forum/threads/${threadId}/acknowledge`),
   resolve: (threadId: string) => api.post(`/forum/threads/${threadId}/resolve`),
   accept: (postId: string) => api.post(`/forum/posts/${postId}/accept`),
+
+  profile: (userId: string) => api.get(`/forum/profile/${userId}`).then(r => r.data),
 
   tipsForTrackable: (trackableId: string, limit = 3) =>
     api.get("/forum/tips", { params: { trackableId, limit } }).then(r => r.data.tips),

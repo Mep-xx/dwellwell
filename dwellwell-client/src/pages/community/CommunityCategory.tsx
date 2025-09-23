@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import ThreadComposer from "./components/ThreadComposer";
 import ThreadRow from "./components/ThreadRow";
+import { Link } from "react-router-dom";
 
 function useQuery() {
   const { search } = useLocation();
@@ -25,18 +26,22 @@ export default function CommunityCategory() {
   return (
     <div className="mx-auto max-w-5xl p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold capitalize">{categorySlug.replaceAll("-", " ")}</h2>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Link className="underline" to="/community">Community</Link>
+          <span>/</span>
+          <span className="capitalize">{categorySlug.replaceAll("-", " ")}</span>
+        </div>
         <Button onClick={() => setShowCompose(true)}>New Thread</Button>
       </div>
 
       <div className="flex gap-2">
-        <Input defaultValue={params.q ?? ""} placeholder="Search in category…" onKeyDown={(e:any)=>{
+        <Input defaultValue={params.q ?? ""} placeholder="Search in category…" onKeyDown={(e: any) => {
           if (e.key === "Enter") window.location.search = `?q=${encodeURIComponent(e.currentTarget.value)}`;
-        }}/>
+        }} />
       </div>
 
       <div className="space-y-3">
-        {data.items.map((t:any) => <ThreadRow key={t.id} t={t} />)}
+        {data.items.map((t: any) => <ThreadRow key={t.id} t={t} />)}
       </div>
 
       {showCompose && <ThreadComposer categorySlug={categorySlug} onClose={() => { setShowCompose(false); fetch(); }} />}

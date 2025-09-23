@@ -12,6 +12,10 @@ import acceptPost from "./modules/acceptPost";
 import acknowledgeThread from "./modules/acknowledgeThread";
 import resolveThread from "./modules/resolveThread";
 import listTipsForTrackable from "./modules/listTipsForTrackable";
+import listRecent from "./modules/listRecent";
+import getPublicProfile from "./modules/getPublicProfile";
+
+
 
 const router = Router();
 router.use(requireAuth);
@@ -28,6 +32,7 @@ router.patch("/threads/:threadId", updateThread);
 // posts
 router.post("/threads/:threadId/posts", createPost);
 router.patch("/posts/:postId", updatePost);
+router.get("/recent", listRecent);
 
 // votes
 router.post("/votes", vote);
@@ -36,6 +41,8 @@ router.post("/votes", vote);
 router.post("/threads/:threadId/acknowledge", acknowledgeThread);
 router.post("/threads/:threadId/resolve", resolveThread);
 router.post("/posts/:postId/accept", acceptPost);
+
+router.get("/profile/:userId", getPublicProfile);
 
 // contextual (trackable tips)
 router.get("/tips", listTipsForTrackable);

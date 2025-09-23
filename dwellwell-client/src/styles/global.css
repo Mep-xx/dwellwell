@@ -1,0 +1,88 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* =========================
+     Default (Light) Theme
+     ========================= */
+  :root {
+    --surface: 255 255 255;          /* page background */
+    --surface-alt: 246 248 250;      /* secondary bg (cards, headers) */
+    --text: 17 24 39;                /* dark text */
+    --muted: 107 114 128;            /* subdued text */
+    --primary: 37 99 235;            /* blue-600 */
+    --ring: 59 130 246;              /* blue-500 */
+    --card: 255 255 255;
+    --border: 229 231 235;
+    --accent: 14 165 233;            /* cyan-500 */
+    --success: 16 185 129;           /* emerald-500 */
+    --warning: 245 158 11;           /* amber-500 */
+    --danger: 239 68 68;             /* red-500 */
+    --radius: 14px;
+  }
+
+  /* =========================
+     Dark Mode
+     (enabled by .dark on <html>)
+     ========================= */
+  .dark {
+    --surface: 17 24 39;             /* gray-900 */
+    --surface-alt: 31 41 55;         /* gray-800 */
+    --text: 243 244 246;             /* gray-100 */
+    --muted: 156 163 175;            /* gray-400 */
+    --primary: 217 70 239;           /* fuchsia-500 (Dark · Bold) */
+    --ring: 129 140 248;             /* indigo-400 */
+    --card: 24 33 46;                /* deep */
+    --border: 55 65 81;              /* gray-700 */
+    --accent: 234 88 12;             /* orange-600 */
+    --success: 16 185 129;           /* emerald-500 */
+    --warning: 245 158 11;           /* amber-500 */
+    --danger: 248 113 113;           /* red-400 */
+  }
+
+  /* =========================
+     Optional Theme Families
+     (stacked on Light or Dark)
+     ========================= */
+
+  /* Calm (soft blues/teals) */
+  .theme-calm {
+    --primary: 59 130 246;           /* blue-500 */
+    --accent: 94 234 212;            /* teal-300 */
+    --surface-alt: 240 249 255;      /* blue-50 */
+  }
+
+  /* Bold (high contrast, magenta/orange) */
+  .theme-bold {
+    --primary: 217 70 239;           /* fuchsia-500 */
+    --accent: 234 88 12;             /* orange-600 */
+    --surface-alt: 250 245 255;      /* fuchsia-50 */
+  }
+
+  /* Forest (greens) */
+  .theme-forest {
+    --primary: 34 197 94;            /* green-500 */
+    --accent: 16 185 129;            /* emerald-500 */
+    --surface-alt: 240 253 244;      /* green-50 */
+  }
+
+  /* Solar (solarized amber/blue) */
+  .theme-solar {
+    --primary: 245 158 11;           /* amber-500 */
+    --accent: 2 132 199;             /* sky-600 */
+    --surface-alt: 254 249 195;      /* amber-50 */
+  }
+}
+
+@layer utilities {
+  /* Semantic utility shortcuts */
+  .bg-surface { background-color: rgb(var(--surface) / 1); }
+  .bg-surface-alt { background-color: rgb(var(--surface-alt) / 1); }
+  .bg-card { background-color: rgb(var(--card) / 1); }
+
+  .text-body { color: rgb(var(--text) / 1); }
+  .text-muted { color: rgb(var(--muted) / 1); }
+
+  .border-token { border-color: rgb(var(--border) / 1); }
+}

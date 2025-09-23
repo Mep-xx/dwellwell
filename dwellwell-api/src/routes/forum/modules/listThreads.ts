@@ -3,7 +3,7 @@ import { Request, Response } from "express";
 import { prisma } from "../../../db/prisma";
 import { asyncHandler } from "../../../middleware/asyncHandler";
 
-export default asyncHandler(async (req: Request, res: Response) => {
+export default asyncHandler(async (req, res) => {
   const { categorySlug, tag, q, page = "1" } = req.query as Record<string, string>;
   const pageSize = 20;
   const pageNum = Math.max(1, parseInt(page || "1", 10));
@@ -27,7 +27,7 @@ export default asyncHandler(async (req: Request, res: Response) => {
         id: true, title: true, type: true, status: true, score: true,
         commentCount: true, lastPostAt: true, createdAt: true,
         category: { select: { slug: true, name: true } },
-        author: { select: { id: true, email: true } }
+        author: { select: { id: true, email: true, profile: { select: { avatarUrl: true } } } },
       }
     }),
     prisma.forumThread.count({ where })

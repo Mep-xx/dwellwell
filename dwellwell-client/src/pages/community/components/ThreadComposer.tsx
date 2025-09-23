@@ -10,7 +10,7 @@ export default function ThreadComposer({ categorySlug, onClose }: { categorySlug
   const [cats, setCats] = useState<any[]>([]);
   const [categoryId, setCategoryId] = useState<string>("");
   const [title, setTitle] = useState("");
-  const [type, setType] = useState<"discussion" | "bug" | "tip" | "correction">("discussion");
+  const [type] = useState<"discussion">("discussion");
   const [body, setBody] = useState("");
 
   useEffect(() => {
@@ -34,14 +34,6 @@ export default function ThreadComposer({ categorySlug, onClose }: { categorySlug
           <label className="text-sm">Category</label>
           <select value={categoryId} onChange={e => setCategoryId(e.target.value)} className="w-full rounded border p-2">
             {cats.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-
-          <label className="text-sm">Type</label>
-          <select value={type} onChange={e => setType(e.target.value as any)} className="w-full rounded border p-2">
-            <option value="discussion">Discussion</option>
-            <option value="bug">Bug</option>
-            <option value="tip">Tip</option>
-            <option value="correction">Correction</option>
           </select>
 
           <Input placeholder="Title" value={title} onChange={e => setTitle(e.target.value)} />

@@ -1,11 +1,32 @@
 //dwellwell-client/src/pages/community/components/UserChip.tsx
-export default function UserChip({ user, rep }: { user: any; rep: { level: number; totalXP: number } }) {
+function initials(nameOrEmail?: string) {
+  if (!nameOrEmail) return "U";
+  const base = nameOrEmail.includes("@") ? nameOrEmail.split("@")[0] : nameOrEmail;
+  const parts = base.replace(/[^a-z0-9]+/gi, " ").trim().split(" ").filter(Boolean);
+  if (!parts.length) return base.slice(0, 2).toUpperCase();
+  return (parts[0][0] + (parts[1]?.[0] ?? "")).toUpperCase();
+}
+
+export default function UserChip({ user, rep }: { user: any; rep: { level: number; totalXP: number }}) {
+  const src =
+    user?.avatarUrl ||
+    user?.image ||
+    user?.photoUrl ||
+    user?.picture ||
+    "";
+
   return (
     <div className="flex items-center gap-2">
-      <img src={user?.avatarUrl ?? "/avatar.svg"} className="h-8 w-8 rounded-full" />
+      {src ? (
+        <img src={src} alt="" className="h-8 w-8 rounded-full object-cover" />
+      ) : (
+        <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-xs">
+          {initials(user?.email)}
+        </div>
+      )}
       <div className="leading-tight">
         <div className="flex items-center gap-2">
-          <span className="font-medium">{user?.displayName ?? "User"}</span>
+          <span className="font-medium truncate max-w-[140px]">{user?.email ?? "User"}</span>
           <span className="text-[10px] rounded-full px-2 py-0.5 bg-muted">Lv {rep.level}</span>
           <span className="text-[10px] text-muted-foreground">{rep.totalXP} XP</span>
         </div>

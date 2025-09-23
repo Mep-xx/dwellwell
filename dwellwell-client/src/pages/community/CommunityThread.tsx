@@ -5,6 +5,7 @@ import { forumApi } from "@/utils/apiForum";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import UserChip from "./components/UserChip";
+import { Link } from "react-router-dom";
 
 export default function CommunityThread() {
   const { threadId = "" } = useParams();
@@ -34,6 +35,10 @@ export default function CommunityThread() {
         </div>
         <div className="flex-1">
           <div className="flex items-center gap-2">
+            <div className="text-sm text-muted-foreground mb-1">
+              <Link className="underline" to="/community">Community</Link> /
+              <Link className="underline ml-1" to={`/community/${thread.category.slug}`}>{thread.category.name}</Link>
+            </div>
             <h1 className="text-xl font-semibold">{thread.title}</h1>
             {thread.type !== "discussion" && <span className="text-xs bg-amber-100 dark:bg-amber-900/40 px-2 py-0.5 rounded">{thread.type}</span>}
             {thread.status !== "open" && <span className="text-xs bg-emerald-100 dark:bg-emerald-900/40 px-2 py-0.5 rounded">{thread.status}</span>}
@@ -46,7 +51,7 @@ export default function CommunityThread() {
 
       {/* OP + replies */}
       <div className="space-y-4">
-        {thread.posts.map((p:any) => (
+        {thread.posts.map((p: any) => (
           <div key={p.id} className="border rounded-xl p-4">
             <div className="flex items-center justify-between">
               <UserChip user={p.author} rep={rep[p.author.id] ?? { level: 1, totalXP: 0 }} />
@@ -67,7 +72,7 @@ export default function CommunityThread() {
 
       {/* reply box */}
       <div className="border rounded-xl p-4">
-        <Textarea value={reply} onChange={e=>setReply(e.target.value)} placeholder="Write a reply…" rows={5} />
+        <Textarea value={reply} onChange={e => setReply(e.target.value)} placeholder="Write a reply…" rows={5} />
         <div className="flex justify-end pt-2"><Button onClick={sendReply} disabled={!reply}>Reply</Button></div>
       </div>
     </div>
