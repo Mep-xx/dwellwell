@@ -1,89 +1,161 @@
+/* src/styles/global.css */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================================
+   THEME TOKENS
+   - Light tokens live on :root
+   - Dark tokens override on .dark (html.dark)
+   - Families (.theme-*) layer on top of either mode
+   - All tokens use space-separated RGB for easy `rgb(var(--token) / <alpha>)`
+============================================================================ */
+
 @layer base {
-  /* =========================
-     Default (Light) Theme
-     ========================= */
+  /* ---------- Light (default) ---------- */
   :root {
-    --surface: 255 255 255;          /* page background */
-    --surface-alt: 246 248 250;      /* secondary bg (cards, headers) */
-    --text: 17 24 39;                /* dark text */
-    --muted: 107 114 128;            /* subdued text */
-    --primary: 37 99 235;            /* blue-600 */
-    --ring: 59 130 246;              /* blue-500 */
+    /* surfaces */
+    --surface: 255 255 255;         /* page background */
+    --surface-alt: 246 248 250;     /* secondary bg (cards, headers) */
     --card: 255 255 255;
-    --border: 229 231 235;
-    --accent: 14 165 233;            /* cyan-500 */
-    --success: 16 185 129;           /* emerald-500 */
-    --warning: 245 158 11;           /* amber-500 */
-    --danger: 239 68 68;             /* red-500 */
+
+    /* text */
+    --text: 17 24 39;               /* gray-900 */
+    --muted: 107 114 128;           /* gray-500 */
+
+    /* borders & focus */
+    --border: 229 231 235;          /* gray-200 */
+    --ring: 59 130 246;             /* blue-500 */
+
+    /* brand & states */
+    --primary: 37 99 235;           /* blue-600 (default family) */
+    --accent: 79 70 229;            /* indigo-600 (fallback accent) */
+    --success: 16 185 129;          /* emerald-500 */
+    --warning: 245 158 11;          /* amber-500 */
+    --danger: 239 68 68;            /* red-500 */
+
+    /* misc */
+    --on-primary: 255 255 255;      /* text on primary */
     --radius: 14px;
+    --font-scale: 1;
   }
-  :root { --accent: #4f46e5; --font-scale: 1; font-size: calc(16px * var(--font-scale)); }
 
-  /* =========================
-     Dark Mode
-     (enabled by .dark on <html>)
-     ========================= */
+  :root {
+    color-scheme: light;
+    font-size: calc(16px * var(--font-scale));
+  }
+
+  /* ---------- Dark (html.dark) ---------- */
   .dark {
-    --surface: 17 24 39;             /* gray-900 */
-    --surface-alt: 31 41 55;         /* gray-800 */
-    --text: 243 244 246;             /* gray-100 */
-    --muted: 156 163 175;            /* gray-400 */
-    --primary: 217 70 239;           /* fuchsia-500 (Dark · Bold) */
-    --ring: 129 140 248;             /* indigo-400 */
-    --card: 24 33 46;                /* deep */
-    --border: 55 65 81;              /* gray-700 */
-    --accent: 234 88 12;             /* orange-600 */
-    --success: 16 185 129;           /* emerald-500 */
-    --warning: 245 158 11;           /* amber-500 */
-    --danger: 248 113 113;           /* red-400 */
+    --surface: 17 24 39;            /* gray-900 */
+    --surface-alt: 31 41 55;        /* gray-800 */
+    --card: 24 33 46;               /* deep slate/blue */
+
+    --text: 243 244 246;            /* gray-100 */
+    --muted: 156 163 175;           /* gray-400 */
+
+    --border: 55 65 81;             /* gray-700 */
+    --ring: 129 140 248;            /* indigo-400 */
+
+    --primary: 217 70 239;          /* fuchsia-500 (nice in dark) */
+    --accent: 234 88 12;            /* orange-600 */
+
+    --success: 16 185 129;          /* emerald-500 */
+    --warning: 245 158 11;          /* amber-500 */
+    --danger: 248 113 113;          /* red-400 */
+
+    --on-primary: 17 24 39;         /* dark text on bright primaries */
+    color-scheme: dark;
   }
 
-  /* =========================
-     Optional Theme Families
-     (stacked on Light or Dark)
-     ========================= */
+  /* ---------- Style families (overlay on light or dark) ---------- */
+  .theme-default { /* no-op; uses base tokens */ }
 
-  /* Calm (soft blues/teals) */
   .theme-calm {
-    --primary: 59 130 246;           /* blue-500 */
-    --accent: 94 234 212;            /* teal-300 */
-    --surface-alt: 240 249 255;      /* blue-50 */
+    --primary: 59 130 246;          /* blue-500 */
+    --accent: 94 234 212;           /* teal-300 */
+    --surface-alt: 240 249 255;     /* blue-50 */
   }
 
-  /* Bold (high contrast, magenta/orange) */
   .theme-bold {
-    --primary: 217 70 239;           /* fuchsia-500 */
-    --accent: 234 88 12;             /* orange-600 */
-    --surface-alt: 250 245 255;      /* fuchsia-50 */
+    --primary: 217 70 239;          /* fuchsia-500 */
+    --accent: 234 88 12;            /* orange-600 */
+    --surface-alt: 250 245 255;     /* fuchsia-50 */
   }
 
-  /* Forest (greens) */
   .theme-forest {
-    --primary: 34 197 94;            /* green-500 */
-    --accent: 16 185 129;            /* emerald-500 */
-    --surface-alt: 240 253 244;      /* green-50 */
+    --primary: 34 197 94;           /* green-500 */
+    --accent: 16 185 129;           /* emerald-500 */
+    --surface-alt: 240 253 244;     /* green-50 */
   }
 
-  /* Solar (solarized amber/blue) */
   .theme-solar {
-    --primary: 245 158 11;           /* amber-500 */
-    --accent: 2 132 199;             /* sky-600 */
-    --surface-alt: 254 249 195;      /* amber-50 */
+    --primary: 245 158 11;          /* amber-500 */
+    --accent: 2 132 199;            /* sky-600 */
+    --surface-alt: 254 249 195;     /* amber-50 */
+  }
+
+  /* ---------- Base paint ---------- */
+  * {
+    border-color: rgb(var(--border) / 1);
+  }
+
+  body {
+    background-color: rgb(var(--surface) / 1);
+    color: rgb(var(--text) / 1);
   }
 }
 
+/* ============================================================================
+   SEMANTIC UTILITIES
+============================================================================ */
+
 @layer utilities {
-  /* Semantic utility shortcuts */
-  .bg-surface { background-color: rgb(var(--surface) / 1); }
-  .bg-surface-alt { background-color: rgb(var(--surface-alt) / 1); }
-  .bg-card { background-color: rgb(var(--card) / 1); }
+  /* backgrounds */
+  .bg-surface      { background-color: rgb(var(--surface) / 1); }
+  .bg-surface-alt  { background-color: rgb(var(--surface-alt) / 1); }
+  .bg-card         { background-color: rgb(var(--card) / 1); }
+  .bg-primary      { background-color: rgb(var(--primary) / 1); }
+  .bg-accent       { background-color: rgb(var(--accent) / 1); }
 
-  .text-body { color: rgb(var(--text) / 1); }
-  .text-muted { color: rgb(var(--muted) / 1); }
+  /* text colors */
+  .text-body       { color: rgb(var(--text) / 1); }
+  .text-muted      { color: rgb(var(--muted) / 1); }
+  .text-on-primary { color: rgb(var(--on-primary) / 1); }
 
-  .border-token { border-color: rgb(var(--border) / 1); }
+  /* borders & rings */
+  .border-token    { border-color: rgb(var(--border) / 1); }
+  .ring-primary    { --tw-ring-color: rgb(var(--primary) / 1); }
+  .ring-accent     { --tw-ring-color: rgb(var(--accent) / 1); }
+
+  /* quick radius aliases mapped to design token */
+  .rd-sm { border-radius: calc(var(--radius) - 4px); }
+  .rd-md { border-radius: calc(var(--radius) - 2px); }
+  .rd-lg { border-radius: var(--radius); }
+
+  /* focus style that works in both modes */
+  .focus-ring {
+    @apply focus:outline-none focus:ring-2;
+    --tw-ring-color: rgb(var(--ring) / 1);
+  }
+}
+
+/* ============================================================================
+   COMPONENT PRIMITIVES (optional, but handy)
+   Use on dropdown/panels to ensure readability in dark mode
+============================================================================ */
+
+@layer components {
+  .panel {
+    @apply bg-card text-body border border-token rounded-xl;
+  }
+  .panel-hover {
+    @apply hover:border-primary/50;
+  }
+  .token-btn {
+    @apply inline-flex items-center justify-between rounded-xl border border-token bg-card text-body px-3 py-2;
+  }
+  .token-menu {
+    @apply panel shadow-xl p-1;
+  }
 }

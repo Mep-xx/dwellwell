@@ -1,11 +1,14 @@
 // dwellwell-client/src/pages/Settings.tsx
-import { useEffect, useState } from 'react';
+import * as React from 'react';
+import { useEffect, useRef, useState } from 'react';
+
 import {
   fetchSettings,
   updateSettings,
   updateNotificationPrefs,
   rotateIcalToken,
-} from "@/utils/settings";
+} from '@/utils/settings';
+
 import type {
   NotificationPreference,
   SettingsBundle,
@@ -20,9 +23,27 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Select } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import * as React from 'react';
 
+import { useTheme } from '@/context/ThemeContext';
+import { THEME_CHOICES, themeId } from '@/theme/themes';
+import { THEME_SWATCHES } from '@/theme/swatches';
+
+/* ---------------- helpers ---------------- */
+function toCtxMode(m: UserSettings['theme']): 'system' | 'light' | 'dark' {
+  if (m === 'LIGHT') return 'light';
+  if (m === 'DARK') return 'dark';
+  return 'system';
+}
+function toServerMode(m: 'system' | 'light' | 'dark'): UserSettings['theme'] {
+  if (m === 'light') return 'LIGHT';
+  if (m === 'dark') return 'DARK';
+  return 'SYSTEM';
+}
+
+/* ============================================================================ */
 export default function SettingsPage() {
+  const { theme, setTheme } = useTheme();
+
   const [bundle, setBundle] = useState<SettingsBundle | null>(null);
   const [local, setLocal] = useState<UserSettings | null>(null);
   const [notifLocal, setNotifLocal] = useState<NotificationPreference[]>([]);
@@ -32,24 +53,40 @@ export default function SettingsPage() {
   const [savingSettings, setSavingSettings] = useState(false);
   const [savingNotifs, setSavingNotifs] = useState(false);
 
-  async function load() {
-    setIsLoading(true);
-    setErr(null);
-    try {
-      const data = await fetchSettings();
-      setBundle(data);
-      setLocal(data.settings);
-      setNotifLocal(data.notificationPrefs);
-    } catch (e: any) {
-      setErr(e?.message || 'Failed to load settings');
-    } finally {
-      setIsLoading(false);
-    }
-  }
+  // We keep only "style family" locally (not persisted yet).
+  const [family, setFamily] = useState(theme.style);
 
   useEffect(() => {
-    load();
+    let alive = true;
+    (async () => {
+      setIsLoading(true);
+      setErr(null);
+      try {
+        const data = await fetchSettings();
+        if (!alive) return;
+        setBundle(data);
+        setLocal(data.settings);
+        setNotifLocal(data.notificationPrefs);
+
+        // Hydrate ThemeContext from server (mode + fontScale). Style family stays local.
+        setTheme({
+          mode: toCtxMode(data.settings.theme),
+          style: theme.style ?? 'default',
+          fontScale: data.settings.fontScale ?? 1,
+        });
+        setFamily(theme.style ?? 'default');
+      } catch (e: any) {
+        setErr(e?.message || 'Failed to load settings');
+      } finally {
+        setIsLoading(false);
+      }
+    })();
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Keep local family in sync if ThemeContext changes externally
+  useEffect(() => setFamily(theme.style), [theme.style]);
 
   async function saveSettings(next: UserSettings) {
     setSavingSettings(true);
@@ -58,6 +95,13 @@ export default function SettingsPage() {
       const updated = await updateSettings(next);
       setLocal(updated);
       setBundle((prev) => (prev ? { ...prev, settings: updated } : prev));
+
+      // Apply immediately so navigation reflects new theme without reload
+      setTheme({
+        mode: toCtxMode(updated.theme),
+        style: family,
+        fontScale: updated.fontScale ?? 1,
+      });
     } catch (e: any) {
       setErr(e?.message || 'Failed to save settings');
     } finally {
@@ -92,17 +136,15 @@ export default function SettingsPage() {
     }
   }
 
-  if (isLoading || !bundle || !local)
+  if (isLoading || !bundle || !local) {
     return <div className="p-6">Loading settings…</div>;
-
+  }
   const s = local;
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 p-6">
       <h1 className="text-2xl font-bold">Settings</h1>
-      {err && (
-        <div className="rounded bg-red-50 p-3 text-sm text-red-700">{err}</div>
-      )}
+      {err && <div className="rounded bg-red-50 p-3 text-sm text-red-700">{err}</div>}
 
       {/* Appearance */}
       <Card>
@@ -111,43 +153,44 @@ export default function SettingsPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-3">
+            {/* Theme mode */}
             <div>
-              <label className="text-sm font-medium">Theme</label>
-              <Select
+              <label className="text-sm font-medium">Theme mode</label>
+              <ModeDropdown
                 value={s.theme}
-                onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
-                  setLocal({
-                    ...s,
-                    theme: e.target.value as UserSettings['theme'],
-                  })
-                }
-              >
-                <option value="SYSTEM">System</option>
-                <option value="LIGHT">Light</option>
-                <option value="DARK">Dark</option>
-              </Select>
+                onChange={(serverMode) => {
+                  setLocal({ ...s, theme: serverMode });
+                  // live apply
+                  setTheme({
+                    mode: toCtxMode(serverMode),
+                    style: family,
+                    fontScale: s.fontScale ?? 1,
+                  });
+                }}
+              />
             </div>
 
+            {/* Style family (applies immediately; not yet saved server-side) */}
             <div className="sm:col-span-2">
-              <label className="text-sm font-medium">Accent</label>
-              <div className="mt-2 flex flex-wrap items-center gap-3">
-                <SwatchPicker
-                  value={s.accentColor}
-                  onChange={(hex) => setLocal({ ...s, accentColor: hex })}
+              <label className="text-sm font-medium">Style family</label>
+              <div className="mt-2">
+                <FamilyDropdown
+                  selectedId={themeId(toCtxMode(s.theme) === 'dark' ? 'dark' : 'light', family)}
+                  onSelect={(id) => {
+                    const choice = THEME_CHOICES.find((c) => c.id === id);
+                    if (!choice) return;
+                    setFamily(choice.style);
+                    setTheme({
+                      mode: toCtxMode(s.theme),
+                      style: choice.style,
+                      fontScale: s.fontScale ?? 1,
+                    });
+                  }}
                 />
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-500">Custom</span>
-                  <Input
-                    type="color"
-                    value={s.accentColor}
-                    onChange={(e) =>
-                      setLocal({ ...s, accentColor: e.target.value })
-                    }
-                  />
-                </div>
               </div>
             </div>
 
+            {/* Font scale */}
             <div>
               <label className="text-sm font-medium">Font scale</label>
               <Input
@@ -156,15 +199,19 @@ export default function SettingsPage() {
                 max="1.5"
                 step="0.05"
                 value={s.fontScale}
-                onChange={(e) =>
-                  setLocal({
-                    ...s,
-                    fontScale: parseFloat(e.target.value || '1'),
-                  })
-                }
+                onChange={(e) => {
+                  const next = parseFloat(e.target.value || '1');
+                  setLocal({ ...s, fontScale: next });
+                  setTheme({
+                    mode: toCtxMode(s.theme),
+                    style: family,
+                    fontScale: next,
+                  });
+                }}
               />
             </div>
           </div>
+
           <Button onClick={() => saveSettings(s)} disabled={savingSettings}>
             Save Appearance
           </Button>
@@ -193,9 +240,7 @@ export default function SettingsPage() {
             onChange={(v) => setLocal({ ...s, allowTaskDelete: v })}
           />
           <div>
-            <label className="text-sm font-medium">
-              Default reminder lead (days)
-            </label>
+            <label className="text-sm font-medium">Default reminder lead (days)</label>
             <Input
               type="number"
               min="0"
@@ -211,49 +256,6 @@ export default function SettingsPage() {
           </div>
           <Button onClick={() => saveSettings(s)} disabled={savingSettings}>
             Save Task Defaults
-          </Button>
-        </CardContent>
-      </Card>
-
-      {/* Gamification */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Gamification</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <ToggleRow
-            label="Enable gamification"
-            value={s.gamificationEnabled}
-            onChange={(v) => setLocal({ ...s, gamificationEnabled: v })}
-          />
-          <div>
-            <label className="text-sm font-medium">Visibility</label>
-            <Select
-              value={s.gamificationVisibility}
-              onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
-                setLocal({
-                  ...s,
-                  gamificationVisibility:
-                    e.target.value as UserSettings['gamificationVisibility'],
-                })
-              }
-            >
-              <option value="PRIVATE">Private</option>
-              <option value="PUBLIC">Public</option>
-              <option value="HIDDEN_UI_KEEP_STATS">
-                Hidden (keep stats)
-              </option>
-            </Select>
-          </div>
-          <ToggleRow
-            label="Retain anonymized stats for deleted trackables"
-            value={s.retainDeletedTrackableStats}
-            onChange={(v) =>
-              setLocal({ ...s, retainDeletedTrackableStats: v })
-            }
-          />
-          <Button onClick={() => saveSettings(s)} disabled={savingSettings}>
-            Save Gamification
           </Button>
         </CardContent>
       </Card>
@@ -297,6 +299,8 @@ export default function SettingsPage() {
     </div>
   );
 }
+
+/* ============================== small UI bits =============================== */
 
 function ToggleRow({
   label,
@@ -343,23 +347,12 @@ function NotificationsMatrix({
     { key: 'SMS', label: 'SMS' },
   ];
 
-  const freqs: NotificationFrequency[] = [
-    'IMMEDIATE',
-    'DAILY_DIGEST',
-    'WEEKLY_DIGEST',
-  ];
+  const freqs: NotificationFrequency[] = ['IMMEDIATE', 'DAILY_DIGEST', 'WEEKLY_DIGEST'];
 
-  function getPref(
-    event: NotificationEvent,
-    channel: NotificationChannel
-  ): NotificationPreference {
+  function getPref(event: NotificationEvent, channel: NotificationChannel): NotificationPreference {
     return (
       prefs.find(
-        (p) =>
-          p.event === event &&
-          p.channel === channel &&
-          !p.homeId &&
-          !p.trackableId
+        (p) => p.event === event && p.channel === channel && !p.homeId && !p.trackableId
       ) ?? {
         event,
         channel,
@@ -374,11 +367,7 @@ function NotificationsMatrix({
   function setPref(np: NotificationPreference) {
     setPrefs((prev) => {
       const idx = prev.findIndex(
-        (p) =>
-          p.event === np.event &&
-          p.channel === np.channel &&
-          !p.homeId &&
-          !p.trackableId
+        (p) => p.event === np.event && p.channel === np.channel && !p.homeId && !p.trackableId
       );
       if (idx >= 0) {
         const copy = [...prev];
@@ -389,8 +378,7 @@ function NotificationsMatrix({
     });
   }
 
-  const channelEnabled = (c: NotificationChannel) =>
-    emailOnly ? c === 'EMAIL' : true;
+  const channelEnabled = (c: NotificationChannel) => (emailOnly ? c === 'EMAIL' : true);
 
   return (
     <Card>
@@ -422,9 +410,7 @@ function NotificationsMatrix({
                           <Switch
                             disabled={!channelEnabled(ch.key)}
                             checked={!!p.enabled && channelEnabled(ch.key)}
-                            onCheckedChange={(v) =>
-                              setPref({ ...p, enabled: v })
-                            }
+                            onCheckedChange={(v) => setPref({ ...p, enabled: v })}
                           />
                           <Select
                             disabled={!channelEnabled(ch.key)}
@@ -432,8 +418,7 @@ function NotificationsMatrix({
                             onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
                               setPref({
                                 ...p,
-                                frequency: e.target
-                                  .value as NotificationFrequency,
+                                frequency: e.target.value as NotificationFrequency,
                               })
                             }
                           >
@@ -460,53 +445,189 @@ function NotificationsMatrix({
   );
 }
 
-// Swatch picker for accent colors
-function SwatchPicker({
+/* ======================= theme pickers (dropdowns) ========================== */
+
+function FamilyDropdown({
+  selectedId,
+  onSelect,
+}: {
+  selectedId: string;
+  onSelect: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onDown(e: MouseEvent) {
+      if (!open) return;
+      const t = e.target as Node;
+      if (btnRef.current?.contains(t)) return;
+      if (listRef.current?.contains(t)) return;
+      setOpen(false);
+    }
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [open]);
+
+  const current = THEME_CHOICES.find((c) => c.id === selectedId);
+
+  return (
+    <div className="relative inline-block">
+      <button
+        ref={btnRef}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        className="w-[360px] inline-flex items-center justify-between rounded-xl border border-token bg-surface-alt px-3 py-2 text-left hover:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary"
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          {current && <SwatchRow swatch={THEME_SWATCHES[current.id]} />}
+          <div className="min-w-0">
+            <div className="font-medium truncate">{current?.label ?? 'Choose style'}</div>
+            <div className="text-xs text-muted">Theme preview</div>
+          </div>
+        </div>
+        <Caret />
+      </button>
+
+      {open && (
+        <div
+          ref={listRef}
+          role="listbox"
+          className="absolute z-50 mt-2 w-[420px] rounded-xl border border-token bg-card text-body p-2 shadow-xl"
+        >
+          <ul className="space-y-2 max-h-[60vh] overflow-auto">
+            {THEME_CHOICES.map((opt) => {
+              const active = selectedId === opt.id;
+              const s = THEME_SWATCHES[opt.id];
+              return (
+                <li key={opt.id}>
+                  <button
+                    role="option"
+                    aria-selected={active}
+                    onClick={() => { onSelect(opt.id); setOpen(false); }}
+                    className={`w-full cursor-pointer rounded-lg border p-3 text-left transition
+                      ${active ? 'border-primary ring-2 ring-primary' : 'border-token hover:border-primary/40'}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <SwatchRow swatch={s} />
+                      <div className="min-w-0">
+                        <div className="font-medium leading-tight truncate">{opt.label}</div>
+                        <div className="text-xs text-muted">Theme preview</div>
+                      </div>
+                      {active && <Check />}
+                    </div>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ModeDropdown({
   value,
   onChange,
 }: {
-  value: string;
-  onChange: (hex: string) => void;
+  value: UserSettings['theme'];
+  onChange: (v: UserSettings['theme']) => void;
 }) {
-  const SWATCHES: { name: string; hex: string }[] = [
-    { name: 'Indigo', hex: '#4f46e5' },
-    { name: 'Blue', hex: '#2563eb' },
-    { name: 'Cyan', hex: '#0891b2' },
-    { name: 'Teal', hex: '#0d9488' },
-    { name: 'Emerald', hex: '#059669' },
-    { name: 'Amber', hex: '#d97706' },
-    { name: 'Rose', hex: '#e11d48' },
-    { name: 'Purple', hex: '#7c3aed' },
-    { name: 'Slate', hex: '#475569' },
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onDoc(e: MouseEvent) {
+      if (!open) return;
+      if (!ref.current) return;
+      if (!ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [open]);
+
+  const items: { key: UserSettings['theme']; label: string }[] = [
+    { key: 'SYSTEM', label: 'System' },
+    { key: 'LIGHT', label: 'Light' },
+    { key: 'DARK', label: 'Dark' },
   ];
+  const current = items.find((i) => i.key === value)?.label ?? 'System';
 
   return (
-    <div className="flex flex-wrap gap-2">
-      {SWATCHES.map((s) => {
-        const selected = value.toLowerCase() === s.hex.toLowerCase();
-        return (
-          <button
-            key={s.hex}
-            type="button"
-            aria-label={s.name}
-            title={s.name}
-            onClick={() => onChange(s.hex)}
-            className={`relative h-8 w-8 rounded-full border transition ${
-              selected ? 'ring-2 ring-offset-2 ring-blue-500' : 'hover:opacity-90'
-            }`}
-            style={{
-              backgroundColor: s.hex,
-              borderColor: 'rgba(0,0,0,0.08)',
-            }}
-          >
-            {selected && (
-              <span className="absolute inset-0 flex items-center justify-center text-white text-xs">
-                ✓
-              </span>
-            )}
-          </button>
-        );
-      })}
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full inline-flex items-center justify-between rounded-xl border border-token bg-surface-alt px-3 py-2 text-left hover:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary"
+      >
+        <span className="font-medium">{current}</span>
+        <Caret />
+      </button>
+
+      {open && (
+        <div className="absolute z-50 mt-2 w-full rounded-xl border border-token bg-card text-body p-1 shadow-xl">
+          {items.map((it) => (
+            <button
+              key={it.key}
+              className={`w-full rounded-lg px-3 py-2 text-left hover:bg-surface-alt ${value === it.key ? 'ring-2 ring-primary' : ''
+                }`}
+              onClick={() => {
+                onChange(it.key);
+                setOpen(false);
+              }}
+            >
+              {it.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ============================= tiny SVGs ==================================== */
+function Caret() {
+  return (
+    <svg className="h-4 w-4 opacity-70 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+      <path d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.25a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" />
+    </svg>
+  );
+}
+function Check() {
+  return (
+    <svg className="ml-auto h-5 w-5 text-primary" viewBox="0 0 20 20" fill="currentColor">
+      <path
+        fillRule="evenodd"
+        d="M16.704 5.292a1 1 0 010 1.416l-7.25 7.25a1 1 0 01-1.415 0L3.296 9.215a1 1 0 011.415-1.415l3.03 3.03 6.542-6.541a1 1 0 011.421.003z"
+        clipRule="evenodd"
+      />
+    </svg>
+  );
+}
+
+/* ========================== swatch row for preview =========================== */
+function SwatchRow({
+  swatch,
+}: {
+  swatch: { surface: string; surfaceAlt: string; primary: string; accent: string; text: string };
+}) {
+  const box = (c: string, title: string) => (
+    <div
+      title={title}
+      className="h-6 w-8 rounded-md border"
+      style={{ backgroundColor: c, borderColor: 'rgba(0,0,0,0.15)' }}
+    />
+  );
+  return (
+    <div className="flex items-center gap-1.5 shrink-0">
+      {box(swatch.surface, 'surface')}
+      {box(swatch.surfaceAlt, 'surfaceAlt')}
+      {box(swatch.primary, 'primary')}
+      {box(swatch.accent, 'accent')}
+      {box(swatch.text, 'text')}
     </div>
   );
 }

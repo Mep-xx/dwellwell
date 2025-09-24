@@ -7,6 +7,7 @@ import App from './App';
 import { AuthProvider } from './context/AuthContext';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { ThemeProvider } from './context/ThemeContext';
+import ThemeBridge from './components/ThemeBridge';
 
 // .env: VITE_GOOGLE_CLIENT_ID=...
 const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
@@ -16,7 +17,8 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <GoogleOAuthProvider clientId={clientId!}>
       <AuthProvider>
-        <ThemeProvider>{/* ⬅️ wrap the whole app so themes apply globally */}
+        <ThemeProvider>
+          <ThemeBridge />
           <App />
         </ThemeProvider>
       </AuthProvider>

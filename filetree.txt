@@ -24251,75 +24251,72 @@ C:.
 ¦   ¦   ¦       
 ¦   ¦   +---.vite
 ¦   ¦   ¦   +---deps
-¦   ¦   ¦   ¦       @dnd-kit_core.js
-¦   ¦   ¦   ¦       @dnd-kit_core.js.map
-¦   ¦   ¦   ¦       @dnd-kit_sortable.js
-¦   ¦   ¦   ¦       @dnd-kit_sortable.js.map
-¦   ¦   ¦   ¦       @dnd-kit_utilities.js
-¦   ¦   ¦   ¦       @dnd-kit_utilities.js.map
-¦   ¦   ¦   ¦       @mapbox_mapbox-sdk_services_geocoding.js
-¦   ¦   ¦   ¦       @mapbox_mapbox-sdk_services_geocoding.js.map
-¦   ¦   ¦   ¦       @radix-ui_react-dialog.js
-¦   ¦   ¦   ¦       @radix-ui_react-dialog.js.map
-¦   ¦   ¦   ¦       @react-oauth_google.js
-¦   ¦   ¦   ¦       @react-oauth_google.js.map
-¦   ¦   ¦   ¦       axios.js
-¦   ¦   ¦   ¦       axios.js.map
-¦   ¦   ¦   ¦       chunk-36XS42BS.js
-¦   ¦   ¦   ¦       chunk-36XS42BS.js.map
-¦   ¦   ¦   ¦       chunk-6WBQ3PW6.js
-¦   ¦   ¦   ¦       chunk-6WBQ3PW6.js.map
-¦   ¦   ¦   ¦       chunk-AGVA4KH2.js
-¦   ¦   ¦   ¦       chunk-AGVA4KH2.js.map
-¦   ¦   ¦   ¦       chunk-EWTE5DHJ.js
-¦   ¦   ¦   ¦       chunk-EWTE5DHJ.js.map
-¦   ¦   ¦   ¦       chunk-HUL2CLQT.js
-¦   ¦   ¦   ¦       chunk-HUL2CLQT.js.map
-¦   ¦   ¦   ¦       chunk-NJLIVH7H.js
-¦   ¦   ¦   ¦       chunk-NJLIVH7H.js.map
-¦   ¦   ¦   ¦       chunk-TKS5FRHW.js
-¦   ¦   ¦   ¦       chunk-TKS5FRHW.js.map
-¦   ¦   ¦   ¦       chunk-UQACN274.js
-¦   ¦   ¦   ¦       chunk-UQACN274.js.map
-¦   ¦   ¦   ¦       clsx.js
-¦   ¦   ¦   ¦       clsx.js.map
-¦   ¦   ¦   ¦       framer-motion.js
-¦   ¦   ¦   ¦       framer-motion.js.map
-¦   ¦   ¦   ¦       html2canvas.esm-BQF3C4GQ.js
-¦   ¦   ¦   ¦       html2canvas.esm-BQF3C4GQ.js.map
-¦   ¦   ¦   ¦       html2pdf__js.js
-¦   ¦   ¦   ¦       html2pdf__js.js.map
-¦   ¦   ¦   ¦       index.es-VMVVKTA3.js
-¦   ¦   ¦   ¦       index.es-VMVVKTA3.js.map
-¦   ¦   ¦   ¦       lucide-react.js
-¦   ¦   ¦   ¦       lucide-react.js.map
-¦   ¦   ¦   ¦       mapbox-gl.js
-¦   ¦   ¦   ¦       mapbox-gl.js.map
-¦   ¦   ¦   ¦       package.json
-¦   ¦   ¦   ¦       purify.es-7GQPMUMJ.js
-¦   ¦   ¦   ¦       purify.es-7GQPMUMJ.js.map
-¦   ¦   ¦   ¦       react-dom.js
-¦   ¦   ¦   ¦       react-dom.js.map
-¦   ¦   ¦   ¦       react-dom_client.js
-¦   ¦   ¦   ¦       react-dom_client.js.map
-¦   ¦   ¦   ¦       react-dropzone.js
-¦   ¦   ¦   ¦       react-dropzone.js.map
-¦   ¦   ¦   ¦       react-helmet-async.js
-¦   ¦   ¦   ¦       react-helmet-async.js.map
-¦   ¦   ¦   ¦       react-router-dom.js
-¦   ¦   ¦   ¦       react-router-dom.js.map
-¦   ¦   ¦   ¦       react.js
-¦   ¦   ¦   ¦       react.js.map
-¦   ¦   ¦   ¦       react_jsx-dev-runtime.js
-¦   ¦   ¦   ¦       react_jsx-dev-runtime.js.map
-¦   ¦   ¦   ¦       react_jsx-runtime.js
-¦   ¦   ¦   ¦       react_jsx-runtime.js.map
-¦   ¦   ¦   ¦       zustand.js
-¦   ¦   ¦   ¦       zustand.js.map
-¦   ¦   ¦   ¦       _metadata.json
-¦   ¦   ¦   ¦       
-¦   ¦   ¦   +---deps_temp_f38cb4e7
+¦   ¦   ¦           @dnd-kit_core.js
+¦   ¦   ¦           @dnd-kit_core.js.map
+¦   ¦   ¦           @dnd-kit_sortable.js
+¦   ¦   ¦           @dnd-kit_sortable.js.map
+¦   ¦   ¦           @dnd-kit_utilities.js
+¦   ¦   ¦           @dnd-kit_utilities.js.map
+¦   ¦   ¦           @mapbox_mapbox-sdk_services_geocoding.js
+¦   ¦   ¦           @mapbox_mapbox-sdk_services_geocoding.js.map
+¦   ¦   ¦           @radix-ui_react-dialog.js
+¦   ¦   ¦           @radix-ui_react-dialog.js.map
+¦   ¦   ¦           @react-oauth_google.js
+¦   ¦   ¦           @react-oauth_google.js.map
+¦   ¦   ¦           axios.js
+¦   ¦   ¦           axios.js.map
+¦   ¦   ¦           chunk-36XS42BS.js
+¦   ¦   ¦           chunk-36XS42BS.js.map
+¦   ¦   ¦           chunk-6WBQ3PW6.js
+¦   ¦   ¦           chunk-6WBQ3PW6.js.map
+¦   ¦   ¦           chunk-AGVA4KH2.js
+¦   ¦   ¦           chunk-AGVA4KH2.js.map
+¦   ¦   ¦           chunk-EWTE5DHJ.js
+¦   ¦   ¦           chunk-EWTE5DHJ.js.map
+¦   ¦   ¦           chunk-HUL2CLQT.js
+¦   ¦   ¦           chunk-HUL2CLQT.js.map
+¦   ¦   ¦           chunk-NJLIVH7H.js
+¦   ¦   ¦           chunk-NJLIVH7H.js.map
+¦   ¦   ¦           chunk-TKS5FRHW.js
+¦   ¦   ¦           chunk-TKS5FRHW.js.map
+¦   ¦   ¦           chunk-UQACN274.js
+¦   ¦   ¦           chunk-UQACN274.js.map
+¦   ¦   ¦           clsx.js
+¦   ¦   ¦           clsx.js.map
+¦   ¦   ¦           framer-motion.js
+¦   ¦   ¦           framer-motion.js.map
+¦   ¦   ¦           html2canvas.esm-BQF3C4GQ.js
+¦   ¦   ¦           html2canvas.esm-BQF3C4GQ.js.map
+¦   ¦   ¦           html2pdf__js.js
+¦   ¦   ¦           html2pdf__js.js.map
+¦   ¦   ¦           index.es-VMVVKTA3.js
+¦   ¦   ¦           index.es-VMVVKTA3.js.map
+¦   ¦   ¦           lucide-react.js
+¦   ¦   ¦           lucide-react.js.map
+¦   ¦   ¦           mapbox-gl.js
+¦   ¦   ¦           mapbox-gl.js.map
 ¦   ¦   ¦           package.json
+¦   ¦   ¦           purify.es-7GQPMUMJ.js
+¦   ¦   ¦           purify.es-7GQPMUMJ.js.map
+¦   ¦   ¦           react-dom.js
+¦   ¦   ¦           react-dom.js.map
+¦   ¦   ¦           react-dom_client.js
+¦   ¦   ¦           react-dom_client.js.map
+¦   ¦   ¦           react-dropzone.js
+¦   ¦   ¦           react-dropzone.js.map
+¦   ¦   ¦           react-helmet-async.js
+¦   ¦   ¦           react-helmet-async.js.map
+¦   ¦   ¦           react-router-dom.js
+¦   ¦   ¦           react-router-dom.js.map
+¦   ¦   ¦           react.js
+¦   ¦   ¦           react.js.map
+¦   ¦   ¦           react_jsx-dev-runtime.js
+¦   ¦   ¦           react_jsx-dev-runtime.js.map
+¦   ¦   ¦           react_jsx-runtime.js
+¦   ¦   ¦           react_jsx-runtime.js.map
+¦   ¦   ¦           zustand.js
+¦   ¦   ¦           zustand.js.map
+¦   ¦   ¦           _metadata.json
 ¦   ¦   ¦           
 ¦   ¦   +---.vite-temp
 ¦   ¦   +---@adobe
@@ -47183,14 +47180,9 @@ C:.
 ¦       ¦   main.tsx
 ¦       ¦   vite-env.d.ts
 ¦       ¦   
-¦       +---api
-¦       ¦       settings.ts
-¦       ¦       
-¦       +---assets
-¦       ¦       react.svg
-¦       ¦       
 ¦       +---components
 ¦       ¦   ¦   RequireAdmin.tsx
+¦       ¦   ¦   ThemeBridge.tsx
 ¦       ¦   ¦   
 ¦       ¦   +---features
 ¦       ¦   ¦       AddHomeWizard.tsx
@@ -47333,6 +47325,7 @@ C:.
 ¦               logoutHelper.ts
 ¦               roomVisuals.ts
 ¦               sanitize.ts
+¦               settings.ts
 ¦               url.ts
 ¦               zillowUrl.ts
 ¦               
