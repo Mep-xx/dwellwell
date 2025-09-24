@@ -7,7 +7,7 @@ function initials(nameOrEmail?: string) {
   return (parts[0][0] + (parts[1]?.[0] ?? "")).toUpperCase();
 }
 
-export default function UserChip({ user, rep }: { user: any; rep: { level: number; totalXP: number }}) {
+export default function UserChip({ user, rep }: { user: any; rep: { level: number; totalXP: number } }) {
   const src =
     user?.avatarUrl ||
     user?.image ||
@@ -18,17 +18,18 @@ export default function UserChip({ user, rep }: { user: any; rep: { level: numbe
   return (
     <div className="flex items-center gap-2">
       {src ? (
-        <img src={src} alt="" className="h-8 w-8 rounded-full object-cover" />
+        <img src={src} alt="" className="h-8 w-8 rounded-full object-cover"
+          referrerPolicy="no-referrer" />
       ) : (
-        <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-xs">
+        <div className="h-8 w-8 rounded-full bg-slate-200 flex items-center justify-center text-xs text-slate-700">
           {initials(user?.email)}
         </div>
       )}
       <div className="leading-tight">
         <div className="flex items-center gap-2">
           <span className="font-medium truncate max-w-[140px]">{user?.email ?? "User"}</span>
-          <span className="text-[10px] rounded-full px-2 py-0.5 bg-muted">Lv {rep.level}</span>
-          <span className="text-[10px] text-muted-foreground">{rep.totalXP} XP</span>
+          <span className="text-[10px] rounded-full px-2 py-0.5 bg-slate-100 text-slate-700">Lv {rep.level}</span>
+          <span className="text-[10px] text-slate-600">{rep.totalXP} XP</span>
         </div>
       </div>
     </div>

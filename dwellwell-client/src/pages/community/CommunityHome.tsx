@@ -37,14 +37,14 @@ export default function CommunityHome() {
 
       {/* Search */}
       <form onSubmit={submitSearch} className="flex items-center gap-2">
-        <Input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search threads..." />
+        <Input value={q} onChange={e => setQ(e.target.value)} placeholder="Search threads..." />
         {/* removed the 'Enter' button; submit via Enter key */}
       </form>
 
       {/* Category grid with color + icon */}
       <div className="grid sm:grid-cols-2 gap-4">
         {cats.map(c => {
-          const meta = categoryMeta[c.slug] ?? { icon: <MessageCircle size={16}/>, bg: "bg-gray-50", ring: "ring-gray-200" };
+          const meta = categoryMeta[c.slug] ?? { icon: <MessageCircle size={16} />, bg: "bg-gray-50", ring: "ring-gray-200" };
           return (
             <Link key={c.id} to={`/community/${c.slug}`} className={`block rounded-xl border p-4 hover:shadow-sm ring-1 ${meta.ring} ${meta.bg}`}>
               <div className="flex items-center gap-2 font-semibold">
@@ -62,7 +62,11 @@ export default function CommunityHome() {
       <div className="pt-4 space-y-3">
         <div className="text-sm uppercase text-muted-foreground">Recent activity</div>
         {recent.map((t) => (
-          <Link key={t.id} to={`/community/thread/${t.id}`} className="block rounded-xl border p-3 hover:bg-muted/40">
+          <Link
+            key={t.id}
+            to={`/community/thread/${t.id}`}
+            className="block rounded-xl border p-3 bg-white shadow-sm hover:bg-muted/20"
+          >
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <div className="font-medium truncate">{t.title}</div>

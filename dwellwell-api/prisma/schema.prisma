@@ -134,6 +134,42 @@ enum TrackableResourceType {
 }
 
 /**
+ * Settings-related enums
+ */
+enum ThemeMode {
+  LIGHT
+  DARK
+  SYSTEM
+}
+
+enum GamificationVisibility {
+  PRIVATE
+  PUBLIC
+  HIDDEN_UI_KEEP_STATS
+}
+
+enum NotificationEvent {
+  TASK_DUE_SOON
+  TASK_OVERDUE
+  WEEKLY_DIGEST
+  NEW_TASKS_ADDED
+  TRACKABLE_MILESTONE
+  GAMIFICATION_LEVEL_UP
+}
+
+enum NotificationChannel {
+  EMAIL
+  PUSH
+  SMS
+}
+
+enum NotificationFrequency {
+  IMMEDIATE
+  DAILY_DIGEST
+  WEEKLY_DIGEST
+}
+
+/**
  * =========================
  * Core Models
  * =========================
@@ -169,6 +205,10 @@ model User {
 
   profile UserProfile?
   comms   CommunicationPreferences?
+
+  // Settings & notifications
+  settings          UserSettings?
+  notificationPrefs NotificationPreference[]
 
   refreshSessions RefreshSession[]
 
@@ -407,7 +447,7 @@ model Trackable {
   applianceCatalogId String?
   applianceCatalog   ApplianceCatalog? @relation(fields: [applianceCatalogId], references: [id])
 
-  // NEW: per-item overrides (nullable; take precedence over catalog)
+  // Per-item overrides (nullable; take precedence over catalog)
   brand    String? @db.VarChar(128)
   model    String? @db.VarChar(128)
   category String? @db.VarChar(64)
@@ -519,7 +559,7 @@ model ApplianceTaskTemplate {
 model UserTask {
   id             String             @id @default(uuid())
   userId         String
-  homeId         String? // NEW ✅
+  homeId         String?
   roomId         String?
   trackableId    String?
   taskTemplateId String?
@@ -569,11 +609,11 @@ model UserTask {
   createdAt DateTime @default(now())
 
   // relations
-  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  home         Home?               @relation(fields: [homeId], references: [id], onDelete: Cascade) // NEW ✅
-  room         Room?               @relation("RoomTasks", fields: [roomId], references: [id], onDelete: Cascade)
-  trackable    Trackable?          @relation("TrackableTasks", fields: [trackableId], references: [id], onDelete: Cascade)
-  taskTemplate TaskTemplate?       @relation(fields: [taskTemplateId], references: [id])
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  home         Home?         @relation(fields: [homeId], references: [id], onDelete: Cascade)
+  room         Room?         @relation("RoomTasks", fields: [roomId], references: [id], onDelete: Cascade)
+  trackable    Trackable?    @relation("TrackableTasks", fields: [trackableId], references: [id], onDelete: Cascade)
+  taskTemplate TaskTemplate? @relation(fields: [taskTemplateId], references: [id])
   dismissals   DismissedUserTask[]
 
   // Snapshots backref
@@ -996,3 +1036,57 @@ model GamificationEvent {
   @@unique([userId, kind, refType, refId]) // prevents double-award of same event
 }
 
+/**
+ * =========================
+ * Settings Models
+ * =========================
+ */
+
+model UserSettings {
+  userId        String   @id
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Appearance
+  theme         ThemeMode            @default(SYSTEM)
+  accentColor   String               @default("#4f46e5")
+  fontScale     Float                @default(1.0)
+
+  // Gamification
+  gamificationEnabled         Boolean                @default(true)
+  gamificationVisibility      GamificationVisibility @default(PRIVATE)
+  retainDeletedTrackableStats Boolean                @default(true)
+
+  // Task defaults
+  defaultDaysBeforeDue  Int     @default(2)
+  autoAssignRoomTasks   Boolean @default(true)
+  allowTaskDisable      Boolean @default(true)
+  allowTaskDelete       Boolean @default(true)
+
+  // Integrations
+  googleCalendarEnabled Boolean @default(false)
+  icalFeedToken        String?  @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model NotificationPreference {
+  id          String                 @id @default(cuid())
+  userId      String
+  user        User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  event       NotificationEvent
+  channel     NotificationChannel
+  enabled     Boolean                @default(true)
+  frequency   NotificationFrequency  @default(IMMEDIATE)
+
+  // Optional scoping (future)
+  homeId      String?
+  trackableId String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, event, channel, homeId, trackableId])
+  @@index([userId, event, channel])
+}

@@ -14,8 +14,22 @@ export default asyncHandler(async (req, res) => {
 
   const where: any = {};
   if (category) where.categoryId = category.id;
-  if (q) where.title = { contains: q, mode: "insensitive" };
-  if (tag) where.tags = { some: { tag: { slug: tag } } };
+
+  if (q && q.trim()) {
+    const needle = q.trim();
+    where.AND = [
+      ...(where.categoryId ? [{ categoryId: where.categoryId }] : []),
+      {
+        OR: [
+          { title: { contains: needle, mode: "insensitive" } },
+          { posts: { some: { body: { contains: needle, mode: "insensitive" } } } },
+          { tags: { some: { tag: { label: { contains: needle, mode: "insensitive" } } } } },
+        ],
+      },
+    ];
+  } else if (category) {
+    where.categoryId = category.id;
+  }
 
   const [items, total] = await Promise.all([
     prisma.forumThread.findMany({

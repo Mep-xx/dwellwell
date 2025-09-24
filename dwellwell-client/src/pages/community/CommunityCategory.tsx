@@ -18,6 +18,7 @@ export default function CommunityCategory() {
   const params = useQuery();
   const [data, setData] = useState<any>({ items: [], page: 1, pageSize: 20, total: 0 });
   const [showCompose, setShowCompose] = useState(false);
+  const [q, setQ] = useState(params.q ?? "");
 
   const fetch = () => forumApi.threads({ categorySlug, q: params.q, tag: params.tag, page: Number(params.page ?? 1) }).then(setData);
 

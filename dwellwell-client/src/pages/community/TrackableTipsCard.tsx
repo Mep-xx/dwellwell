@@ -9,12 +9,12 @@ export default function TrackableTipsCard({ trackableId }: { trackableId: string
 
   if (!tips.length) return null;
   return (
-    <div className="rounded-xl border p-4">
+    <div className="rounded-xl border p-4 bg-white shadow-sm">
       <div className="font-semibold">Community Tips</div>
       <div className="mt-2 space-y-2">
         {tips.map(t => (
           <Link key={t.id} to={`/community/thread/${t.id}`} className="block">
-            <div className="rounded-md p-3 hover:bg-muted/40">
+            <div className="rounded-md p-3 bg-white border hover:bg-muted/20">
               <div className="font-medium">{t.title}</div>
               <div className="text-sm text-muted-foreground line-clamp-2">{t.posts?.[0]?.body}</div>
             </div>

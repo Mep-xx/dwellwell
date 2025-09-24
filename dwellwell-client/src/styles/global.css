@@ -21,6 +21,7 @@
     --danger: 239 68 68;             /* red-500 */
     --radius: 14px;
   }
+  :root { --accent: #4f46e5; --font-scale: 1; font-size: calc(16px * var(--font-scale)); }
 
   /* =========================
      Dark Mode

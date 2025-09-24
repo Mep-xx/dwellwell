@@ -33,16 +33,31 @@ export default function CommunityThread() {
           <button onClick={upvoteThread} aria-label="upvote">▲</button>
           <div className="text-sm">{thread.score}</div>
         </div>
+
         <div className="flex-1">
-          <div className="flex items-center gap-2">
-            <div className="text-sm text-muted-foreground mb-1">
-              <Link className="underline" to="/community">Community</Link> /
-              <Link className="underline ml-1" to={`/community/${thread.category.slug}`}>{thread.category.name}</Link>
-            </div>
-            <h1 className="text-xl font-semibold">{thread.title}</h1>
-            {thread.type !== "discussion" && <span className="text-xs bg-amber-100 dark:bg-amber-900/40 px-2 py-0.5 rounded">{thread.type}</span>}
-            {thread.status !== "open" && <span className="text-xs bg-emerald-100 dark:bg-emerald-900/40 px-2 py-0.5 rounded">{thread.status}</span>}
+          {/* Breadcrumbs on their own line */}
+          <div className="text-sm text-muted-foreground">
+            <Link className="underline" to="/community">Community</Link> /
+            <Link className="underline ml-1" to={`/community/${thread.category.slug}`}>
+              {thread.category.name}
+            </Link>
           </div>
+
+          {/* Title + chips under breadcrumbs */}
+          <div className="mt-1 flex items-center gap-2 flex-wrap">
+            <h1 className="text-xl font-semibold">{thread.title}</h1>
+            {thread.type !== "discussion" && (
+              <span className="text-xs bg-amber-100 dark:bg-amber-900/40 px-2 py-0.5 rounded">
+                {thread.type}
+              </span>
+            )}
+            {thread.status !== "open" && (
+              <span className="text-xs bg-emerald-100 dark:bg-emerald-900/40 px-2 py-0.5 rounded">
+                {thread.status}
+              </span>
+            )}
+          </div>
+
           <div className="text-sm text-muted-foreground">
             in {thread.category.name} • {new Date(thread.createdAt).toLocaleString()}
           </div>
@@ -52,7 +67,7 @@ export default function CommunityThread() {
       {/* OP + replies */}
       <div className="space-y-4">
         {thread.posts.map((p: any) => (
-          <div key={p.id} className="border rounded-xl p-4">
+          <div key={p.id} className="border rounded-xl p-4 bg-white shadow-sm">
             <div className="flex items-center justify-between">
               <UserChip user={p.author} rep={rep[p.author.id] ?? { level: 1, totalXP: 0 }} />
               <div className="flex items-center gap-2">
@@ -71,9 +86,11 @@ export default function CommunityThread() {
       </div>
 
       {/* reply box */}
-      <div className="border rounded-xl p-4">
+      <div className="border rounded-xl p-4 bg-white shadow-sm">
         <Textarea value={reply} onChange={e => setReply(e.target.value)} placeholder="Write a reply…" rows={5} />
-        <div className="flex justify-end pt-2"><Button onClick={sendReply} disabled={!reply}>Reply</Button></div>
+        <div className="flex justify-end pt-2">
+          <Button onClick={sendReply} disabled={!reply}>Reply</Button>
+        </div>
       </div>
     </div>
   );

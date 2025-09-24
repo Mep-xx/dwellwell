@@ -10,6 +10,7 @@ import aiRouter from './ai';
 import lookupRouter from './lookup';
 import roomsRouter from "./rooms";
 import forumRouter from "./forum";
+import settingsRouter from "./settings";
 
 import adminRouter from './admin';
 import meRouter from './me';
@@ -40,6 +41,8 @@ router.use('/admin', adminRouter);
 router.use('/me', meRouter);
 
 router.use("/forum", forumRouter);
+
+router.use('/settings', settingsRouter);
 
 router.use('/mapbox', mapboxRouter);
 
