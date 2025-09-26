@@ -34,7 +34,7 @@ type Props = {
 };
 
 function percent(complete = 0, total = 0) {
-  if (!total) return 100;
+  if (!total) return 0; // avoid 100% when there are no tasks
   return Math.round((complete / Math.max(total, 1)) * 100);
 }
 

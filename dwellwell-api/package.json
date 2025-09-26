@@ -12,7 +12,8 @@
     "start": "node build/index.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "lint": "echo \"(add ESLint later)\""
+    "seed:templates": "ts-node -P tsconfig.seeder.json scripts/seedTaskTemplates.ts",
+    "seed:appliance-links": "ts-node -P tsconfig.seeder.json scripts/seedTaskTemplates.ts"
   },
   "dependencies": {
     "@mapbox/mapbox-sdk": "^0.15.6",
@@ -45,6 +46,7 @@
     "@types/multer": "^1.4.12",
     "@types/node": "^22.18.1",
     "prisma": "^6.15.0",
+    "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.9.2"

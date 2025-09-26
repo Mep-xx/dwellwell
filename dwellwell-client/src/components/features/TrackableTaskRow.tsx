@@ -19,8 +19,13 @@ const categoryEmoji: Record<string, string> = {
   windows: "🪟",
 };
 
-const fmt = (iso?: string | null) =>
+const fmtDate = (iso?: string | null) =>
   iso ? new Date(iso).toLocaleDateString() : undefined;
+
+const fmtMoney = (n?: number) =>
+  typeof n === "number"
+    ? new Intl.NumberFormat(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n)
+    : undefined;
 
 type Props = {
   task: Task;
@@ -45,6 +50,11 @@ export default function TrackableTaskRow({ task, onChanged }: Props) {
   const archived = (task as any).archivedAt;
   const icon = task.category ? (categoryEmoji[task.category] ?? "📌") : "📌";
 
+  const overdueFlag =
+    task.status === "PENDING" &&
+    task.dueDate &&
+    new Date(task.dueDate).getTime() < Date.now();
+
   return (
     <div className="py-2">
       <div className="flex items-center gap-3">
@@ -55,14 +65,14 @@ export default function TrackableTaskRow({ task, onChanged }: Props) {
             <div className={`truncate ${task.status === "COMPLETED" ? "line-through text-muted-foreground" : ""}`}>
               {task.title}
             </div>
-            {task.status === "PENDING" && task.dueDate && new Date(task.dueDate) < new Date() && (
+            {overdueFlag && (
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-700">OVERDUE</span>
             )}
             {paused && <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">PAUSED</span>}
             {archived && <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-200 text-gray-700">ARCHIVED</span>}
           </div>
           <div className="text-xs text-muted-foreground">
-            {task.dueDate ? `Due: ${fmt(task.dueDate)}` : "No due date"}
+            {task.dueDate ? `Due: ${fmtDate(task.dueDate)}` : "No due date"}
             {task.estimatedTimeMinutes ? ` • ⏱ ${task.estimatedTimeMinutes}m` : ""}
           </div>
         </div>
@@ -110,7 +120,7 @@ export default function TrackableTaskRow({ task, onChanged }: Props) {
           {task.recurrenceInterval && <p>🔁 <b>Frequency:</b> {task.recurrenceInterval}</p>}
           {task.criticality && <p>🚨 <b>Importance:</b> {task.criticality}</p>}
           {typeof task.deferLimitDays === "number" && <p>🕓 Safe to defer up to <b>{task.deferLimitDays}d</b></p>}
-          {typeof task.estimatedCost === "number" && <p>💵 Est. cost: <b>${task.estimatedCost}</b></p>}
+          {typeof task.estimatedCost === "number" && <p>💵 Est. cost: <b>{fmtMoney(task.estimatedCost)}</b></p>}
           {task.canBeOutsourced && <p>🧰 Can be outsourced</p>}
           {task.location && <p>📍 {task.location}</p>}
 

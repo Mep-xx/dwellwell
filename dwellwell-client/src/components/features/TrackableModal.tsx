@@ -1,3 +1,4 @@
+//dwellwell-client/src/components/features/TrackableModal.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/utils/api";
 import { sanitize } from "@/utils/sanitize";
@@ -135,6 +136,20 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
     setSuggestions([]);
     setPhase("idle");
   };
+
+  // Clear timers on unmount or when modal closes to prevent setState-after-unmount
+  useEffect(() => {
+    if (!isOpen) {
+      // modal just closed: clear timers and any open dropdown
+      if (catalogTimer.current) clearTimeout(catalogTimer.current);
+      if (aiTimer.current) clearTimeout(aiTimer.current);
+      closeSuggestions();
+    }
+    return () => {
+      if (catalogTimer.current) clearTimeout(catalogTimer.current);
+      if (aiTimer.current) clearTimeout(aiTimer.current);
+    };
+  }, [isOpen]);
 
   // click-outside & ESC & blur
   useEffect(() => {

@@ -1,5 +1,6 @@
+// dwellwell-api/src/services/taskgen/generateAllRooms.ts
 import { prisma } from "../../db/prisma";
-import { generateTasksForRoom } from ".";
+import { generateTasksFromTemplatesForRoom } from "./fromTemplates";
 
 /**
  * Generate tasks for every existing room under a home.
@@ -12,7 +13,7 @@ export async function generateTasksForAllRooms(homeId: string) {
   });
   for (const r of rooms) {
     try {
-      await generateTasksForRoom(r.id);
+      await generateTasksFromTemplatesForRoom(r.id);
     } catch (e) {
       console.error("generateTasksForRoom error for", r.id, e);
     }

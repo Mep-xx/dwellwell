@@ -2,7 +2,7 @@
 import { Request, Response, Router } from "express";
 import { prisma } from "../../db/prisma";
 import { asyncHandler } from "../../middleware/asyncHandler";
-import { generateTasksForHomeBasics } from "../../services/taskgen";
+import { generateTasksFromTemplatesForHome } from "../../services/taskgen/fromTemplates";
 
 const router = Router();
 
@@ -40,7 +40,7 @@ router.patch(
       data,
     });
 
-    await generateTasksForHomeBasics(home.id);
+    await generateTasksFromTemplatesForHome(home.id);
 
     res.json(updated);
   })

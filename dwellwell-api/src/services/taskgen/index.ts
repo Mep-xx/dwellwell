@@ -6,9 +6,10 @@ import { addByInterval, initialDueDate } from "./dates";
 import type { RuleContext, Rule, TemplateSeed } from "./rules";
 import { getHomeRules, getRoomRules, getTrackableRules } from "./rulesDb";
 import { getTrackableDisplay } from "../../services/trackables/display";
+import { seedRoomTasksForRoom } from "../roomTaskSeeder";
 
 /** —————————————————————————————————————————————————————
- * Template + UserTask helpers (unchanged)
+ * Template + UserTask helpers
  * ————————————————————————————————————————————————————— */
 
 async function ensureTemplate(key: string, seed: TemplateSeed): Promise<TaskTemplate> {
@@ -35,11 +36,11 @@ async function ensureTemplate(key: string, seed: TemplateSeed): Promise<TaskTemp
         estimatedCost: existing.estimatedCost ?? (seed.estimatedCost ?? 0),
         canBeOutsourced: existing.canBeOutsourced ?? (seed.canBeOutsourced ?? false),
         steps:
-          existing.steps && (existing.steps as any[]).length
+          (Array.isArray(existing.steps) && (existing.steps as any[]).length)
             ? existing.steps
             : (seed.steps as any) ?? [],
         equipmentNeeded:
-          existing.equipmentNeeded && (existing.equipmentNeeded as any[]).length
+          (Array.isArray(existing.equipmentNeeded) && (existing.equipmentNeeded as any[]).length)
             ? existing.equipmentNeeded
             : (seed.equipmentNeeded as any) ?? [],
         resources: (existing as any).resources ?? (seed as any).resources ?? undefined,
@@ -143,7 +144,7 @@ async function upsertUserTask(opts: {
       criticality: taskTemplate.criticality,
       deferLimitDays: taskTemplate.deferLimitDays ?? 0,
       canBeOutsourced: taskTemplate.canBeOutsourced ?? false,
-      canDefer: taskTemplate.canDefer ?? true,
+      canDefer: taskTemplate.canDefer ?? taskTemplate.canDefer ?? true,
       recurrenceInterval: taskTemplate.recurrenceInterval,
       taskType: taskTemplate.taskType,
       steps: taskTemplate.steps ? (taskTemplate.steps as any) : undefined,
@@ -212,7 +213,8 @@ async function applyRules(
         sourceType: rule.scope === "trackable" ? "trackable" : "room",
         titleOverride: overrides.title ?? null,
         descriptionOverride: overrides.description ?? null,
-        itemName: overrides.itemName ?? null,
+        // Default itemName to the room name for room-scoped tasks (helps filtering/grouping)
+        itemName: overrides.itemName ?? (ctx.room?.name ?? null),
         location: overrides.location ?? null,
       });
     } catch (err: any) {
@@ -229,13 +231,15 @@ async function applyRules(
             debugPayload: { ruleKey: (rule as any).key, scopeIds, ctx },
           },
         });
-      } catch { }
+      } catch {
+        /* ignore logging failure */
+      }
     }
   }
 }
 
 /** —————————————————————————————————————————————————————
- * Public API (unchanged; now uses DB rules)
+ * Public API
  * ————————————————————————————————————————————————————— */
 
 export async function generateTasksForRoom(roomId: string) {
@@ -255,6 +259,40 @@ export async function generateTasksForRoom(roomId: string) {
 
   const rules = await getRoomRules();
   await applyRules(userId, rules, ctx, { homeId: room.homeId, roomId: room.id });
+}
+
+export async function generateTasksForNewRoom(roomId: string) {
+  // Run rule-based generation first
+  await generateTasksForRoom(roomId);
+
+  // If nothing was generated for this room, seed minimal room tasks as a fallback.
+  const room = await prisma.room.findUnique({
+    where: { id: roomId },
+    include: { home: { select: { userId: true } } },
+  });
+  if (!room) return;
+
+  const count = await prisma.userTask.count({
+    where: { roomId, archivedAt: null },
+  });
+
+  if (count === 0) {
+    try {
+      await seedRoomTasksForRoom(roomId, room.home.userId);
+    } catch (e) {
+      await prisma.taskGenerationIssue.create({
+        data: {
+          userId: room.home.userId,
+          homeId: room.homeId,
+          roomId,
+          code: "upsert_error",
+          status: "open",
+          message: "Fallback seeding failed",
+          debugPayload: { error: String(e) },
+        },
+      });
+    }
+  }
 }
 
 export async function generateTasksForHomeBasics(homeId: string) {
@@ -319,5 +357,7 @@ export async function logTaskGenIssue(opts: {
         debugPayload: opts.debug ?? null,
       },
     });
-  } catch { }
+  } catch {
+    /* ignore */
+  }
 }

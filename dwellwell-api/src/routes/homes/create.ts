@@ -1,10 +1,9 @@
 // dwellwell-api/src/routes/homes/create.ts
 import { Router, Request, Response } from "express";
-import { prisma } from '../../db/prisma';
+import { prisma } from "../../db/prisma";
 import { requireAuth } from "../../middleware/requireAuth";
 import { createHomeSchema } from "./schema";
-import { generateTasksForHomeBasics } from "../../services/taskgen";
-import { generateTasksForAllRooms } from "../../services/taskgen/generateAllRooms";
+import { generateTasksFromTemplatesForHome } from "../../services/taskgen/fromTemplates";
 
 const router = Router();
 
@@ -13,25 +12,17 @@ router.post("/", requireAuth, async (req: Request, res: Response) => {
   const data = createHomeSchema.parse(req.body);
 
   const created = await prisma.home.create({
-    data: {
-      ...data,
-      userId,
-    },
+    data: { ...data, userId },
   });
 
-  // Immediately kick off task generation:
-  // - Home-level rules
-  // - Room-level rules for any rooms that were auto-seeded on creation
+  // Template-driven generation:
+  // - Home-scoped templates
+  // - Room-scoped templates for any rooms created with the home
   (async () => {
     try {
-      await generateTasksForHomeBasics(created.id);
+      await generateTasksFromTemplatesForHome(created.id);
     } catch (e) {
-      console.error("generateTasksForHomeBasics on create failed:", e);
-    }
-    try {
-      await generateTasksForAllRooms(created.id);
-    } catch (e) {
-      console.error("generateTasksForAllRooms on create failed:", e);
+      console.error("generateTasksFromTemplatesForHome on create failed:", e);
     }
   })();
 

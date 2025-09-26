@@ -2,7 +2,7 @@
 import { Request, Response } from "express";
 import { prisma } from "../../db/prisma";
 import { asyncHandler } from "../../middleware/asyncHandler";
-import { generateTasksForRoom } from "../../services/taskgen";
+import { generateTasksFromTemplatesForRoom } from "../../services/taskgen/fromTemplates";
 
 function stripUndefined(obj: Record<string, any>) {
   const out: Record<string, any> = {};
@@ -12,6 +12,7 @@ function stripUndefined(obj: Record<string, any>) {
 
 /**
  * Create a room (and optional RoomDetail), then generate room-scoped tasks.
+ * Uses rule-based generation with a safe fallback seeder if nothing matches.
  */
 export default asyncHandler(async (req: Request, res: Response) => {
   const userId = (req as any).user?.id as string;
@@ -63,9 +64,9 @@ export default asyncHandler(async (req: Request, res: Response) => {
     }
   }
 
-  // Generate room-scoped tasks (idempotent via dedupeKey)
+  // Generate room-scoped tasks (rules; fallback if none)
   try {
-    await generateTasksForRoom(created.id);
+    await generateTasksFromTemplatesForRoom(created.id);
   } catch (e) {
     console.error("[rooms/create] taskgen error:", e);
   }

@@ -26,6 +26,7 @@ C:.
 ¦   ¦   package-lock.json
 ¦   ¦   package.json
 ¦   ¦   tsconfig.json
+¦   ¦   tsconfig.seeder.json
 ¦   ¦   
 ¦   +---node_modules
 ¦   ¦   ¦   .package-lock.json
@@ -24084,6 +24085,7 @@ C:.
 ¦   ¦   ¦   ¦       
 ¦   ¦   ¦   +---taskgen
 ¦   ¦   ¦   ¦       dates.ts
+¦   ¦   ¦   ¦       fromTemplates.ts
 ¦   ¦   ¦   ¦       generateAllRooms.ts
 ¦   ¦   ¦   ¦       index.ts
 ¦   ¦   ¦   ¦       rules.ts
@@ -47213,28 +47215,27 @@ C:.
 ¦       ¦   ¦       SortableHome.tsx
 ¦       ¦   ¦       
 ¦       ¦   +---ui
-¦       ¦       ¦   AddressAutocomplete.tsx
-¦       ¦       ¦   badge.tsx
-¦       ¦       ¦   button.tsx
-¦       ¦       ¦   card.tsx
-¦       ¦       ¦   checkbox.tsx
-¦       ¦       ¦   Combobox.tsx
-¦       ¦       ¦   dialog.tsx
-¦       ¦       ¦   HomePhotoDropzone.tsx
-¦       ¦       ¦   imageupload.tsx
-¦       ¦       ¦   input.tsx
-¦       ¦       ¦   label.tsx
-¦       ¦       ¦   MapboxAddress.tsx
-¦       ¦       ¦   progressbar.tsx
-¦       ¦       ¦   select.tsx
-¦       ¦       ¦   skeleton.tsx
-¦       ¦       ¦   switch.tsx
-¦       ¦       ¦   textarea.tsx
-¦       ¦       ¦   toast.tsx
-¦       ¦       ¦   toaster.tsx
-¦       ¦       ¦   use-toast.ts
-¦       ¦       ¦   
-¦       ¦       +---redesign
+¦       ¦           AddressAutocomplete.tsx
+¦       ¦           badge.tsx
+¦       ¦           button.tsx
+¦       ¦           card.tsx
+¦       ¦           checkbox.tsx
+¦       ¦           Combobox.tsx
+¦       ¦           dialog.tsx
+¦       ¦           HomePhotoDropzone.tsx
+¦       ¦           imageupload.tsx
+¦       ¦           input.tsx
+¦       ¦           label.tsx
+¦       ¦           MapboxAddress.tsx
+¦       ¦           progressbar.tsx
+¦       ¦           select.tsx
+¦       ¦           skeleton.tsx
+¦       ¦           switch.tsx
+¦       ¦           textarea.tsx
+¦       ¦           toast.tsx
+¦       ¦           toaster.tsx
+¦       ¦           use-toast.ts
+¦       ¦           
 ¦       +---context
 ¦       ¦       AuthContext.tsx
 ¦       ¦       HomeContext.tsx

@@ -95,7 +95,13 @@ export default function HomeMetaCard({ home, onUpdated }: Props) {
   };
 
   const save = async () => {
-    commitAcresToSqft();
+    // Avoid state race: compute lot size locally from UI state
+    const acres = Number(acresText.trim());
+    const computedSqft =
+      Number.isFinite(acres) && acres > 0
+        ? Math.round(acres * SQFT_PER_ACRE)
+        : (Number(f.lotSize) > 0 ? Number(f.lotSize) : undefined);
+
     setBusy(true);
     try {
       const payload: Partial<HomeWithMeta> = {
@@ -110,7 +116,7 @@ export default function HomeMetaCard({ home, onUpdated }: Props) {
         features: f.features,
       };
       const sq = Number(f.squareFeet); if (Number.isFinite(sq) && sq > 0) payload.squareFeet = sq;
-      const ls = Number(f.lotSize); if (Number.isFinite(ls) && ls > 0) payload.lotSize = ls;
+      if (computedSqft && computedSqft > 0) payload.lotSize = computedSqft;
       const yb = Number(f.yearBuilt); if (Number.isFinite(yb) && yb > 1600) payload.yearBuilt = yb;
 
       const { data } = await api.patch(`/homes/${home.id}`, payload);

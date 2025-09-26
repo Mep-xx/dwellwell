@@ -2,7 +2,7 @@
 import { Request, Response } from "express";
 import { asyncHandler } from "../../middleware/asyncHandler";
 import { prisma } from "../../db/prisma";
-import { generateTasksForHomeBasics } from "../../services/taskgen";
+import { generateTasksFromTemplatesForHome } from "../../services/taskgen/fromTemplates";
 
 export default asyncHandler(async (req: Request, res: Response) => {
   const userId = (req as any).user?.id;
@@ -53,7 +53,7 @@ export default asyncHandler(async (req: Request, res: Response) => {
 
   if (shouldRegen) {
     try {
-      await generateTasksForHomeBasics(updated.id);
+      await generateTasksFromTemplatesForHome(updated.id);
     } catch (e) {
       console.error("[homes/update] taskgen error:", e);
     }

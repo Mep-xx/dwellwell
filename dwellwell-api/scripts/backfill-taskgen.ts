@@ -1,19 +1,20 @@
 // scripts/backfill-taskgen.ts
 import { prisma } from "../src/db/prisma";
-import { generateTasksForRoom, generateTasksForTrackable, generateTasksForHomeBasics } from "../src/services/taskgen";
+import { generateTasksFromTemplatesForRoom, generateTasksFromTemplatesForHome } from "../src/services/taskgen/fromTemplates";
 import { seedTasksForTrackable } from "../src/routes/trackables/_seedTasks";
+import { generateTasksForTrackable } from "../src/services/taskgen";
 
 async function main() {
-  console.log("Backfill: homes → home rules");
+  console.log("Backfill: homes → template assignment");
   const homes = await prisma.home.findMany({ select: { id: true } });
   for (const h of homes) {
-    await generateTasksForHomeBasics(h.id);
+    await generateTasksFromTemplatesForHome(h.id);
   }
 
-  console.log("Backfill: rooms → room rules");
+  console.log("Backfill: rooms → template assignment");
   const rooms = await prisma.room.findMany({ select: { id: true } });
   for (const r of rooms) {
-    await generateTasksForRoom(r.id);
+    await generateTasksFromTemplatesForRoom(r.id);
   }
 
   console.log("Backfill: trackables → rules + catalog links");
