@@ -37,7 +37,7 @@ export default function ProtectedLayout() {
 
           {/* Main nav (use /app/* paths) */}
           <nav className="p-4 space-y-2 flex-1">
-            <NavLink to="/app" className={({ isActive }) => navLinkClasses(isActive)}>
+            <NavLink to="/app" end className={({ isActive }) => navLinkClasses(isActive)}>
               🏠 Dashboard
             </NavLink>
 

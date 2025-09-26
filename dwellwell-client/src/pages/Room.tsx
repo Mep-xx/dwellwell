@@ -117,6 +117,8 @@ export default function RoomPage() {
 
   const [loading, setLoading] = useState(true);
   const [room, setRoom] = useState<Room | null>(preloaded ?? null);
+  const [roomTasks, setRoomTasks] = useState<any[]>([]);
+  const [tasksLoading, setTasksLoading] = useState(true);
   const [trackables, setTrackables] = useState<Trackable[]>([]);
   const [tasks, setTasks] = useState<UserTask[]>([]);
   const [trackableOpen, setTrackableOpen] = useState(false);
@@ -138,6 +140,24 @@ export default function RoomPage() {
   }, [flushNow]);
 
   /* ------------------------------- Load ------------------------------- */
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!roomId) { setRoomTasks([]); setTasksLoading(false); return; }
+      setTasksLoading(true);
+      try {
+        const { data } = await api.get(`/rooms/${roomId}/tasks`);
+        if (!cancelled) setRoomTasks(Array.isArray(data) ? data : []);
+      } catch {
+        if (!cancelled) setRoomTasks([]);
+      } finally {
+        if (!cancelled) setTasksLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [roomId]);
+
 
   useEffect(() => {
     let cancelled = false;
@@ -387,25 +407,38 @@ export default function RoomPage() {
 
           {/* Tasks */}
           <div className="rounded-lg border">
-            <div className="flex items-center justify-between px-4 py-2 border-b">
-              <div className="font-semibold">Tasks</div>
-              <div className="text-xs text-muted-foreground">{tasks.length} total</div>
+            <div className="px-4 py-2 border-b font-semibold flex items-center justify-between">
+              <span>Tasks</span>
+              <span className="text-xs text-muted-foreground">
+                {tasksLoading ? "Loading…" : `${roomTasks.length} total`}
+              </span>
             </div>
+
             <div className="p-4">
-              {tasks.length === 0 ? (
+              {tasksLoading ? (
+                <div className="text-sm text-muted-foreground">Loading…</div>
+              ) : roomTasks.length === 0 ? (
                 <div className="text-sm text-muted-foreground">No tasks yet for this room.</div>
               ) : (
-                <ul className="divide-y rounded border">
-                  {tasks.map((t) => {
-                    const due = t.dueDate ? new Date(t.dueDate).toLocaleDateString() : "—";
-                    const done = !!t.completedAt;
+                <ul className="space-y-2">
+                  {roomTasks.slice(0, 10).map((t) => {
+                    const overdue = t.status === "PENDING" && t.dueDate && new Date(t.dueDate) < new Date();
+                    const soon = t.status === "PENDING" && t.dueDate && !overdue &&
+                      (new Date(t.dueDate).getTime() - Date.now()) <= 7 * 24 * 60 * 60 * 1000;
                     return (
-                      <li key={t.id} className="flex items-center justify-between p-3">
-                        <div>
-                          <div className={`font-medium ${done ? "line-through text-muted-foreground" : ""}`}>{t.title}</div>
-                          <div className="text-xs text-muted-foreground">Due: {due}</div>
+                      <li key={t.id} className="flex items-center justify-between rounded-lg border bg-white px-3 py-2">
+                        <div className="min-w-0">
+                          <div className="truncate text-sm">{t.title || "Task"}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {(t.category || t.taskType || "General")}
+                            {t.dueDate ? ` • due ${new Date(t.dueDate).toLocaleDateString()}` : ""}
+                          </div>
                         </div>
-                        {done ? <span className="text-xs text-emerald-600">Completed</span> : null}
+                        <div className="flex items-center gap-2">
+                          {overdue && <span className="rounded bg-red-50 px-1.5 py-0.5 text-[11px] text-red-700 border border-red-200">Overdue</span>}
+                          {!overdue && soon && <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[11px] text-amber-700 border border-amber-200">Due soon</span>}
+                          <Button size="sm" variant="ghost" onClick={() => navigate(`/app/tasks?taskId=${encodeURIComponent(t.id)}`)}>Open</Button>
+                        </div>
                       </li>
                     );
                   })}

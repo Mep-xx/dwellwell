@@ -1,4 +1,4 @@
-// src/components/RoomsPanel.tsx
+// dwellwell-client/src/components/RoomsPanel.tsx
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   DndContext,
@@ -11,11 +11,8 @@ import {
   UniqueIdentifier,
   useDroppable,
 } from '@dnd-kit/core';
-import {
-  SortableContext,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
-import { SortableRoomCard } from '@/components/features/SortableRoomCard';
+import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { SortableRoomRow } from '@/components/features/SortableRoomRow';
 import { api } from '@/utils/api';
 import type { Room } from '@shared/types/room';
 import { Button } from '@/components/ui/button';
@@ -31,6 +28,8 @@ import {
   keyForFloor,
 } from '@shared/constants/floors';
 
+type TasksByRoom = Record<string, { overdue: number; soon: number; total?: number; trackables?: number }>;
+
 function groupByBucket(list: Room[]) {
   const map = new Map<FloorKey, Room[]>();
   BUCKETS.forEach(b => map.set(b.key, []));
@@ -44,7 +43,6 @@ function flatten(map: Map<FloorKey, Room[]>) {
   return out;
 }
 
-/** Find the index to insert a new room (for a given floor) in the flat array. */
 function findInsertIndexForFloor(flat: Room[], floor: FloorKey): number {
   let lastIdx = -1;
   for (let i = 0; i < flat.length; i++) {
@@ -80,13 +78,7 @@ function DroppableSection({
   const { isOver, setNodeRef } = useDroppable({ id });
 
   return (
-    <div
-      className={clsx(
-        'rounded-xl border bg-white shadow-sm',
-        isOver && 'ring-2 ring-status-info/40'
-      )}
-    >
-      {/* Header */}
+    <div className={clsx('rounded-xl border bg-white shadow-sm', isOver && 'ring-2 ring-status-info/40')}>
       <div className="flex items-center justify-between px-4 py-2 bg-gray-100 rounded-t-xl border-b">
         <div className="flex items-center gap-3">
           <span className="text-sm font-semibold tracking-wide">{title}</span>
@@ -97,7 +89,6 @@ function DroppableSection({
         </span>
       </div>
 
-      {/* Body / droppable */}
       <div
         ref={setNodeRef}
         id={id}
@@ -136,18 +127,21 @@ function DroppableSection({
 
 /* ================= Panel ================= */
 
-type Props = { homeId: string };
+type Props = {
+  homeId: string;
+  /** Optional per-room task counts (from Home.tsx) */
+  tasksByRoom?: TasksByRoom;
+  /** Optional hook to open Add Trackable pre-filled with room */
+  onAddTrackable?: (roomId: string) => void;
+};
 
-export function RoomsPanel({ homeId }: Props) {
+export function RoomsPanel({ homeId, tasksByRoom, onAddTrackable }: Props) {
   const { toast } = useToast();
   const navigate = useNavigate();
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
-  );
-
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const activeIdRef = useRef<UniqueIdentifier | null>(null);
   const fromContainerRef = useRef<string | null>(null);
 
@@ -191,8 +185,7 @@ export function RoomsPanel({ homeId }: Props) {
         const next = [...prev];
         const insertAt = findInsertIndexForFloor(prev, floor);
         next.splice(insertAt, 0, created);
-        api.put('/rooms/reorder', { homeId, roomIds: next.map((r: any) => r.id) })
-          .catch(() => {/* no-op */});
+        api.put('/rooms/reorder', { homeId, roomIds: next.map((r: any) => r.id) }).catch(() => {/* no-op */});
         return next;
       });
     } catch {
@@ -213,10 +206,7 @@ export function RoomsPanel({ homeId }: Props) {
     if (!overId) return;
 
     const fromContainer = fromContainerRef.current;
-    const toContainer = bucketIdSet.has(overId)
-      ? overId
-      : findContainerIdForItem(overId);
-
+    const toContainer = bucketIdSet.has(overId) ? overId : findContainerIdForItem(overId);
     if (!fromContainer || !toContainer) return;
 
     const fromKey = bucketKeyById.get(fromContainer)!;
@@ -283,27 +273,41 @@ export function RoomsPanel({ homeId }: Props) {
                 >
                   <SortableContext items={list.map((r: any) => r.id)} strategy={verticalListSortingStrategy}>
                     <div className="flex flex-col gap-2">
-                      {list.map((r: any) => (
-                        <SortableRoomCard
-                          key={r.id}
-                          id={r.id}
-                          room={r}
-                          onChange={(patch) => {
-                            setRooms(prev => prev.map((x: any) => (x.id === r.id ? { ...x, ...patch } : x)));
-                          }}
-                          // Edit button -> go straight to Room page
-                          onEdit={() => navigate(`/app/rooms/${r.id}`, { state: { room: r } })}
-                          onRemove={async () => {
-                            const prior = rooms as any[];
-                            setRooms(pr => (pr as any[]).filter((x: any) => x.id !== r.id) as any);
-                            try { await api.delete(`/rooms/${r.id}`); }
-                            catch {
-                              setRooms(prior as any);
-                              toast({ title: 'Failed to delete room', variant: 'destructive' });
-                            }
-                          }}
-                        />
-                      ))}
+                      {list.map((r: any) => {
+                        const tb = tasksByRoom?.[r.id];
+                        const overdue = tb?.overdue ?? 0;
+                        const soon = tb?.soon ?? 0;
+                        const total = tb?.total ?? 0; // if you later send a real total, it will show up
+                        // derive trackables if API exposes counts/arrays
+                        const trackables =
+                          (r as any).trackableCount ??
+                          ((Array.isArray((r as any).trackables) && (r as any).trackables.length) || 0);
+
+                        return (
+                          <SortableRoomRow
+                            key={r.id}
+                            id={r.id}
+                            room={r}
+                            overdue={overdue}
+                            dueSoon={soon}
+                            total={total}
+                            trackables={trackables}
+                            onEdit={() => navigate(`/app/rooms/${r.id}`, { state: { room: r } })}
+                            onViewTasks={() => navigate(`/app/tasks?roomId=${encodeURIComponent(r.id)}`)}
+                            onOpenRoom={() => navigate(`/app/rooms/${r.id}`, { state: { room: r } })}
+                            onRemove={async () => {
+                              const prior = rooms as any[];
+                              setRooms(pr => (pr as any[]).filter((x: any) => x.id !== r.id) as any);
+                              try { await api.delete(`/rooms/${r.id}`); }
+                              catch {
+                                setRooms(prior as any);
+                                toast({ title: 'Failed to delete room', variant: 'destructive' });
+                              }
+                            }}
+                            onAddTrackable={onAddTrackable ? () => onAddTrackable(r.id) : undefined}
+                          />
+                        );
+                      })}
                     </div>
                   </SortableContext>
                 </DroppableSection>

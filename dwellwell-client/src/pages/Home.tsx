@@ -1,6 +1,6 @@
 // dwellwell-client/src/pages/Home.tsx
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import type { Room } from "@shared/types/room";
 import type { Task } from "@shared/types/task";
 import { api } from "@/utils/api";
@@ -63,6 +63,7 @@ export default function HomePage() {
 
   const [recent, setRecent] = useState<RecentItem[]>([]);
   const metaRef = useRef<HTMLDivElement | null>(null);
+  const location = useLocation();
   const [tab, setTab] = useState<TabKey>("overview");
 
   // Add Trackable modal controls (prefill room)
@@ -89,6 +90,23 @@ export default function HomePage() {
   }, [id]);
 
   useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const qs = (params.get("tab") || "").toLowerCase();
+    if (["overview", "details", "rooms", "features", "services", "docs"].includes(qs)) {
+      setTab(qs as TabKey);
+    } else {
+      // keep existing tab if invalid / missing
+    }
+  }, [location.search]);
+
+  const setTabAndUrl = (next: TabKey) => {
+    const params = new URLSearchParams(location.search);
+    params.set("tab", next);
+    navigate({ pathname: location.pathname, search: params.toString() }, { replace: false });
+    setTab(next);
+  };
+
+  useEffect(() => {
     let cancelled = false;
     async function load() {
       if (!id) return;
@@ -104,7 +122,7 @@ export default function HomePage() {
           try {
             const up = await api.get("/tasks", { params: { homeId: id, limit: 10, sort: "dueDate" } });
             pool = Array.isArray(up.data) ? up.data : [];
-          } catch {/* ignore */}
+          } catch {/* ignore */ }
         }
 
         const ranked = [...pool].sort((a, b) => {
@@ -233,7 +251,7 @@ export default function HomePage() {
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-6">
       {/* ======= Hero ======= */}
-      <div className="overflow-hidden rounded-2xl border shadow-sm bg-white">
+      <div className="overflow-hidden rounded-2xl border shadow-sm bg-brand-background">
         <div className="relative h-56 w-full">
           <HomePhotoDropzone homeId={home.id} imageUrl={img} onUploaded={onUploaded} className="h-56 w-full" />
           {!home.isChecked && (
@@ -294,11 +312,10 @@ export default function HomePage() {
         {(["overview", "details", "rooms", "features", "services", "docs"] as TabKey[]).map(key => (
           <button
             key={key}
-            onClick={() => setTab(key)}
-            className={`px-3 py-2 text-sm -mb-px border-b-2 mr-1 ${
-              tab === key ? "border-brand-primary text-brand-primary font-semibold"
-                           : "border-transparent text-gray-600 hover:text-brand-primary"
-            }`}
+            onClick={() => setTabAndUrl(key)}
+            className={`px-3 py-2 text-sm -mb-px border-b-2 mr-1 ${tab === key ? "border-brand-primary text-brand-primary font-semibold"
+              : "border-transparent text-gray-600 hover:text-brand-primary"
+              }`}
           >
             {key === "overview" ? "Overview" :
               key === "details" ? "Details" :
@@ -328,30 +345,14 @@ export default function HomePage() {
           </div>
 
           {/* Recent + Upcoming Tasks */}
-          <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <div className="rounded-2xl border bg-white p-4">
-              <div className="mb-2 font-semibold">Recent Activity</div>
-              {recent.length === 0 ? (
-                <div className="text-sm text-muted-foreground">No recent activity.</div>
-              ) : (
-                <ul className="space-y-2">
-                  {recent.map((r) => (
-                    <li key={r.id} className="flex items-center gap-2 rounded-lg border bg-white px-3 py-2">
-                      <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                      <div className="flex-1">
-                        <div className="text-sm">{r.title}</div>
-                        {r.when ? <div className="text-xs text-muted-foreground">{new Date(r.when).toLocaleDateString()}</div> : null}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-
-            <div className="rounded-2xl border bg-white p-4">
+          <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-12">
+            {/* Upcoming Tasks */}
+            <div className="rounded-2xl border bg-white p-4 lg:col-span-8 order-2 lg:order-1">
               <div className="mb-2 flex items-center justify-between">
                 <div className="font-semibold">Upcoming Tasks</div>
-                <Button size="sm" variant="ghost" onClick={() => navigate(`/app/tasks?homeId=${encodeURIComponent(home.id)}`)}>View all</Button>
+                <Button size="sm" variant="ghost" onClick={() => navigate(`/app/tasks?homeId=${encodeURIComponent(home.id)}`)}>
+                  View all
+                </Button>
               </div>
 
               {tasksLoading ? (
@@ -388,6 +389,25 @@ export default function HomePage() {
                 </ul>
               )}
             </div>
+
+            <div className="rounded-2xl border bg-white p-4 lg:col-span-4 order-1 lg:order-2">
+              <div className="mb-2 font-semibold">Recent Activity</div>
+              {recent.length === 0 ? (
+                <div className="text-sm text-muted-foreground">No recent activity.</div>
+              ) : (
+                <ul className="space-y-2">
+                  {recent.map((r) => (
+                    <li key={r.id} className="flex items-center gap-2 rounded-lg border bg-white px-3 py-2">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                      <div className="flex-1">
+                        <div className="text-sm">{r.title}</div>
+                        {r.when ? <div className="text-xs text-muted-foreground">{new Date(r.when).toLocaleDateString()}</div> : null}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
         </>
       )}
@@ -401,14 +421,14 @@ export default function HomePage() {
               setSummary((s) =>
                 s
                   ? {
-                      ...s,
-                      squareFeet: (next.squareFeet as any) ?? s.squareFeet,
-                      yearBuilt: (next.yearBuilt as any) ?? s.yearBuilt,
-                      hasCentralAir: typeof (next as any).hasCentralAir === "boolean" ? (next as any).hasCentralAir : s.hasCentralAir,
-                      hasBaseboard: typeof (next as any).hasBaseboard === "boolean" ? (next as any).hasBaseboard : s.hasBaseboard,
-                      features: Array.isArray((next as any).features) ? ((next as any).features as string[]) : s.features,
-                      nickname: typeof next.nickname === "string" ? (next.nickname as string) : s.nickname,
-                    }
+                    ...s,
+                    squareFeet: (next.squareFeet as any) ?? s.squareFeet,
+                    yearBuilt: (next.yearBuilt as any) ?? s.yearBuilt,
+                    hasCentralAir: typeof (next as any).hasCentralAir === "boolean" ? (next as any).hasCentralAir : s.hasCentralAir,
+                    hasBaseboard: typeof (next as any).hasBaseboard === "boolean" ? (next as any).hasBaseboard : s.hasBaseboard,
+                    features: Array.isArray((next as any).features) ? ((next as any).features as string[]) : s.features,
+                    nickname: typeof next.nickname === "string" ? (next.nickname as string) : s.nickname,
+                  }
                   : s
               );
             }}
