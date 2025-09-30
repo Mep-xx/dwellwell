@@ -1,14 +1,14 @@
-//dwellwell-client/src/pages/LandingPage.tsx
+// dwellwell-client/src/pages/LandingPage.tsx
 import { useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { useAuth } from '@/context/AuthContext';
+import { Button } from '@/components/ui/button';
 
 export default function LandingPage() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
 
-  // If an authenticated session hits '/', push them to the app dashboard
   useEffect(() => {
     if (!loading && user) navigate('/app', { replace: true });
   }, [loading, user, navigate]);
@@ -28,15 +28,12 @@ export default function LandingPage() {
         <h2 className="text-4xl font-extrabold text-brand-foreground mb-4 leading-tight">
           Home maintenance made simple.
         </h2>
-        <p className="max-w-xl text-lg text-gray-700 mb-8 leading-relaxed text-balance">
+        <p className="max-w-xl text-lg text-muted-foreground mb-8 leading-relaxed text-balance">
           DwellWell helps new homeowners stay on top of tasks with reminders, smart suggestions,
           and easy tracking for everything from your AC to your lawn.
         </p>
-        <Link
-          to="/signup"
-          className="text-lg bg-brand-primary text-white px-6 py-3 rounded-xl shadow hover:bg-blue-600 transition"
-        >
-          Get Started
+        <Link to="/signup">
+          <Button size="lg" className="px-6">Get Started</Button>
         </Link>
       </section>
 
@@ -50,16 +47,16 @@ export default function LandingPage() {
           { icon: '🏆', title: 'Feel accomplished', desc: 'Celebrate your progress every month.' },
           { icon: '📅', title: 'Custom schedules', desc: 'Set your own pace with flexible timing.' },
         ].map((f, i) => (
-          <div key={i} className="bg-gray-50 border border-gray-100 rounded-xl p-6 shadow-sm hover:shadow-md transition">
-            <div className="text-3xl mb-2">{f.icon}</div>
+          <div key={i} className="bg-surface-alt border border-gray-100 rounded-xl p-6 shadow-sm hover:shadow-md transition">
+            <div className="text-3xl mb-2" aria-hidden>{f.icon}</div>
             <h3 className="text-xl font-semibold mb-1">{f.title}</h3>
-            <p className="text-gray-600">{f.desc}</p>
+            <p className="text-muted-foreground">{f.desc}</p>
           </div>
         ))}
       </section>
 
       {/* Testimonials */}
-      <section className="bg-gray-50 px-4 sm:px-6 py-16 text-center">
+      <section className="bg-surface-alt px-4 sm:px-6 py-16 text-center">
         <h3 className="text-2xl font-bold text-brand-foreground mb-6">What homeowners are saying</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
           {[
@@ -82,7 +79,7 @@ export default function LandingPage() {
             <div key={i} className="bg-white p-6 rounded-xl shadow border border-gray-100">
               <p className="text-gray-700 italic mb-4">“{t.quote}”</p>
               <p className="text-sm font-semibold text-brand-primary">{t.name}</p>
-              <p className="text-sm text-gray-500">{t.location}</p>
+              <p className="text-sm text-muted-foreground">{t.location}</p>
             </div>
           ))}
         </div>
@@ -90,14 +87,9 @@ export default function LandingPage() {
 
       {/* CTA */}
       <section className="text-center px-4 sm:px-6 py-12 bg-brand-background">
-        <h3 className="text-2xl font-bold text-brand-foreground mb-4">
-          Ready to simplify your home care?
-        </h3>
-        <Link
-          to="/signup"
-          className="text-lg bg-brand-primary text-white px-6 py-3 rounded-xl shadow hover:bg-blue-600 transition"
-        >
-          Get Started Now
+        <h3 className="text-2xl font-bold text-brand-foreground mb-4">Ready to simplify your home care?</h3>
+        <Link to="/signup">
+          <Button size="lg" className="px-6">Get Started Now</Button>
         </Link>
       </section>
     </div>

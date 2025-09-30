@@ -1,4 +1,4 @@
-//dwellwell-client/src/components/ui/HomePhotoDropzone.tsx
+// dwellwell-client/src/components/ui/HomePhotoDropzone.tsx
 import { useCallback, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { api } from "@/utils/api";
@@ -15,12 +15,10 @@ function absolutizeFromApiBase(pathOrUrl: string): string {
   if (!pathOrUrl) return "";
   if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl;
 
-  // Normalize “/api/…”, “api/…”, “/uploads/…”, etc.
   const trimmed = String(pathOrUrl)
     .replace(/^\/?api\/?/, "")
     .replace(/^\/+/, "");
 
-  // In dev, prefer relative path so Vite’s proxy serves /uploads
   if (import.meta.env.DEV && trimmed.startsWith("uploads/")) {
     return `/${trimmed}`;
   }
@@ -82,7 +80,7 @@ export default function HomePhotoDropzone({
   return (
     <div
       {...getRootProps()}
-      className={`group relative ${className} cursor-pointer`}
+      className={`group relative ${className} cursor-pointer overflow-hidden rounded-xl border border-token bg-card`}
       aria-label="Home photo — click or drop to replace"
       role="button"
       tabIndex={0}
@@ -93,24 +91,24 @@ export default function HomePhotoDropzone({
       {imageUrl ? (
         <img src={imageUrl} alt="Home" className="h-full w-full object-cover" />
       ) : (
-        <div className="h-full w-full grid place-items-center text-sm text-muted-foreground">
+        <div className="grid h-full w-full place-items-center text-sm text-muted-foreground">
           No photo yet — click or drop to upload
         </div>
       )}
 
-      {/* Overlay */}
+      {/* Overlay hint */}
       <div
         className={`pointer-events-none absolute inset-0 grid place-items-center bg-black/0 transition
                     group-hover:bg-black/20 ${isDragActive ? "bg-black/30" : ""}`}
       >
-        <div className="rounded-full bg-white/90 px-3 py-1 text-xs font-medium opacity-0 transition group-hover:opacity-100">
+        <div className="rounded-full border border-token bg-card/90 px-3 py-1 text-xs font-medium opacity-0 transition group-hover:opacity-100">
           {busy ? "Uploading…" : isDragActive ? "Drop to upload" : "Click or drop to replace"}
         </div>
       </div>
 
-      {/* Inline error badge (bottom-left) */}
+      {/* Inline error badge */}
       {error && (
-        <div className="absolute left-2 bottom-2 rounded bg-red-600 text-white text-xs px-2 py-1">
+        <div className="absolute left-2 bottom-2 rounded bg-red-600 px-2 py-1 text-xs text-white">
           {error}
         </div>
       )}

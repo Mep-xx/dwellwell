@@ -18,6 +18,7 @@ import HomeMetaCard from "@/components/redesign/HomeMetaCard";
 import type { HomeWithMeta } from "@/types/extended";
 import RoomsPanel from "@/components/redesign/RoomsPanel";
 import TrackableModal from "@/components/features/TrackableModal"; // NEW
+import QuickPromptsBar from "@/components/features/QuickPromptsBar"; // NEW
 
 /* ====================== Types ====================== */
 type Summary = {
@@ -69,6 +70,9 @@ export default function HomePage() {
   // Add Trackable modal controls (prefill room)
   const [trackableOpen, setTrackableOpen] = useState(false);
   const [prefillRoomId, setPrefillRoomId] = useState<string | undefined>(undefined);
+
+  // NEW: Lite trackables list for QuickPromptsBar (id, roomId, kind)
+  const [trackablesLite, setTrackablesLite] = useState<Array<{ id: string; roomId?: string | null; kind?: string | null }>>([]);
 
   // ---- effects (ALWAYS run)
   useEffect(() => {
@@ -165,6 +169,33 @@ export default function HomePage() {
     return () => { cancelled = true; };
   }, [id]);
 
+  // NEW: load & refetch lite trackables for QuickPromptsBar
+  useEffect(() => {
+    let cancelled = false;
+    async function loadTrackablesLite() {
+      if (!id) return;
+      try {
+        const res = await api.get("/trackables", { params: { homeId: id, limit: 500 } });
+        if (cancelled) return;
+        const list = Array.isArray(res.data) ? res.data : [];
+        setTrackablesLite(list.map((t: any) => ({ id: t.id, roomId: t.roomId ?? null, kind: t.kind ?? null })));
+      } catch {
+        if (!cancelled) setTrackablesLite([]);
+      }
+    }
+    loadTrackablesLite();
+    return () => { cancelled = true; };
+  }, [id]);
+
+  const refetchTrackablesLite = useCallback(async () => {
+    if (!id) return;
+    try {
+      const res = await api.get("/trackables", { params: { homeId: id, limit: 500 } });
+      const list = Array.isArray(res.data) ? res.data : [];
+      setTrackablesLite(list.map((t: any) => ({ id: t.id, roomId: t.roomId ?? null, kind: t.kind ?? null })));
+    } catch { /* ignore */ }
+  }, [id]);
+
   // ---- memoized derived data (ALWAYS run; never after a conditional return)
   const img = useMemo(() => resolveHomeImageUrl(home?.imageUrl), [home?.imageUrl]);
   const zillowUrl = useMemo(() => {
@@ -255,7 +286,7 @@ export default function HomePage() {
         <div className="relative h-56 w-full">
           <HomePhotoDropzone homeId={home.id} imageUrl={img} onUploaded={onUploaded} className="h-56 w-full" />
           {!home.isChecked && (
-            <span className="absolute top-3 left-3 rounded bg-gray-900/80 px-2 py-0.5 text-[11px] text-white">Not in To-Do</span>
+            <span className="absolute top-3 left-3 rounded bg-surface px-2 py-0.5 text-[11px] text-white">Not in To-Do</span>
           )}
         </div>
 
@@ -329,6 +360,26 @@ export default function HomePage() {
       {/* ======= Tab Panels ======= */}
       {tab === "overview" && (
         <>
+          {/* Quick add common items (Yes/No prompts) */}
+          <div className="mt-4">
+            <QuickPromptsBar
+              homeId={home.id}
+              rooms={home.rooms ?? []}
+              trackables={trackablesLite}
+              onCreated={() => {
+                refetchTrackablesLite();
+                toast({
+                  title: "Added to your home",
+                  description: "We created routine tasks for it. You can add brand/model later.",
+                });
+                // (Optional) trigger a task refresh if you want the new tasks to show immediately
+                // ;(async () => {
+                //   try { await api.get("/tasks", { params: { homeId: id, status: "active", limit: 50 } }); } catch {}
+                // })();
+              }}
+            />
+          </div>
+
           {/* Status strip */}
           <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-4">
             <StatusCard icon={<AlertCircle className="h-5 w-5" />} label="Overdue" value={tasksLoading ? "…" : String(overdueCount)} tone="danger" />
@@ -421,14 +472,14 @@ export default function HomePage() {
               setSummary((s) =>
                 s
                   ? {
-                    ...s,
-                    squareFeet: (next.squareFeet as any) ?? s.squareFeet,
-                    yearBuilt: (next.yearBuilt as any) ?? s.yearBuilt,
-                    hasCentralAir: typeof (next as any).hasCentralAir === "boolean" ? (next as any).hasCentralAir : s.hasCentralAir,
-                    hasBaseboard: typeof (next as any).hasBaseboard === "boolean" ? (next as any).hasBaseboard : s.hasBaseboard,
-                    features: Array.isArray((next as any).features) ? ((next as any).features as string[]) : s.features,
-                    nickname: typeof next.nickname === "string" ? (next.nickname as string) : s.nickname,
-                  }
+                      ...s,
+                      squareFeet: (next.squareFeet as any) ?? s.squareFeet,
+                      yearBuilt: (next.yearBuilt as any) ?? s.yearBuilt,
+                      hasCentralAir: typeof (next as any).hasCentralAir === "boolean" ? (next as any).hasCentralAir : s.hasCentralAir,
+                      hasBaseboard: typeof (next as any).hasBaseboard === "boolean" ? (next as any).hasBaseboard : s.hasBaseboard,
+                      features: Array.isArray((next as any).features) ? ((next as any).features as string[]) : s.features,
+                      nickname: typeof next.nickname === "string" ? (next.nickname as string) : s.nickname,
+                    }
                   : s
               );
             }}
@@ -438,6 +489,8 @@ export default function HomePage() {
 
       {tab === "rooms" && (
         <div className="mt-6 rounded-2xl border bg-white p-4">
+          {/* Optional: also show QuickPromptsBar here if you want it visible per-room */}
+          {/* <QuickPromptsBar homeId={home.id} rooms={home.rooms ?? []} trackables={trackablesLite} onCreated={() => { refetchTrackablesLite(); }} /> */}
           <RoomsPanel homeId={home.id} tasksByRoom={tasksByRoom} onAddTrackable={(roomId) => { setPrefillRoomId(roomId); setTrackableOpen(true); }} />
         </div>
       )}

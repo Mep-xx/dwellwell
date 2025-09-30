@@ -28,28 +28,18 @@ type Props = {
 function resolveHomeImageUrl(v?: string | null) {
   const PLACEHOLDER = "/images/home_placeholder.png";
   if (!v) return PLACEHOLDER;
-
-  // Already an absolute URL
   if (/^https?:\/\//i.test(v)) return v;
-
-  // App-provided placeholders
   if (v.startsWith("/images/")) return v;
-
   const apiOrigin = getApiOrigin();
-
-  const trimmed = v.replace(/^\/?api\/?/, "").replace(/^\/+/, ""); // drop leading api/ and slashes
-
-  // Prefer relative path in dev (Vite proxy handles /uploads)
+  const trimmed = v.replace(/^\/?api\/?/, "").replace(/^\/+/, "");
   if (trimmed.startsWith("uploads/")) {
     return import.meta.env.DEV ? `/${trimmed}` : `${apiOrigin}/${trimmed}`;
   }
-  // Last resort: if server returned a weird relative path, still try to make it absolute
   return `${apiOrigin}/${trimmed}`;
 }
 
 export function HomeCard({ home, summary, onToggle, onEdit, onDelete }: Props) {
   const [expanded, setExpanded] = useState(false);
-  const [editingRoom, setEditingRoom] = useState<Room | null>(null);
 
   const getPercent = (complete: number, total: number) =>
     total === 0 ? 100 : Math.round((complete / Math.max(total, 1)) * 100);
@@ -66,13 +56,7 @@ export function HomeCard({ home, summary, onToggle, onEdit, onDelete }: Props) {
         new Date(t.dueDate) >= now &&
         new Date(t.dueDate) < new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
     ).length;
-    return {
-      complete,
-      dueSoon,
-      overdue,
-      total: tasks.length,
-      percent: getPercent(complete, tasks.length),
-    };
+    return { complete, dueSoon, overdue, total: tasks.length, percent: getPercent(complete, tasks.length) };
   };
 
   const imageSrc = resolveHomeImageUrl(home.imageUrl);
@@ -80,9 +64,7 @@ export function HomeCard({ home, summary, onToggle, onEdit, onDelete }: Props) {
 
   return (
     <div
-      className={`relative rounded-xl border shadow overflow-hidden
-                  transition-all hover:shadow-lg hover:-translate-y-0.5 cursor-pointer
-                  focus-within:ring-2 focus-within:ring-brand-primary focus-within:ring-offset-2 focus-within:ring-offset-background`}
+      className="relative rounded-xl border border-token bg-card text-body shadow transition-all hover:shadow-lg hover:-translate-y-0.5 cursor-pointer focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-2"
     >
       {/* Image */}
       <img
@@ -93,20 +75,20 @@ export function HomeCard({ home, summary, onToggle, onEdit, onDelete }: Props) {
       />
 
       {!home.isChecked && (
-        <div className="absolute top-2 left-2 bg-gray-800 text-white text-xs px-2 py-1 rounded">
+        <div className="absolute top-2 left-2 bg-surface-alt/90 text-body text-xs px-2 py-1 rounded border border-token">
           Not in To-Do
         </div>
       )}
 
       {/* Info */}
-      <div className="p-4 space-y-2 text-sm text-gray-700">
+      <div className="p-4 space-y-2 text-sm">
         {home.nickname && (
-          <p className="text-sm text-gray-500 italic">{home.nickname}</p>
+          <p className="text-sm italic text-muted">{home.nickname}</p>
         )}
-        <p className="text-base font-semibold text-gray-800">
+        <p className="text-base font-semibold">
           {home.address}, {home.city}, {home.state}
         </p>
-        <p>
+        <p className="text-muted">
           {home.squareFeet?.toLocaleString?.()} sq. ft. • {acres?.toFixed?.(2)} acres • Built in {home.yearBuilt}
         </p>
         {Array.isArray(home.features) && home.features.length > 0 && (
@@ -114,7 +96,7 @@ export function HomeCard({ home, summary, onToggle, onEdit, onDelete }: Props) {
             {home.features.map((feature) => (
               <span
                 key={feature}
-                className="bg-gray-100 text-xs text-gray-800 px-2 py-1 rounded-full border border-gray-300"
+                className="bg-surface-alt text-xs text-body px-2 py-1 rounded-full border border-token"
               >
                 {feature}
               </span>
@@ -125,17 +107,17 @@ export function HomeCard({ home, summary, onToggle, onEdit, onDelete }: Props) {
 
       {/* Score */}
       <div className="px-4 pb-4">
-        <p className="text-base font-medium text-gray-800">
+        <p className="text-base font-medium">
           🏅 Maintenance Score: {getPercent(summary?.complete || 0, summary?.total || 0)}% Complete
         </p>
-        <p className="text-sm text-gray-600 flex gap-4">
+        <p className="text-sm text-muted flex gap-4">
           <span className="flex items-center gap-1">✅ {summary?.complete ?? 0} Tasks Done</span>
           <span className="flex items-center gap-1">🕒 {summary?.dueSoon ?? 0} Due Soon</span>
           <span className="flex items-center gap-1">⚠️ {summary?.overdue ?? 0} Overdue</span>
         </p>
-        <div className="w-full bg-gray-200 h-2 rounded mt-2 overflow-hidden">
+        <div className="w-full bg-surface-alt h-2 rounded mt-2 overflow-hidden border border-token">
           <div
-            className="bg-brand-primary h-2 transition-all"
+            className="bg-primary h-2"
             style={{ width: `${getPercent(summary?.complete || 0, summary?.total || 0)}%` }}
           />
         </div>
@@ -144,12 +126,8 @@ export function HomeCard({ home, summary, onToggle, onEdit, onDelete }: Props) {
       {/* Expand / Collapse Button */}
       {home.rooms && home.rooms.length > 0 && (
         <button
-          onClick={(e) => {
-            e.stopPropagation(); // prevent parent navigation
-            setExpanded((prev) => !prev);
-          }}
-          className="px-4 py-2 bg-brand-primary/10 hover:bg-brand-primary/20 text-brand-primary rounded-full
-                     flex items-center gap-2 text-sm font-medium mx-auto my-2 transition-colors"
+          onClick={(e) => { e.stopPropagation(); setExpanded((prev) => !prev); }}
+          className="px-4 py-2 bg-primary/10 hover:bg-primary/20 text-[rgb(var(--primary))] rounded-full flex items-center gap-2 text-sm font-medium mx-auto my-2 transition-colors"
         >
           {expanded ? "Hide Rooms" : "Show Rooms"}
           {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -162,43 +140,40 @@ export function HomeCard({ home, summary, onToggle, onEdit, onDelete }: Props) {
           {home.rooms?.map((room) => {
             const stats = getRoomStats(room.userTasks || []);
             return (
-              <div key={room.id} className="border-t pt-4">
+              <div key={room.id} className="border-t border-token pt-4">
                 <div className="flex justify-between items-center">
-                  <p className="font-medium text-gray-800 flex items-center gap-2">
+                  <p className="font-medium flex items-center gap-2">
                     <span className="text-lg">{ROOM_TYPE_ICONS[room.type] ?? "📦"}</span>
                     {room.name || room.type}
                   </p>
                   <Button
                     variant="outline"
                     size="sm"
-                    className="text-gray-500 hover:text-brand-primary"
-                    onClick={(e) => {
-                      e.stopPropagation(); // prevent parent navigation
-                      setEditingRoom(room);
-                    }}
+                    className="text-muted hover:text-[rgb(var(--primary))]"
+                    onClick={(e) => { e.stopPropagation(); }}
                   >
                     <Settings2 className="w-4 h-4" />
                   </Button>
                 </div>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-muted">
                   📋 {stats.total} total • ✅ {stats.complete} done • 🕒 {stats.dueSoon} due soon • ⚠️ {stats.overdue} overdue
                 </p>
-                <div className="w-full bg-gray-200 h-2 rounded mt-1 overflow-hidden">
-                  <div className="bg-brand-primary h-2" style={{ width: `${stats.percent}%` }} />
+                <div className="w-full bg-surface-alt h-2 rounded mt-1 overflow-hidden border border-token">
+                  <div className="bg-primary h-2" style={{ width: `${stats.percent}%` }} />
                 </div>
                 {room.userTasks && room.userTasks.length > 0 ? (
                   room.userTasks.some((t) => t.status !== "COMPLETED") ? (
-                    <ul className="mt-2 pl-4 text-sm list-disc text-gray-700 space-y-1">
+                    <ul className="mt-2 pl-4 text-sm list-disc text-body space-y-1">
                       {room.userTasks
                         .filter((t) => t.status !== "COMPLETED")
                         .slice(0, 5)
                         .map((userTask) => <li key={userTask.id}>{userTask.title}</li>)}
                     </ul>
                   ) : (
-                    <p className="text-sm italic text-gray-400 mt-1">All tasks are complete!</p>
+                    <p className="text-sm italic text-muted mt-1">All tasks are complete!</p>
                   )
                 ) : (
-                  <p className="text-sm italic text-gray-400 mt-1">No tasks assigned to this room.</p>
+                  <p className="text-sm italic text-muted mt-1">No tasks assigned to this room.</p>
                 )}
               </div>
             );
@@ -207,33 +182,27 @@ export function HomeCard({ home, summary, onToggle, onEdit, onDelete }: Props) {
       )}
 
       {/* Footer */}
-      <div className="p-4 border-t flex justify-between items-center" onClick={(e) => e.stopPropagation()}>
+      <div className="p-4 border-t border-token flex justify-between items-center" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-2">
           <Switch
             checked={home.isChecked}
             onClick={(e) => e.stopPropagation()}
             onCheckedChange={(value) => onToggle(home.id, value)}
           />
-          <span className="text-sm text-gray-600">Include in To-Do</span>
+          <span className="text-sm text-muted">Include in To-Do</span>
         </div>
         <div className="flex items-center gap-3">
           <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit(home);
-            }}
+            onClick={(e) => { e.stopPropagation(); onEdit(home); }}
             title="Edit"
-            className="text-gray-500 hover:text-gray-700"
+            className="text-muted hover:text-body"
           >
             <Pencil className="w-5 h-5" />
           </button>
           <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete(home.id);
-            }}
+            onClick={(e) => { e.stopPropagation(); onDelete(home.id); }}
             title="Delete"
-            className="text-gray-500 hover:text-red-600"
+            className="text-muted hover:text-danger"
           >
             <Trash2 className="w-5 h-5" />
           </button>

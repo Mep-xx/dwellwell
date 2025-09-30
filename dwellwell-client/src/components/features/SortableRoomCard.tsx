@@ -51,7 +51,7 @@ function chipify(detail: any): string[] {
   if (detail.heatRadiator) chips.push('radiator heat');
   const sv = Number.isFinite(detail.hvacSupplyVents) ? Number(detail.hvacSupplyVents) : 0;
   const rv = Number.isFinite(detail.hvacReturnVents) ? Number(detail.hvacReturnVents) : 0;
-  if (sv > 0 || rv > 0) chips.push(`HVAC S:${sv||0} R:${rv||0}`);
+  if (sv > 0 || rv > 0) chips.push(`HVAC S:${sv || 0} R:${rv || 0}`);
   if (detail.hasCeilingFan) chips.push('ceiling fan');
   if (detail.ceilingFixture && detail.ceilingFixture !== 'none') {
     chips.push(String(detail.ceilingFixture).replaceAll('_', ' '));
@@ -124,10 +124,10 @@ export function SortableRoomCard({ id, room, onChange, onRemove, onEdit }: Props
       ref={setNodeRef}
       style={style}
       className={clsx(
-        'relative border rounded bg-white px-3 py-2 shadow-sm transition-all w-full',
+        'relative border border-token rounded bg-card text-body px-3 py-2 shadow-sm transition-all w-full',
         'hover:shadow-md',
         saving === 'ok' && 'animate-pulse-green',
-        saving === 'error' ? 'border-red-500 animate-shake' : 'border-gray-200'
+        saving === 'error' ? 'border-red-500 animate-shake' : 'border-token'
       )}
       aria-live="polite"
       aria-busy={saving === 'saving'}
@@ -138,7 +138,7 @@ export function SortableRoomCard({ id, room, onChange, onRemove, onEdit }: Props
         <div
           {...attributes}
           {...listeners}
-          className="cursor-grab pr-2 text-gray-400 select-none"
+          className="cursor-grab pr-2 text-muted select-none"
           title="Drag to reorder"
         >
           ☰
@@ -209,7 +209,7 @@ export function SortableRoomCard({ id, room, onChange, onRemove, onEdit }: Props
         {onEdit && (
           <button
             onClick={onEdit}
-            className="p-1 rounded hover:bg-gray-100"
+            className="p-1 rounded hover:bg-surface-alt/60"
             title="Edit room"
             aria-label="Edit room"
           >
@@ -232,14 +232,14 @@ export function SortableRoomCard({ id, room, onChange, onRemove, onEdit }: Props
           {chips.slice(0, 10).map((c, i) => (
             <span
               key={`${c}-${i}`}
-              className="text-[11px] leading-5 px-2 py-0.5 rounded-full border bg-gray-50 text-gray-700"
+              className="text-[11px] leading-5 px-2 py-0.5 rounded-full border border-token bg-surface-alt text-body"
               title={c}
             >
               {c}
             </span>
           ))}
           {chips.length > 10 && (
-            <span className="text-[11px] leading-5 px-2 py-0.5 rounded-full border bg-gray-50 text-gray-700">
+            <span className="text-[11px] leading-5 px-2 py-0.5 rounded-full border border-token bg-surface-alt text-body">
               +{chips.length - 10} more
             </span>
           )}

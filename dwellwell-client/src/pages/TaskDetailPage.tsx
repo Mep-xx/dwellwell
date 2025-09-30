@@ -52,6 +52,20 @@ type DetailResponse = {
   };
 };
 
+function extractYouTubeId(url: string): string | null {
+  try {
+    const u = new URL(url);
+    if (u.hostname.includes('youtu.be')) return u.pathname.split('/').filter(Boolean)[0] ?? null;
+    if (u.searchParams.get('v')) return u.searchParams.get('v');
+    // handle /shorts/{id}, /embed/{id}, /live/{id}
+    const m = u.pathname.match(/\/(shorts|embed|live)\/([^/?#]+)/i);
+    if (m?.[2]) return m[2];
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export default function TaskDetailPage() {
   const { taskId } = useParams();
   const nav = useNavigate();
@@ -179,22 +193,26 @@ export default function TaskDetailPage() {
                 const isYoutube = r.type?.toLowerCase() === 'youtube' || (r.url && /youtube\.com|youtu\.be/.test(r.url));
                 const isPdf = r.type?.toLowerCase() === 'pdf' || (r.url && /\.pdf($|\?)/i.test(r.url ?? ''));
 
-                if (isYoutube) {
-                  const id =
-                    new URL(r.url!).searchParams.get('v') ??
-                    r.url!.split('/').pop();
+                if (isYoutube && r.url) {
+                  const id = extractYouTubeId(r.url);
                   return (
                     <div key={i} className="space-y-1">
                       <div className="text-sm font-medium">{r.label ?? 'Video'}</div>
-                      <div className="aspect-video rounded-lg overflow-hidden bg-black">
-                        <iframe
-                          className="w-full h-full"
-                          src={`https://www.youtube.com/embed/${id}`}
-                          title={r.label ?? 'YouTube video'}
-                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                          allowFullScreen
-                        />
-                      </div>
+                      {id ? (
+                        <div className="aspect-video rounded-lg overflow-hidden bg-black">
+                          <iframe
+                            className="w-full h-full"
+                            src={`https://www.youtube.com/embed/${id}`}
+                            title={r.label ?? 'YouTube video'}
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowFullScreen
+                          />
+                        </div>
+                      ) : (
+                        <a className="text-blue-700 underline" href={r.url} target="_blank" rel="noreferrer">
+                          Open video
+                        </a>
+                      )}
                     </div>
                   );
                 }

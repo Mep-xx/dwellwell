@@ -1,4 +1,4 @@
-// /dwellwell-client/src/components/redesign/HomeCardLarge.tsx
+// dwellwell-client/src/components/redesign/HomeCardLarge.tsx
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Home } from "@shared/types/home";
@@ -74,12 +74,12 @@ export default function HomeCardLarge({
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") open();
         }}
-        className={`grid grid-cols-12 gap-0 overflow-hidden rounded-2xl border bg-white shadow-sm transition hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary ${className}`}
+        className={`grid grid-cols-12 gap-0 overflow-hidden rounded-2xl border border-token bg-card shadow-sm transition hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary ${className}`}
       >
         <div className="col-span-12 md:col-span-5 relative h-44 md:h-full">
           <img src={img} alt={label} title={label} className="h-full w-full object-cover" />
           {!home.isChecked && (
-            <span className="absolute top-2 left-2 rounded bg-gray-900/80 px-2 py-0.5 text-[11px] text-white">
+            <span className="absolute top-2 left-2 rounded bg-black/60 px-2 py-0.5 text-[11px] text-white">
               Not in To-Do
             </span>
           )}
@@ -101,7 +101,7 @@ export default function HomeCardLarge({
                 {summary!.features.slice(0, 6).map((f) => (
                   <span
                     key={f}
-                    className="rounded-full border px-2 py-0.5 text-[11px] text-muted-foreground"
+                    className="rounded-full border border-token px-2 py-0.5 text-[11px] text-muted-foreground bg-card"
                   >
                     {f}
                   </span>
@@ -134,11 +134,11 @@ export default function HomeCardLarge({
 
             {/* Counts (Vehicles removed) */}
             <div className="mt-4 grid grid-cols-2 gap-3 text-center text-sm">
-              <div className="rounded-lg border py-2">
+              <div className="rounded-lg border border-token py-2">
                 <div className="text-xl font-semibold">{summary?.counts.rooms ?? 0}</div>
                 <div className="text-[11px] text-muted-foreground">Rooms</div>
               </div>
-              <div className="rounded-lg border py-2">
+              <div className="rounded-lg border border-token py-2">
                 <div className="text-xl font-semibold">{summary?.counts.trackables ?? 0}</div>
                 <div className="text-[11px] text-muted-foreground">Trackables</div>
               </div>
@@ -147,7 +147,7 @@ export default function HomeCardLarge({
 
           {/* Footer actions */}
           <div
-            className="flex items-center justify-between gap-3 border-t px-4 py-3"
+            className="flex items-center justify-between gap-3 border-t border-token px-4 py-3 bg-surface-alt/40"
             onClick={(e) => e.stopPropagation()}
             onKeyDown={(e) => e.stopPropagation()}
           >
@@ -161,7 +161,7 @@ export default function HomeCardLarge({
 
             <button
               title="Delete home"
-              className="inline-flex items-center rounded-md border px-2.5 py-1.5 text-sm text-red-600 hover:bg-red-50"
+              className="inline-flex items-center rounded-md border border-token px-2.5 py-1.5 text-sm text-red-600 hover:bg-red-50"
               onClick={() => setShowDelete(true)}
             >
               <Trash2 className="mr-1 h-4 w-4" />

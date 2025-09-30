@@ -10,6 +10,7 @@ import resume from './resume';
 import retire from './retire';
 import replace from './replace';
 import revive from './revive';
+import quickCreate from "./quickCreate";
 
 const router = Router();
 router.use(requireAuth);
@@ -24,6 +25,9 @@ router.post('/:trackableId/resume', resume);
 router.post('/:trackableId/retire', retire);
 router.post('/:trackableId/replace', replace);
 router.post('/:trackableId/revive', revive);
+
+//Quick Add
+router.post("/quick-create", ...quickCreate);
 
 // legacy hard delete (keep, but recommend retire instead)
 router.delete('/:trackableId', remove);

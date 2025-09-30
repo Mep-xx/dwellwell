@@ -1,4 +1,4 @@
-// dwellwell-client/src/components/layout/Layout.tsx
+//dwellwell-client/src/components/layout/Layout.tsx
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
@@ -25,9 +25,9 @@ export default function Layout() {
   }, [reason]);
 
   return (
-    <div className="min-h-screen flex flex-col bg-white text-gray-800">
+    <div className="min-h-screen flex flex-col bg-surface text-body">
       {/* Public header (no sidebar here) */}
-      <header className="px-6 py-4 flex items-center justify-between shadow bg-white">
+      <header className="px-6 py-4 flex items-center justify-between shadow bg-card border-b border-token">
         <Link to="/" className="flex items-center gap-2">
           <img src="/logo.png" alt="DwellWell Logo" className="h-10" />
           <span className="sr-only">DwellWell</span>
@@ -39,7 +39,7 @@ export default function Layout() {
             {!onLogin && (
               <Link
                 to="/login"
-                className="text-sm px-4 py-2 rounded border border-gray-300 hover:bg-gray-50 transition"
+                className="text-sm px-4 py-2 rounded border border-token bg-card text-body hover:bg-primary-soft hover:text-primary transition"
               >
                 Log In
               </Link>
@@ -47,7 +47,7 @@ export default function Layout() {
             {!onSignup && (
               <Link
                 to="/signup"
-                className="text-sm bg-brand-primary text-white px-4 py-2 rounded hover:bg-blue-600 transition"
+                className="text-sm bg-primary text-on-primary px-4 py-2 rounded hover:opacity-90 transition"
               >
                 Get Started
               </Link>
@@ -58,7 +58,7 @@ export default function Layout() {
 
       {/* Optional banner for public routes */}
       {!loading && !user && banner && (
-        <div className="mx-6 mt-3 rounded bg-yellow-50 border border-yellow-200 text-yellow-900 px-3 py-2 text-sm">
+        <div className="mx-6 mt-3 rounded bg-primary-soft border border-primary/40 text-body px-3 py-2 text-sm">
           {banner}
         </div>
       )}
@@ -68,7 +68,7 @@ export default function Layout() {
       </main>
 
       {/* Single footer */}
-      <footer className="text-center text-sm text-gray-500 py-6 border-t px-4">
+      <footer className="text-center text-sm text-muted py-6 border-t border-token px-4 bg-card">
         © {new Date().getFullYear()} DwellWell. All rights reserved.
       </footer>
     </div>

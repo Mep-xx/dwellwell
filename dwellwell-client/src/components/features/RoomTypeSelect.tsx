@@ -18,7 +18,7 @@ export function RoomTypeSelect({ value, onChange, className }: Props) {
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full border rounded px-3 py-2 text-sm"
+        className="w-full border border-token bg-card text-body rounded px-3 py-2 text-sm"
       >
         <option value="">Select a type...</option>
         {sortedTypes.map((type) => (

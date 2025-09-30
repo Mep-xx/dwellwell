@@ -1,3 +1,4 @@
+//dwellwell-client/src/components/features/TaskCard.tsx
 import { useState } from 'react';
 import { api } from '@/utils/api';
 import { Task } from '@shared/types/task';
@@ -41,12 +42,11 @@ export default function TaskCard({ task, onStatusChange }: Props) {
 
   const gradient = categoryGradients[task.category || 'general'];
 
-  // Lifecycle helpers (pause/resume/archive/unarchive). After API call, we reuse onStatusChange
-  // to trigger parent refresh logic without changing task status directly here.
+  // Lifecycle helpers
   const pauseTask = async () => {
     try {
       await api.post(`/tasks/${task.id}/pause`);
-      onStatusChange(task.id, task.status); // trigger refresh in parent
+      onStatusChange(task.id, task.status);
     } catch (e) {
       console.error('Failed to pause task', e);
     }
@@ -85,10 +85,10 @@ export default function TaskCard({ task, onStatusChange }: Props) {
   return (
     <div
       onClick={() => setShowDetails(prev => !prev)}
-      className={`cursor-pointer bg-gradient-to-br ${gradient} border-l-4 shadow p-4 rounded-2xl flex flex-col justify-between transition-shadow duration-300 hover:shadow-md ${statusStyles[task.status]}`}
+      className={`cursor-pointer bg-gradient-to-br ${gradient} border-l-4 border border-token shadow p-4 rounded-2xl flex flex-col justify-between transition-shadow duration-300 hover:shadow-md ${statusStyles[task.status]}`}
     >
       <div className="mb-2">
-        <div className="flex items-center gap-2 text-2xl">
+        <div className="flex items-center gap-2 text-2xl text-body">
           {icon}
           <h3 className={`text-lg font-semibold ${task.status === 'COMPLETED' ? 'line-through' : ''}`}>
             {task.title}
@@ -101,19 +101,19 @@ export default function TaskCard({ task, onStatusChange }: Props) {
             </span>
           )}
           {archivedAt && (
-            <span className="ml-2 text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full">
+            <span className="ml-2 text-xs bg-surface-alt text-gray-700 px-2 py-0.5 rounded-full">
               Archived
             </span>
           )}
         </div>
 
         {task.itemName && (
-          <p className="text-sm text-gray-500 mt-1">🛠 {task.itemName}</p>
+          <p className="text-sm text-muted mt-1">🛠 {task.itemName}</p>
         )}
 
-        <div className="mt-2 text-sm text-gray-600 space-y-1">
+        <div className="mt-2 text-sm text-muted space-y-1">
           <div>
-            📅 Finish by <span className="font-medium">{task.dueDate}</span>
+            📅 Finish by <span className="font-medium text-body">{task.dueDate}</span>
           </div>
           {task.estimatedTimeMinutes ? (
             <div>⏱ {task.estimatedTimeMinutes} min task</div>
@@ -126,7 +126,7 @@ export default function TaskCard({ task, onStatusChange }: Props) {
           showDetails ? 'max-h-[1000px] opacity-100 mt-3' : 'max-h-0 opacity-0'
         }`}
       >
-        <div className="bg-gray-50 border border-gray-200 p-3 rounded text-sm space-y-2 text-gray-700">
+        <div className="bg-surface-alt border border-token p-3 rounded text-sm space-y-2 text-body">
           {task.description && <p>{task.description}</p>}
 
           {task.recurrenceInterval && (
@@ -198,7 +198,7 @@ export default function TaskCard({ task, onStatusChange }: Props) {
                       href={res.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-blue-600 underline"
+                      className="text-[rgb(var(--primary))] underline"
                     >
                       {res.label}
                     </a>
@@ -246,7 +246,7 @@ export default function TaskCard({ task, onStatusChange }: Props) {
             </button>
             <button
               onClick={() => handleAndCollapse('remind', 3)}
-              className="px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-sm"
+              className="px-3 py-1 bg-surface-alt text-body rounded hover:bg-card border border-token text-sm"
             >
               🕓 Remind Me Later
             </button>
@@ -284,7 +284,7 @@ export default function TaskCard({ task, onStatusChange }: Props) {
         {!archivedAt ? (
           <button
             onClick={archiveTask}
-            className="px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-sm"
+            className="px-3 py-1 bg-surface-alt text-body rounded hover:bg-card border border-token text-sm"
           >
             🗄 Archive
           </button>

@@ -1,4 +1,4 @@
-//dwellwell-client/src/components/features/AddHomeWizard.tsx
+// dwellwell-client/src/components/features/AddHomeWizard.tsx
 import React, { useMemo, useState } from "react";
 import { api } from "@/utils/api";
 import type { Home } from "@shared/types/home";
@@ -10,7 +10,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
+  import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { AddressAutocomplete, type AddressSuggestion } from "@/components/ui/AddressAutocomplete";
@@ -52,7 +52,6 @@ export default function AddHomeWizard({ open, onOpenChange, onFinished }: Props)
       return;
     }
 
-    // Try to provide best-guess street line if the suggestion didn’t include .address
     const line1 =
       selected.address ??
       (selected.place_name ? selected.place_name.split(",")[0]?.trim() : "");
@@ -72,15 +71,12 @@ export default function AddHomeWizard({ open, onOpenChange, onFinished }: Props)
       const res = await api.post<Home>("/homes", payload);
       const newHome = res.data;
 
-      // Best-effort: pre-seed rooms for the chosen style (ignore if endpoint is missing).
       if (architecturalStyle) {
         try {
           await api.post(`/homes/${newHome.id}/rooms/apply-style-defaults`, {
             style: architecturalStyle,
           });
-        } catch {
-          // non-blocking — the Edit page can still apply defaults on load / style change
-        }
+        } catch {/* non-blocking */}
       }
 
       onOpenChange(false);
@@ -102,17 +98,17 @@ export default function AddHomeWizard({ open, onOpenChange, onFinished }: Props)
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) resetAll(); onOpenChange(v); }}>
-      <DialogContent>
+      <DialogContent className="bg-card text-body border border-token">
         <DialogHeader>
-          <DialogTitle>Add a Home</DialogTitle>
-          <DialogDescription id="add-home-desc">
+          <DialogTitle className="text-body">Add a Home</DialogTitle>
+          <DialogDescription id="add-home-desc" className="text-muted">
             Start with your address. You can fill in the rest on the next screen.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-medium">Search Address</label>
+            <label className="mb-1 block text-sm font-medium text-body">Search Address</label>
             <AddressAutocomplete
               displayValue={displayAddress}
               onSelectSuggestion={(s) => setSelected(s)}
@@ -123,7 +119,7 @@ export default function AddHomeWizard({ open, onOpenChange, onFinished }: Props)
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-sm font-medium">Apartment (optional)</label>
+              <label className="mb-1 block text-sm font-medium text-body">Apartment (optional)</label>
               <Input
                 value={apartment}
                 onChange={(e) => setApartment(e.target.value)}
@@ -133,7 +129,7 @@ export default function AddHomeWizard({ open, onOpenChange, onFinished }: Props)
             </div>
 
             <div>
-              <label className="mb-1 block text-sm font-medium">Nickname (optional)</label>
+              <label className="mb-1 block text-sm font-medium text-body">Nickname (optional)</label>
               <Input
                 value={nickname}
                 onChange={(e) => setNickname(e.target.value)}
@@ -144,10 +140,11 @@ export default function AddHomeWizard({ open, onOpenChange, onFinished }: Props)
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium">House Style (optional)</label>
+            <label className="mb-1 block text-sm font-medium text-body">House Style (optional)</label>
             <Select
               value={architecturalStyle}
               onChange={(e) => setArchitecturalStyle(e.target.value)}
+              className="bg-card text-body border-token"
             >
               <option value="">— Select a style —</option>
               {STYLE_OPTIONS.map((s) => (
@@ -156,13 +153,13 @@ export default function AddHomeWizard({ open, onOpenChange, onFinished }: Props)
                 </option>
               ))}
             </Select>
-            <p className="mt-1 text-xs text-muted-foreground">
+            <p className="mt-1 text-xs text-muted">
               If provided, we’ll pre-fill a room template for this style.
             </p>
           </div>
 
           {error && (
-            <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            <div className="rounded border border-red-300 bg-red-50/70 px-3 py-2 text-sm text-red-700">
               {error}
             </div>
           )}

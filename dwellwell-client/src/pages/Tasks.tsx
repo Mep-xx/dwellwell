@@ -1,5 +1,5 @@
-//dwellwell-client/src/pages/Tasks.tsx
-import { useEffect, useMemo, useState } from "react";
+// dwellwell-client/src/pages/Tasks.tsx
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api } from "@/utils/api";
 
@@ -88,6 +88,14 @@ export default function Tasks() {
 }
 
 function TaskRow({ task, highlight }: { task: Task; highlight?: boolean }) {
+  const rowRef = useRef<HTMLAnchorElement | null>(null);
+
+  useEffect(() => {
+    if (highlight && rowRef.current) {
+      rowRef.current.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
+  }, [highlight]);
+
   const due = task.dueDate ? new Date(task.dueDate).toLocaleDateString() : "No due date";
   const chips =
     task.status === "COMPLETED" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
@@ -96,6 +104,7 @@ function TaskRow({ task, highlight }: { task: Task; highlight?: boolean }) {
 
   return (
     <Link
+      ref={rowRef}
       to={`/app/tasks/${task.id}`}
       className={`block rounded-2xl border bg-white p-4 transition hover:shadow-sm shadow-sm ${highlight ? "ring-2 ring-brand-primary/40" : ""}`}
     >

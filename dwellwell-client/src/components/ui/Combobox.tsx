@@ -33,6 +33,7 @@ export default function Combobox({
   const triggerRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const listRef = useRef<HTMLUListElement | null>(null);
+  const listboxId = useRef(`combo-${Math.random().toString(36).slice(2)}`).current;
 
   const selected = options.find(o => o.value === (value ?? "")) || null;
 
@@ -74,13 +75,14 @@ export default function Combobox({
 
   return (
     <div className={`relative ${className}`}>
-      {/* TRIGGER: div with role=button to avoid nesting <button> inside <button> */}
+      {/* TRIGGER */}
       <div
         ref={triggerRef}
-        role="button"
+        role="combobox"
         tabIndex={0}
         aria-haspopup="listbox"
         aria-expanded={open}
+        aria-controls={listboxId}
         aria-label={ariaLabel}
         onClick={() => setOpen(v => !v)}
         onKeyDown={(e) => {
@@ -89,40 +91,46 @@ export default function Combobox({
             setOpen(v => !v);
           }
         }}
-        className="w-full border rounded px-3 py-2 flex items-center justify-between text-left cursor-pointer"
+        className="w-full cursor-pointer rounded border border-token bg-card px-3 py-2 text-left"
       >
-        <span className={selected ? "" : "text-gray-400"}>
-          {selected ? selected.label : "Select a type…"}
-        </span>
+        <div className="flex items-center justify-between">
+          <span className={selected ? "" : "text-muted-foreground"}>
+            {selected ? selected.label : "Select a type…"}
+          </span>
 
-        <div className="flex items-center gap-1">
-          {selected && (
-            <button
-              type="button"
-              className="mr-1 text-gray-400 hover:text-gray-600"
-              onClick={(e) => { e.stopPropagation(); commit(""); }}
-              aria-label="Clear selection"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          )}
-          <ChevronDown className="h-4 w-4 shrink-0 text-gray-500" />
+          <div className="flex items-center gap-1">
+            {selected && (
+              <button
+                type="button"
+                className="mr-1 text-muted-foreground hover:text-body"
+                onClick={(e) => { e.stopPropagation(); commit(""); }}
+                aria-label="Clear selection"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+            <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+          </div>
         </div>
       </div>
 
       {open && (
-        <div className="absolute z-50 mt-1 w-full rounded border bg-white shadow-lg">
-          <div className="p-2 border-b">
+        <div className="absolute z-50 mt-1 w-full rounded border border-token bg-card shadow-lg">
+          <div className="border-b border-token p-2">
             <input
               ref={inputRef}
               value={query}
               onChange={(e) => { setQuery(e.target.value); setActive(0); }}
               placeholder={placeholder}
-              className="w-full rounded border px-2 py-1.5 text-sm"
+              className="w-full rounded border border-token bg-card px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-brand-primary"
+              aria-controls={listboxId}
+              aria-expanded={open}
+              aria-autocomplete="list"
             />
           </div>
 
           <ul
+            id={listboxId}
             ref={listRef}
             role="listbox"
             className="max-h-56 overflow-auto py-1"
@@ -138,7 +146,7 @@ export default function Combobox({
             }}
           >
             {filtered.length === 0 ? (
-              <li className="px-3 py-2 text-sm text-gray-500">
+              <li className="px-3 py-2 text-sm text-muted-foreground">
                 {allowCustom && query.trim()
                   ? <>Use “<span className="font-medium">{query.trim()}</span>”</>
                   : emptyText}
@@ -152,8 +160,8 @@ export default function Combobox({
                   onMouseEnter={() => setActive(idx)}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => commit(o.value)}
-                  className={`px-3 py-2 text-sm cursor-pointer hover:bg-gray-50 flex items-center justify-between ${
-                    idx === active ? "bg-gray-50" : ""
+                  className={`flex cursor-pointer items-center justify-between px-3 py-2 text-sm ${
+                    idx === active ? "bg-muted" : "hover:bg-muted/60"
                   }`}
                 >
                   <span>{o.label}</span>
@@ -164,7 +172,7 @@ export default function Combobox({
 
             {allowCustom && filtered.length > 0 && query.trim() && !filtered.some(o => norm(o.label) === norm(query)) && (
               <li
-                className="px-3 py-2 text-sm cursor-pointer hover:bg-gray-50 border-t"
+                className="cursor-pointer border-t border-token px-3 py-2 text-sm hover:bg-muted"
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => commit(query.trim())}
               >

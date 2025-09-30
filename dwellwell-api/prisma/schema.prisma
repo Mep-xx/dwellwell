@@ -169,6 +169,22 @@ enum NotificationFrequency {
   WEEKLY_DIGEST
 }
 
+/* ---------- NEW enums for generic/detail state & provenance ---------- */
+enum DetailLevel {
+  generic     // quick-added, no brand/model
+  basic       // brand OR a few details
+  detailed    // brand + model (maybe serial missing)
+  verified    // full details incl. serial/warranty
+}
+
+enum TrackableSource {
+  user_manual_entry
+  user_quick_prompt
+  admin_seed
+  import_csv
+  catalog_match
+}
+
 /**
  * =========================
  * Core Models
@@ -474,6 +490,11 @@ model Trackable {
   tasks             UserTask[]          @relation("TrackableTasks")
   TrackableResource TrackableResource[]
 
+  /* ---------- NEW flags for generic/quick-add state ---------- */
+  isGeneric   Boolean       @default(true)
+  detailLevel DetailLevel   @default(generic)
+  source      TrackableSource @default(user_manual_entry)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -486,6 +507,8 @@ model Trackable {
   @@index([category])
   @@index([kind])
   @@index([ownerUserId, homeId])
+  /* helpful for de-dupe in API: same room + kind + status */
+  @@index([roomId, kind, status])
 }
 
 model TrackableAssignment {
@@ -542,6 +565,8 @@ model TaskTemplate {
 
   userTasks             UserTask[]
   ApplianceTaskTemplate ApplianceTaskTemplate[]
+  /* NEW backref: generic-by-kind mapping (optional use) */
+  TrackableKindTaskTemplate TrackableKindTaskTemplate[]
 }
 
 model ApplianceTaskTemplate {
@@ -554,6 +579,18 @@ model ApplianceTaskTemplate {
   taskTemplate     TaskTemplate     @relation(fields: [taskTemplateId], references: [id], onDelete: Cascade)
 
   @@unique([applianceCatalogId, taskTemplateId])
+}
+
+/* ---------- NEW mapping for generic tasks by "kind" (brand-agnostic) ---------- */
+model TrackableKindTaskTemplate {
+  id             String       @id @default(uuid())
+  kind           String       // e.g., "dishwasher", "water_heater"
+  category       String?      // optional hint if you want it
+  taskTemplateId String
+  taskTemplate   TaskTemplate @relation(fields: [taskTemplateId], references: [id], onDelete: Cascade)
+
+  @@unique([kind, taskTemplateId])
+  @@index([kind])
 }
 
 model UserTask {

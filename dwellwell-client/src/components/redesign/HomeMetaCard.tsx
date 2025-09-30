@@ -150,8 +150,8 @@ export default function HomeMetaCard({ home, onUpdated }: Props) {
   }, [home]);
 
   return (
-    <div className="rounded-2xl border bg-white shadow-sm">
-      <div className="flex items-center justify-between border-b p-4">
+    <div className="rounded-2xl border border-token bg-card shadow-sm">
+      <div className="flex items-center justify-between border-b border-token p-4 bg-surface-alt/60">
         <h2 className="text-sm font-semibold">Home details</h2>
         {!editing ? (
           <Button size="sm" variant="outline" onClick={() => setEditing(true)}>Edit</Button>
@@ -178,22 +178,22 @@ export default function HomeMetaCard({ home, onUpdated }: Props) {
               <div>
                 <div className="mb-1 flex items-center justify-between">
                   <span className="text-xs text-muted-foreground">Lot size</span>
-                  <div className="inline-flex overflow-hidden rounded-lg border text-xs">
+                  <div className="inline-flex overflow-hidden rounded-lg border border-token text-xs">
                     <button
-                      className={`px-2 py-0.5 ${displayUnit === "acres" ? "bg-muted/60" : "bg-white hover:bg-muted/40"}`}
+                      className={`px-2 py-0.5 ${displayUnit === "acres" ? "bg-muted/60" : "bg-card hover:bg-muted/40"}`}
                       onClick={() => setDisplayUnit("acres")}
                     >
                       acres
                     </button>
                     <button
-                      className={`px-2 py-0.5 border-l ${displayUnit === "sqft" ? "bg-muted/60" : "bg-white hover:bg-muted/40"}`}
+                      className={`px-2 py-0.5 border-l border-token ${displayUnit === "sqft" ? "bg-muted/60" : "bg-card hover:bg-muted/40"}`}
                       onClick={() => setDisplayUnit("sqft")}
                     >
                       sqft
                     </button>
                   </div>
                 </div>
-                <div className="rounded-xl bg-white text-sm">
+                <div className="rounded-xl text-sm">
                   <span className="font-medium">
                     {displayUnit === "acres" ? acresDisplay : sqftDisplay}
                   </span>
@@ -207,21 +207,6 @@ export default function HomeMetaCard({ home, onUpdated }: Props) {
               <TogglePill label="Central Air" value={!!home.hasCentralAir} />
               <TogglePill label="Baseboard" value={!!home.hasBaseboard} />
               <TogglePill label="Heat Pump" value={!!home.hasHeatPump} />
-
-              <div className="sm:col-span-2">
-                <div className="mb-1 text-xs text-muted-foreground">Features</div>
-                {Array.isArray(home.features) && home.features.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {home.features.map((f) => (
-                      <span key={f} className="inline-flex items-center rounded-lg border bg-white px-2.5 py-1 text-xs text-muted-foreground">
-                        {f}
-                      </span>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-sm text-muted-foreground">—</div>
-                )}
-              </div>
             </div>
           )}
 
@@ -235,16 +220,14 @@ export default function HomeMetaCard({ home, onUpdated }: Props) {
               <div>
                 <label className="mb-1 block text-xs text-muted-foreground">Lot size (acres)</label>
                 <input
-                  className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-primary"
+                  className="w-full rounded-lg border border-token px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-primary bg-card"
                   value={acresText}
                   onChange={(e) => setAcresText(e.target.value)}
                   onBlur={commitAcresToSqft}
                   placeholder="e.g. 0.49"
                   inputMode="decimal"
                 />
-                <div className="mt-1 text-[11px] text-muted-foreground">
-                  Stored as square feet. Current internal value: {f.lotSize || "—"} sq ft
-                </div>
+                <div className="mt-1 text-[11px] text-muted-foreground" />
               </div>
 
               <Int label="Year built" value={f.yearBuilt} onChange={(v) => setF(p => ({ ...p, yearBuilt: v }))} />
@@ -255,11 +238,6 @@ export default function HomeMetaCard({ home, onUpdated }: Props) {
               <Check label="Central Air" checked={f.hasCentralAir} onChange={(v) => setF(p => ({ ...p, hasCentralAir: v }))} />
               <Check label="Baseboard" checked={f.hasBaseboard} onChange={(v) => setF(p => ({ ...p, hasBaseboard: v }))} />
               <Check label="Heat Pump" checked={f.hasHeatPump} onChange={(v) => setF(p => ({ ...p, hasHeatPump: v }))} />
-
-              <div className="sm:col-span-2">
-                <label className="mb-1 block text-xs text-muted-foreground">Features (press Enter to add)</label>
-                <Tags values={f.features} onAdd={addFeature} onRemove={removeFeature} placeholder="e.g. Deck, Fireplace, Pool" />
-              </div>
             </div>
           )}
         </div>
@@ -267,7 +245,7 @@ export default function HomeMetaCard({ home, onUpdated }: Props) {
         {/* Map column */}
         <div>
           <div className="mb-1 text-xs text-muted-foreground">Map</div>
-          <div className="rounded-xl border">
+          <div className="rounded-xl border border-token bg-card">
             <MapboxAddress addressLine={addressLine || ""} className="h-56 w-full rounded-xl" />
           </div>
         </div>
@@ -296,7 +274,7 @@ function TogglePill({ label, value }: { label: string; value: boolean }) {
         className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs border ${
           value
             ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-            : "bg-gray-50 text-gray-600 border-gray-200"
+            : "bg-muted text-muted-foreground border-token"
         }`}
       >
         <span className={`inline-block h-2 w-2 rounded-full ${value ? "bg-emerald-500" : "bg-gray-400"}`} />
@@ -311,7 +289,7 @@ function Text({ label, value, onChange, placeholder }: { label: string; value: s
     <div>
       <label className="mb-1 block text-xs text-muted-foreground">{label}</label>
       <input
-        className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-primary"
+        className="w-full rounded-lg border border-token px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-primary bg-card"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
@@ -325,7 +303,7 @@ function Int({ label, value, onChange, placeholder }: { label: string; value: st
     <div>
       <label className="mb-1 block text-xs text-muted-foreground">{label}</label>
       <input
-        className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-primary"
+        className="w-full rounded-lg border border-token px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-primary bg-card"
         value={value}
         onChange={(e) => onChange(e.target.value.replace(/[^\d]/g, ""))}
         placeholder={placeholder}
@@ -340,7 +318,7 @@ function Select({ label, value, onChange, options }: { label: string; value: str
     <div>
       <label className="mb-1 block text-xs text-muted-foreground">{label}</label>
       <select
-        className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-primary"
+        className="w-full rounded-lg border border-token px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-primary bg-card"
         value={value}
         onChange={(e) => onChange(e.target.value)}
       >
@@ -373,16 +351,16 @@ function Tags({ values, onAdd, onRemove, placeholder }: { values: string[]; onAd
     if (e.key === "Backspace" && !text && values.length) onRemove(values[values.length - 1]);
   };
   return (
-    <div className="rounded-lg border p-2 bg-white">
+    <div className="rounded-lg border border-token p-2 bg-card">
       <div className="flex flex-wrap gap-2">
         {values.map((v) => (
-          <span key={v} className="inline-flex items-center gap-1 rounded-full border bg-white px-2 py-1 text-xs text-muted-foreground">
+          <span key={v} className="inline-flex items-center gap-1 rounded-full border border-token bg-card px-2 py-1 text-xs text-muted-foreground">
             {v}
-            <button className="text-muted-foreground/70 hover:text-foreground" onClick={() => onRemove(v)} aria-label={`Remove ${v}`}>×</button>
+            <button className="text-muted-foreground/70 hover:text-body" onClick={() => onRemove(v)} aria-label={`Remove ${v}`}>×</button>
           </span>
         ))}
         <input
-          className="min-w-[160px] flex-1 px-2 py-1 text-sm outline-none"
+          className="min-w-[160px] flex-1 px-2 py-1 text-sm outline-none bg-transparent"
           placeholder={placeholder}
           value={text}
           onChange={(e) => setText(e.target.value)}

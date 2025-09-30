@@ -1,4 +1,4 @@
-//dwellwell-client/src/components/redesign/RoomsPanel.tsx
+// dwellwell-client/src/components/redesign/RoomsPanel.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   DndContext,
@@ -59,13 +59,13 @@ function DroppableSection({
   const { isOver, setNodeRef } = useDroppable({ id });
 
   return (
-    <section className={clsx("rounded-xl border bg-white shadow-sm", isOver && "ring-2 ring-brand-primary/30")}>
-      <header className="flex items-center justify-between rounded-t-xl border-b bg-muted/40 px-4 py-2">
+    <section className={clsx("rounded-xl border border-token bg-card shadow-sm", isOver && "ring-2 ring-brand-primary/30")}>
+      <header className="flex items-center justify-between rounded-t-xl border-b border-token bg-surface-alt/60 px-4 py-2">
         <div className="flex items-center gap-3">
           <span className="text-sm font-semibold">{title}</span>
           {hint ? <span className="text-xs text-muted-foreground">{hint}</span> : null}
         </div>
-        <span className="text-xs rounded-full border bg-white px-2 py-0.5 text-foreground/80">
+        <span className="text-xs rounded-full border border-token bg-card px-2 py-0.5 text-foreground/80">
           {roomCount} {roomCount === 1 ? "room" : "rooms"}
         </span>
       </header>
@@ -79,7 +79,7 @@ function DroppableSection({
           <button
             type="button"
             onClick={onAdd}
-            className="flex w-full max-w-[560px] items-center justify-center gap-2 rounded-lg border-2 border-dashed px-4 py-8 text-sm text-muted-foreground hover:border-brand-primary/50 hover:bg-background/50"
+            className="flex w-full max-w-[560px] items-center justify-center gap-2 rounded-lg border-2 border-dashed border-token px-4 py-8 text-sm text-muted-foreground hover:border-brand-primary/50 hover:bg-background/50"
           >
             <span className="text-base">➕</span>
             <span className="font-medium">Add Room</span>
@@ -91,7 +91,7 @@ function DroppableSection({
             <button
               type="button"
               onClick={onAdd}
-              className="w-full rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground hover:border-brand-primary/50 hover:bg-muted/20"
+              className="w-full rounded-md border border-dashed border-token px-3 py-2 text-xs text-muted-foreground hover:border-brand-primary/50 hover:bg-muted/20"
               aria-label={`Add room to ${title}`}
             >
               + Add Room (to {title})

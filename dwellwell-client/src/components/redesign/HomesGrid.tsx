@@ -190,8 +190,6 @@ export default function HomesGrid() {
         .catch((err) => {
           console.error(err);
           toast({ title: "Failed to save new order", variant: "destructive" });
-          // You can optionally reload here if you want strict rollback:
-          // api.get<Home[]>("/homes").then(r => setHomes(r.data)).catch(() => {});
         });
 
       return next;
@@ -213,14 +211,14 @@ export default function HomesGrid() {
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Search homes…"
-              className="h-9 w-52 rounded-lg border px-3 text-sm outline-none focus:ring-2 focus:ring-brand-primary"
+              className="h-9 w-52 rounded-lg border border-token bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-brand-primary"
             />
           </div>
 
           <button
             onClick={() => setMode("large")}
             title="Large view"
-            className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-sm ${mode === "large" ? "bg-muted" : "hover:bg-muted"}`}
+            className={`inline-flex items-center gap-1 rounded-lg border border-token px-2.5 py-1.5 text-sm ${mode === "large" ? "bg-muted" : "hover:bg-muted"}`}
           >
             <Rows className="h-4 w-4" />
             Large
@@ -228,7 +226,7 @@ export default function HomesGrid() {
           <button
             onClick={() => setMode("tile")}
             title="Tile view"
-            className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-sm ${mode === "tile" ? "bg-muted" : "hover:bg-muted"}`}
+            className={`inline-flex items-center gap-1 rounded-lg border border-token px-2.5 py-1.5 text-sm ${mode === "tile" ? "bg-muted" : "hover:bg-muted"}`}
           >
             <LayoutGrid className="h-4 w-4" />
             Tiles
@@ -249,12 +247,12 @@ export default function HomesGrid() {
       {loading ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="h-44 rounded-2xl border bg-muted animate-pulse" />
+            <div key={i} className="h-44 rounded-2xl border border-token bg-muted animate-pulse" />
           ))}
         </div>
       ) : filtered.length === 0 ? (
         <div className="mt-8 flex justify-center">
-          <div className="w-full max-w-xl rounded-2xl border border-dashed bg-muted/20 p-10 text-center">
+          <div className="w-full max-w-xl rounded-2xl border border-dashed border-token bg-muted/20 p-10 text-center">
             <div className="mb-2 text-2xl font-semibold">No homes yet</div>
             <p className="mb-6 text-sm text-muted-foreground">
               Add your first home to start tracking maintenance, rooms, and features. You can always edit details later.

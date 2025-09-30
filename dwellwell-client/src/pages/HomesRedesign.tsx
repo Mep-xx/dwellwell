@@ -6,5 +6,5 @@ export default function HomesRedesign() {
     <div className="mx-auto w-full max-w-7xl px-4 py-6">
       <HomesGrid />
     </div>
-  )
+  );
 }

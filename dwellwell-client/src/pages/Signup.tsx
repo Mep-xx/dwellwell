@@ -48,7 +48,7 @@ export default function Signup() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-surface-alt px-4">
       <Helmet><title>Sign up • DwellWell</title></Helmet>
       <form onSubmit={handleSubmit} className="w-full max-w-sm space-y-4 bg-white p-6 rounded-2xl shadow">
         <h1 className="text-xl font-semibold text-gray-900">Create your account</h1>

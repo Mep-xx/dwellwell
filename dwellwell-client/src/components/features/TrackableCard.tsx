@@ -62,8 +62,8 @@ export default function TrackableCard({ data, onEdited, onRemoved, onOpenEdit }:
     switch (status) {
       case "IN_USE": return "bg-green-100 text-green-700";
       case "PAUSED": return "bg-amber-100 text-amber-700";
-      case "RETIRED": return "bg-gray-200 text-gray-700";
-      default: return "bg-gray-100 text-gray-700";
+      case "RETIRED": return "bg-surface-alt text-gray-700";
+      default: return "bg-surface-alt text-gray-700";
     }
   }, [status]);
 
@@ -123,16 +123,16 @@ export default function TrackableCard({ data, onEdited, onRemoved, onOpenEdit }:
       initial={{ opacity: 0, scale: 0.98 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.97 }}
-      className="self-start rounded-xl border shadow bg-white p-4 transition-all hover:shadow-lg hover:-translate-y-0.5"
+      className="self-start rounded-xl border border-token bg-card text-body p-4 shadow transition-all hover:shadow-lg hover:-translate-y-0.5"
     >
       {/* Header: Title left, status & next-due right */}
       <div className="flex items-start">
-        <h3 className="text-lg font-semibold text-gray-800 leading-tight truncate pr-3">
+        <h3 className="text-lg font-semibold leading-tight truncate pr-3">
           {data.userDefinedName}
         </h3>
         <div className="ml-auto flex items-center gap-2">
           {nextDue ? (
-            <span className="text-xs px-2 py-0.5 rounded border border-blue-200 text-blue-700 bg-blue-50/50">
+            <span className="text-xs px-2 py-0.5 rounded border border-token text-body bg-surface-alt/60">
               Next due: {fmt(nextDue)}
             </span>
           ) : null}
@@ -143,32 +143,32 @@ export default function TrackableCard({ data, onEdited, onRemoved, onOpenEdit }:
       </div>
 
       {/* Counters row */}
-      <div className="mt-2 flex items-center gap-4 text-gray-700">
+      <div className="mt-2 flex items-center gap-4 text-muted">
         <span className="inline-flex items-center gap-1 text-sm">
-          🕒 <span className="font-medium">{counts.dueSoon}</span> Due Soon
+          🕒 <span className="font-medium text-body">{counts.dueSoon}</span> Due Soon
         </span>
         <span className="inline-flex items-center gap-1 text-sm">
-          ⚠️ <span className="font-medium">{counts.overdue}</span> Overdue
+          ⚠️ <span className="font-medium text-body">{counts.overdue}</span> Overdue
         </span>
         <span className="inline-flex items-center gap-1 text-sm">
-          📌 <span className="font-medium">{liveCount}</span> Active
+          📌 <span className="font-medium text-body">{liveCount}</span> Active
         </span>
       </div>
 
       {(data.lastCompletedAt || data.roomName) && (
-        <p className="mt-1 text-sm text-gray-600">
+        <p className="mt-1 text-sm text-muted">
           {data.lastCompletedAt ? `Last done: ${fmt(data.lastCompletedAt)}` : null}
           {data.lastCompletedAt && data.roomName ? " • " : ""}
           {data.roomName ? `Room: ${data.roomName}` : null}
         </p>
       )}
 
-      <div className="h-[2px] bg-gray-200 rounded mt-3" />
+      <div className="h-[2px] bg-surface-alt rounded mt-3" />
 
       {/* Thumb + actions */}
       <div className="mt-3 flex items-center gap-3">
         <div
-          className="shrink-0 w-16 h-16 rounded-xl bg-gray-50 flex items-center justify-center overflow-hidden border"
+          className="shrink-0 w-16 h-16 rounded-xl bg-surface-alt flex items-center justify-center overflow-hidden border border-token"
           title={data.userDefinedName}
         >
           {data.imageUrl
@@ -177,17 +177,17 @@ export default function TrackableCard({ data, onEdited, onRemoved, onOpenEdit }:
         </div>
 
         <div className="flex-1">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-gray-700">
-            <button onClick={() => onOpenEdit?.(data.id)} className="hover:text-black">Edit</button>
-            {status === "IN_USE" && <button onClick={pause} className="hover:text-black">Pause</button>}
-            {status === "PAUSED" && <button onClick={resume} className="hover:text-black">Resume</button>}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted">
+            <button onClick={() => onOpenEdit?.(data.id)} className="hover:text-body">Edit</button>
+            {status === "IN_USE" && <button onClick={pause} className="hover:text-body">Pause</button>}
+            {status === "PAUSED" && <button onClick={resume} className="hover:text-body">Resume</button>}
             {status !== "RETIRED"
-              ? <button onClick={retire} className="hover:text-black">Retire</button>
-              : <button onClick={revive} className="hover:text-black">Revive</button>}
-            <button onClick={remove} className="hover:text-black">Delete</button>
+              ? <button onClick={retire} className="hover:text-body">Retire</button>
+              : <button onClick={revive} className="hover:text-body">Revive</button>}
+            <button onClick={remove} className="hover:text-body">Delete</button>
           </div>
 
-          <p className="mt-1 text-sm text-gray-600 truncate">
+          <p className="mt-1 text-sm text-muted truncate">
             {(data.type || "—")} • {data.brand || ""} {data.model || ""}
           </p>
         </div>
@@ -200,7 +200,7 @@ export default function TrackableCard({ data, onEdited, onRemoved, onOpenEdit }:
             e.stopPropagation();
             setExpanded((prev) => !prev);
           }}
-          className="px-3 py-1.5 bg-brand-primary/10 hover:bg-brand-primary/20 text-brand-primary rounded-full
+          className="px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-[rgb(var(--primary))] rounded-full
                      flex items-center gap-2 text-sm font-medium transition-colors"
           title={expanded ? "Hide Tasks" : "Show Tasks"}
         >
@@ -220,14 +220,14 @@ export default function TrackableCard({ data, onEdited, onRemoved, onOpenEdit }:
             transition={{ duration: 0.25 }}
             className="overflow-hidden"
           >
-            <div className="mt-4 rounded-xl border bg-gray-50 p-3">
+            <div className="mt-4 rounded-xl border border-token bg-surface-alt p-3">
               <div className="mb-2 flex items-center justify-between">
-                <div className="text-sm font-semibold text-gray-800">
+                <div className="text-sm font-semibold">
                   Tasks {loadingTasks ? "" : `(${tasks.length})`}
                 </div>
                 <div className="flex items-center gap-2">
                   <button
-                    className="text-xs text-gray-700 hover:text-black underline"
+                    className="text-xs text-muted hover:text-body underline"
                     onClick={(e) => { e.stopPropagation(); hasFetchedRef.current = false; fetchTasks(); }}
                   >
                     Refresh
@@ -238,7 +238,7 @@ export default function TrackableCard({ data, onEdited, onRemoved, onOpenEdit }:
               {loadingTasks && (
                 <div className="grid gap-2">
                   {Array.from({ length: 3 }).map((_, i) => (
-                    <div key={i} className="h-10 w-full animate-pulse rounded bg-gray-200" />
+                    <div key={i} className="h-10 w-full animate-pulse rounded bg-card border border-token" />
                   ))}
                 </div>
               )}
@@ -250,10 +250,10 @@ export default function TrackableCard({ data, onEdited, onRemoved, onOpenEdit }:
               )}
 
               {!loadingTasks && !error && tasks.length === 0 && (
-                <div className="text-sm text-gray-600">No active tasks for this item.</div>
+                <div className="text-sm text-muted">No active tasks for this item.</div>
               )}
 
-              <div className="divide-y">
+              <div className="divide-y divide-[rgb(var(--border)/1)]">
                 {tasks.map((t) => (
                   <TrackableTaskRow key={t.id} task={t} onChanged={() => { hasFetchedRef.current = false; fetchTasks(); }} />
                 ))}

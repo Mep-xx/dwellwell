@@ -78,13 +78,13 @@ function DroppableSection({
   const { isOver, setNodeRef } = useDroppable({ id });
 
   return (
-    <div className={clsx('rounded-xl border bg-white shadow-sm', isOver && 'ring-2 ring-status-info/40')}>
-      <div className="flex items-center justify-between px-4 py-2 bg-gray-100 rounded-t-xl border-b">
+    <div className={clsx('rounded-xl border border-token bg-card text-body shadow-sm', isOver && 'ring-2 ring-primary/40')}>
+      <div className="flex items-center justify-between px-4 py-2 bg-surface-alt rounded-t-xl border-b border-token">
         <div className="flex items-center gap-3">
           <span className="text-sm font-semibold tracking-wide">{title}</span>
-          {hint && <span className="text-xs text-gray-500">{hint}</span>}
+          {hint && <span className="text-xs text-muted">{hint}</span>}
         </div>
-        <span className="text-xs bg-white text-gray-700 px-2 py-0.5 rounded-full border">
+        <span className="text-xs bg-card text-body px-2 py-0.5 rounded-full border border-token">
           {roomCount} {roomCount === 1 ? 'room' : 'rooms'}
         </span>
       </div>
@@ -94,18 +94,18 @@ function DroppableSection({
         id={id}
         className={clsx(
           'p-2 space-y-2 rounded-b-xl transition-colors',
-          roomCount === 0 && 'min-h-[112px] bg-gray-50/60 flex items-center justify-center'
+          roomCount === 0 && 'min-h-[112px] bg-surface-alt/60 flex items-center justify-center'
         )}
       >
         {roomCount === 0 ? (
           <button
             type="button"
             onClick={onAdd}
-            className="w-full max-w-[560px] border-2 border-dashed rounded-lg px-4 py-8 text-sm text-gray-600 hover:border-status-info/60 hover:bg-white/50 transition flex items-center justify-center gap-2"
+            className="w-full max-w-[560px] border-2 border-dashed border-token rounded-lg px-4 py-8 text-sm text-muted hover:border-primary/60 hover:bg-card/50 transition flex items-center justify-center gap-2"
           >
             <span className="text-base">➕</span>
-            <span className="font-medium">Add Room</span>
-            <span className="text-gray-400">(to {title})</span>
+            <span className="font-medium text-body">Add Room</span>
+            <span className="text-muted">(to {title})</span>
           </button>
         ) : (
           <>
@@ -113,7 +113,7 @@ function DroppableSection({
             <button
               type="button"
               onClick={onAdd}
-              className="w-full border border-dashed rounded-md px-3 py-2 text-xs text-gray-600 hover:border-status-info/60 hover:bg-gray-50 transition"
+              className="w-full border border-dashed border-token rounded-md px-3 py-2 text-xs text-muted hover:border-primary/60 hover:bg-surface-alt transition"
               aria-label={`Add room to ${title}`}
             >
               + Add Room (to {title})
@@ -185,7 +185,7 @@ export function RoomsPanel({ homeId, tasksByRoom, onAddTrackable }: Props) {
         const next = [...prev];
         const insertAt = findInsertIndexForFloor(prev, floor);
         next.splice(insertAt, 0, created);
-        api.put('/rooms/reorder', { homeId, roomIds: next.map((r: any) => r.id) }).catch(() => {/* no-op */});
+        api.put('/rooms/reorder', { homeId, roomIds: next.map((r: any) => r.id) }).catch(() => {/* no-op */ });
         return next;
       });
     } catch {
@@ -198,7 +198,7 @@ export function RoomsPanel({ homeId, tasksByRoom, onAddTrackable }: Props) {
     fromContainerRef.current = findContainerIdForItem(e.active.id) ?? null;
   };
 
-  const onDragOver = (_e: DragOverEvent) => {};
+  const onDragOver = (_e: DragOverEvent) => { };
 
   const onDragEnd = async (e: DragEndEvent) => {
     const activeId = e.active.id as string;
@@ -251,12 +251,12 @@ export function RoomsPanel({ homeId, tasksByRoom, onAddTrackable }: Props) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold">Rooms ({rooms.length})</h3>
+        <h3 className="text-lg font-semibold text-body">Rooms ({rooms.length})</h3>
         <Button onClick={() => addRoomInFloor(1)}>+ Add Room</Button>
       </div>
 
       {loading ? (
-        <div className="text-sm text-gray-500">Loading…</div>
+        <div className="text-sm text-muted">Loading…</div>
       ) : (
         <DndContext sensors={sensors} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd}>
           <div className="space-y-4">

@@ -1,38 +1,40 @@
 //dwellwell-client/src/components/ui/progressbar.tsx
 interface ProgressBarProps {
-  currentStep: number;
+  currentStep: number; // zero-based
   steps: string[];
 }
 
 export function ProgressBar({ currentStep, steps }: ProgressBarProps) {
-  return (
-    <div className="w-full flex items-center justify-between relative px-4">
-      {/* Full progress line behind the steps */}
-      <div className="absolute left-0 right-0 top-1/2 h-0.5 bg-gray-200 transform -translate-y-1/2 z-0" />
+  const clamped = Math.min(Math.max(currentStep, 0), Math.max(steps.length - 1, 0));
+  const widthPct = steps.length > 1 ? (clamped / (steps.length - 1)) * 100 : 0;
 
-      {/* Filled portion of the bar */}
+  return (
+    <div className="relative flex w-full items-center justify-between px-4" aria-label="Progress">
+      {/* Track */}
+      <div className="absolute left-0 right-0 top-1/2 z-0 h-0.5 -translate-y-1/2 bg-muted" />
+
+      {/* Fill */}
       <div
-        className="absolute left-0 top-1/2 h-0.5 bg-brand-primary transform -translate-y-1/2 z-0 transition-all duration-300"
-        style={{
-          width: `${(currentStep / (steps.length - 1)) * 100}%`,
-        }}
+        className="absolute left-0 top-1/2 z-0 h-0.5 -translate-y-1/2 bg-brand-primary transition-all duration-300"
+        style={{ width: `${widthPct}%` }}
       />
 
-      {/* Step Circles */}
+      {/* Steps */}
       {steps.map((_, index) => {
-        const isCurrent = index === currentStep;
-        const isComplete = index < currentStep;
+        const isCurrent = index === clamped;
+        const isComplete = index < clamped;
 
         return (
-          <div key={index} className="relative z-10 flex flex-col items-center flex-1">
+          <div key={index} className="relative z-10 flex flex-1 flex-col items-center">
             <div
-              className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold border-2 transition-colors duration-300 ${
+              className={`flex h-8 w-8 items-center justify-center rounded-full border-2 text-sm font-bold transition-colors duration-300 ${
                 isCurrent
-                  ? 'bg-brand-primary text-white border-brand-primary'
+                  ? "border-brand-primary bg-brand-primary text-white"
                   : isComplete
-                  ? 'bg-white text-brand-primary border-brand-primary'
-                  : 'bg-white text-gray-400 border-gray-300'
+                  ? "border-brand-primary bg-card text-brand-primary"
+                  : "border-token bg-card text-muted-foreground"
               }`}
+              aria-current={isCurrent ? "step" : undefined}
             >
               {index + 1}
             </div>

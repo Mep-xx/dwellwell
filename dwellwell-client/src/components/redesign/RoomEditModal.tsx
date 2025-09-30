@@ -87,13 +87,13 @@ export default function RoomEditModal({ open, onClose, room, onSaved }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-50 grid place-items-center bg-black/50" // solid overlay; no blur/transparency on card
+      className="fixed inset-0 z-50 grid place-items-center bg-black/50"
       role="dialog"
       aria-modal="true"
     >
-      <div className="w-full max-w-xl rounded-2xl border bg-white shadow-xl">
+      <div className="w-full max-w-xl rounded-2xl border border-token bg-card shadow-xl">
         {/* Header */}
-        <div className="flex items-center justify-between border-b px-5 py-3">
+        <div className="flex items-center justify-between border-b border-token px-5 py-3 bg-surface-alt/60">
           <h2 className="text-base font-semibold">
             {isEdit ? "Edit Room" : "Add Room"}
           </h2>
@@ -107,7 +107,7 @@ export default function RoomEditModal({ open, onClose, room, onSaved }: Props) {
           <div className="sm:col-span-2">
             <label className="mb-1 block text-xs text-muted-foreground">Name</label>
             <input
-              className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-primary"
+              className="w-full rounded-lg border border-token bg-card px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-primary"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g., Primary Bathroom"
@@ -118,10 +118,10 @@ export default function RoomEditModal({ open, onClose, room, onSaved }: Props) {
           {/* Rich room-type picker */}
           <div className="sm:col-span-2">
             <label className="mb-1 block text-xs text-muted-foreground">Type</label>
-            <div className="rounded-lg border">
-              <div className="border-b p-2">
+            <div className="rounded-lg border border-token bg-card">
+              <div className="border-b border-token p-2">
                 <input
-                  className="w-full rounded-md border px-3 py-2 text-sm"
+                  className="w-full rounded-md border border-token bg-card px-3 py-2 text-sm"
                   placeholder="Search room types…"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
@@ -136,7 +136,7 @@ export default function RoomEditModal({ open, onClose, room, onSaved }: Props) {
                     className={`flex items-center gap-2 rounded-md border px-2 py-1.5 text-sm ${
                       type === t
                         ? "border-brand-primary ring-1 ring-brand-primary/40 bg-brand-primary/5"
-                        : "hover:bg-muted/40"
+                        : "border-token hover:bg-muted/40"
                     }`}
                     title={t}
                   >
@@ -154,7 +154,7 @@ export default function RoomEditModal({ open, onClose, room, onSaved }: Props) {
           <div>
             <label className="mb-1 block text-xs text-muted-foreground">Floor</label>
             <select
-              className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-primary"
+              className="w-full rounded-lg border border-token bg-card px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-primary"
               value={String(floor ?? "")}
               onChange={(e) => setFloor(Number(e.target.value) as FloorKey)}
             >
@@ -168,7 +168,7 @@ export default function RoomEditModal({ open, onClose, room, onSaved }: Props) {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2 border-t px-5 py-3">
+        <div className="flex items-center justify-end gap-2 border-t border-token px-5 py-3 bg-surface-alt/40">
           <Button variant="outline" size="sm" onClick={onClose} disabled={busy}>
             Cancel
           </Button>

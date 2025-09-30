@@ -11,7 +11,7 @@ type Props = {
   showPreview?: boolean;
 };
 
-/** Make whatever the server returns into an absolute URL on the API origin. */
+/** Normalize a path returned by the API into an absolute URL. */
 function absolutizeFromApiBase(pathOrUrl: string): string {
   if (!pathOrUrl) return "";
   if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl;
@@ -20,8 +20,9 @@ function absolutizeFromApiBase(pathOrUrl: string): string {
     .replace(/^\/?api\/?/, "")
     .replace(/^\/+/, "");
 
+  // In dev, prefer relative path so Vite’s proxy can serve /uploads
   if (import.meta.env.DEV && trimmed.startsWith("uploads/")) {
-    return `/${trimmed}`; // Vite proxy in dev
+    return `/${trimmed}`;
   }
   return `${getApiOrigin()}/${trimmed}`;
 }
@@ -41,9 +42,19 @@ export function ImageUpload({
       if (!accepted.length || !homeId) return;
       const file = accepted[0];
 
+      // Guard: 0-byte or non-image file
+      if (!file || !file.size) {
+        setErr("Selected file is empty.");
+        return;
+      }
+      if (file.type && !file.type.startsWith("image/")) {
+        setErr("Please select an image file.");
+        return;
+      }
+
       const send = async (endpoint: string) => {
         const fd = new FormData();
-        fd.append("image", file);
+        fd.append("image", file, file.name);
         const res = await api.post(endpoint, fd, {
           headers: { "Content-Type": "multipart/form-data" },
         });
@@ -60,7 +71,7 @@ export function ImageUpload({
         try {
           data = await send(`/homes/${encodeURIComponent(homeId)}/image`);
         } catch {
-          // Optional fallbacks; okay to remove if unused
+          // Optional fallbacks; safe to remove if unused on the server
           try {
             data = await send(`/homes/${encodeURIComponent(homeId)}/upload`);
           } catch {
@@ -83,7 +94,7 @@ export function ImageUpload({
         setPreview(absolute);
         onUploadComplete(absolute);
       } catch (e: any) {
-        console.error("Image upload failed:", e);
+        if (import.meta.env.DEV) console.warn("Image upload failed:", e);
         setErr(e?.response?.data?.error || "Failed to upload image. Please try again.");
       } finally {
         setBusy(false);
@@ -92,35 +103,47 @@ export function ImageUpload({
     [homeId, onUploadComplete]
   );
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+  const { getRootProps, getInputProps, isDragActive, isDragReject } = useDropzone({
     onDrop,
     disabled: disabled || busy,
     maxSize: 5 * 1024 * 1024,
     accept: { "image/*": [] },
     multiple: false,
+    onDropRejected: () => setErr("File not accepted. Ensure it's an image under 5MB."),
   });
 
   return (
-    <div className="rounded-lg border p-3">
+    <div className="rounded-lg border-token border bg-surface p-3">
       <div
         {...getRootProps()}
-        className={`cursor-pointer rounded border-2 border-dashed p-4 text-center ${
-          isDragActive ? "bg-muted/50" : ""
-        }`}
+        aria-label="Upload home image"
+        className={`cursor-pointer rounded border-2 border-dashed p-4 text-center outline-none focus:ring-2 focus:ring-brand-primary ${
+          isDragActive ? "bg-muted/50" : "bg-card"
+        } ${isDragReject ? "ring-2 ring-brand-primary/40" : ""}`}
       >
         <input {...getInputProps()} />
-        <p className="text-sm">
+        <p className="text-sm text-body">
           Drag &amp; drop an image here, or <span className="underline">click to select</span>.<br />
           <span className="text-xs text-muted-foreground">Recommended size 800×400px • Max 5MB</span>
         </p>
-        {busy && <p className="mt-2 text-xs">Uploading…</p>}
-        {err && <p className="mt-2 text-xs text-red-600">{err}</p>}
+        {busy && <p className="mt-2 text-xs text-muted-foreground">Uploading…</p>}
+        {err && (
+          <p className="mt-2 text-xs text-body" role="alert">
+            {err}
+          </p>
+        )}
       </div>
 
       {showPreview && preview && (
         <div className="mt-3 flex items-center gap-3">
-          <img src={preview} alt="Home photo preview" className="h-20 w-32 rounded object-cover border" />
-          <span className="text-sm text-green-700">✅ Photo uploaded &amp; saved</span>
+          <img
+            src={preview}
+            alt="Home photo preview"
+            className="h-20 w-32 rounded object-cover border-token border"
+            loading="lazy"
+            decoding="async"
+          />
+          <span className="text-sm text-body">✅ Photo uploaded &amp; saved</span>
         </div>
       )}
     </div>

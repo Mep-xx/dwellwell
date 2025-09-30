@@ -21,11 +21,10 @@ import type {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { Select } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 import { useTheme } from '@/context/ThemeContext';
-import { THEME_CHOICES, themeId } from '@/theme/themes';
+import { THEME_CHOICES } from '@/theme/themes';
 import { THEME_SWATCHES } from '@/theme/swatches';
 
 /* ---------------- helpers ---------------- */
@@ -53,7 +52,7 @@ export default function SettingsPage() {
   const [savingSettings, setSavingSettings] = useState(false);
   const [savingNotifs, setSavingNotifs] = useState(false);
 
-  // We keep only "style family" locally (not persisted yet).
+  // keep currently selected style family locally (not persisted server-side yet)
   const [family, setFamily] = useState(theme.style);
 
   useEffect(() => {
@@ -68,11 +67,10 @@ export default function SettingsPage() {
         setLocal(data.settings);
         setNotifLocal(data.notificationPrefs);
 
-        // Hydrate ThemeContext from server (mode + fontScale). Style family stays local.
+        // hydrate ThemeContext (mode + fontScale). we keep the last chosen family locally
         setTheme({
           mode: toCtxMode(data.settings.theme),
           style: theme.style ?? 'default',
-          fontScale: data.settings.fontScale ?? 1,
         });
         setFamily(theme.style ?? 'default');
       } catch (e: any) {
@@ -85,7 +83,7 @@ export default function SettingsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Keep local family in sync if ThemeContext changes externally
+  // keep local family in sync when ThemeContext changes elsewhere
   useEffect(() => setFamily(theme.style), [theme.style]);
 
   async function saveSettings(next: UserSettings) {
@@ -96,11 +94,10 @@ export default function SettingsPage() {
       setLocal(updated);
       setBundle((prev) => (prev ? { ...prev, settings: updated } : prev));
 
-      // Apply immediately so navigation reflects new theme without reload
+      // apply immediately (mode from server, style from local family)
       setTheme({
         mode: toCtxMode(updated.theme),
         style: family,
-        fontScale: updated.fontScale ?? 1,
       });
     } catch (e: any) {
       setErr(e?.message || 'Failed to save settings');
@@ -153,62 +150,34 @@ export default function SettingsPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-3">
-            {/* Theme mode */}
-            <div>
-              <label className="text-sm font-medium">Theme mode</label>
-              <ModeDropdown
-                value={s.theme}
-                onChange={(serverMode) => {
-                  setLocal({ ...s, theme: serverMode });
-                  // live apply
-                  setTheme({
-                    mode: toCtxMode(serverMode),
-                    style: family,
-                    fontScale: s.fontScale ?? 1,
-                  });
-                }}
-              />
-            </div>
-
-            {/* Style family (applies immediately; not yet saved server-side) */}
-            <div className="sm:col-span-2">
-              <label className="text-sm font-medium">Style family</label>
+            {/* Single Theme chooser (mode + family together) */}
+            <div className="sm:col-span-3">
+              <label className="text-sm font-medium">Theme</label>
               <div className="mt-2">
-                <FamilyDropdown
-                  selectedId={themeId(toCtxMode(s.theme) === 'dark' ? 'dark' : 'light', family)}
+                <ThemeDropdown
+                  // find the closest current choice (by mode + family)
+                  selectedId={(() => {
+                    const mode = toCtxMode(s.theme);
+                    const target = THEME_CHOICES.find(
+                      (c) => c.mode === mode && c.style === family
+                    );
+                    return target?.id ?? THEME_CHOICES[0].id;
+                  })()}
                   onSelect={(id) => {
                     const choice = THEME_CHOICES.find((c) => c.id === id);
                     if (!choice) return;
+                    // update local server-backed mode
+                    const newServerMode = toServerMode(choice.mode);
+                    setLocal({ ...s, theme: newServerMode });
+                    // update local family + live apply
                     setFamily(choice.style);
                     setTheme({
-                      mode: toCtxMode(s.theme),
+                      mode: choice.mode,
                       style: choice.style,
-                      fontScale: s.fontScale ?? 1,
                     });
                   }}
                 />
               </div>
-            </div>
-
-            {/* Font scale */}
-            <div>
-              <label className="text-sm font-medium">Font scale</label>
-              <Input
-                type="number"
-                min="0.75"
-                max="1.5"
-                step="0.05"
-                value={s.fontScale}
-                onChange={(e) => {
-                  const next = parseFloat(e.target.value || '1');
-                  setLocal({ ...s, fontScale: next });
-                  setTheme({
-                    mode: toCtxMode(s.theme),
-                    style: family,
-                    fontScale: next,
-                  });
-                }}
-              />
             </div>
           </div>
 
@@ -412,22 +381,23 @@ function NotificationsMatrix({
                             checked={!!p.enabled && channelEnabled(ch.key)}
                             onCheckedChange={(v) => setPref({ ...p, enabled: v })}
                           />
-                          <Select
+                          <select
                             disabled={!channelEnabled(ch.key)}
                             value={p.frequency}
-                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                            onChange={(e) =>
                               setPref({
                                 ...p,
                                 frequency: e.target.value as NotificationFrequency,
                               })
                             }
+                            className="rounded border px-2 py-1 text-sm"
                           >
                             {freqs.map((f) => (
                               <option key={f} value={f}>
                                 {f.replace('_', ' ')}
                               </option>
                             ))}
-                          </Select>
+                          </select>
                         </div>
                       </td>
                     );
@@ -445,9 +415,9 @@ function NotificationsMatrix({
   );
 }
 
-/* ======================= theme pickers (dropdowns) ========================== */
+/* ======================= THEME DROPDOWN (mode + family) ===================== */
 
-function FamilyDropdown({
+function ThemeDropdown({
   selectedId,
   onSelect,
 }: {
@@ -484,7 +454,7 @@ function FamilyDropdown({
         <div className="flex items-center gap-3 min-w-0">
           {current && <SwatchRow swatch={THEME_SWATCHES[current.id]} />}
           <div className="min-w-0">
-            <div className="font-medium truncate">{current?.label ?? 'Choose style'}</div>
+            <div className="font-medium truncate">{current?.label ?? 'Choose theme'}</div>
             <div className="text-xs text-muted">Theme preview</div>
           </div>
         </div>
@@ -523,65 +493,6 @@ function FamilyDropdown({
               );
             })}
           </ul>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ModeDropdown({
-  value,
-  onChange,
-}: {
-  value: UserSettings['theme'];
-  onChange: (v: UserSettings['theme']) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function onDoc(e: MouseEvent) {
-      if (!open) return;
-      if (!ref.current) return;
-      if (!ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
-  }, [open]);
-
-  const items: { key: UserSettings['theme']; label: string }[] = [
-    { key: 'SYSTEM', label: 'System' },
-    { key: 'LIGHT', label: 'Light' },
-    { key: 'DARK', label: 'Dark' },
-  ];
-  const current = items.find((i) => i.key === value)?.label ?? 'System';
-
-  return (
-    <div className="relative" ref={ref}>
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="w-full inline-flex items-center justify-between rounded-xl border border-token bg-surface-alt px-3 py-2 text-left hover:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary"
-      >
-        <span className="font-medium">{current}</span>
-        <Caret />
-      </button>
-
-      {open && (
-        <div className="absolute z-50 mt-2 w-full rounded-xl border border-token bg-card text-body p-1 shadow-xl">
-          {items.map((it) => (
-            <button
-              key={it.key}
-              className={`w-full rounded-lg px-3 py-2 text-left hover:bg-surface-alt ${value === it.key ? 'ring-2 ring-primary' : ''
-                }`}
-              onClick={() => {
-                onChange(it.key);
-                setOpen(false);
-              }}
-            >
-              {it.label}
-            </button>
-          ))}
         </div>
       )}
     </div>

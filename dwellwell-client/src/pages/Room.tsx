@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Plus } from "lucide-react";
 import { useRoomAutosave } from "@/hooks/useRoomAutosave";
 import { getRoomVisual } from "@/utils/roomVisuals";
-import { floorOptionsWithOther as FLOOR_OPTIONS, floorLabel, FloorKey } from "@shared/constants/floors";
+import { floorOptionsWithOther as FLOOR_OPTIONS, floorLabel } from "@shared/constants/floors";
 import TrackableModal from "@/components/features/TrackableModal";
 
 import {
@@ -94,11 +94,6 @@ function num(v: any): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-function bool(v: any): boolean | null {
-  if (v === "" || v === null || v === undefined) return null;
-  return Boolean(v);
-}
-
 /* ============================== Page =============================== */
 
 export default function RoomPage() {
@@ -120,7 +115,6 @@ export default function RoomPage() {
   const [roomTasks, setRoomTasks] = useState<any[]>([]);
   const [tasksLoading, setTasksLoading] = useState(true);
   const [trackables, setTrackables] = useState<Trackable[]>([]);
-  const [tasks, setTasks] = useState<UserTask[]>([]);
   const [trackableOpen, setTrackableOpen] = useState(false);
 
   const addRef = useRef<HTMLInputElement | null>(null);
@@ -157,7 +151,6 @@ export default function RoomPage() {
     })();
     return () => { cancelled = true; };
   }, [roomId]);
-
 
   useEffect(() => {
     let cancelled = false;
@@ -211,13 +204,7 @@ export default function RoomPage() {
           } catch {
             /* ignore */
           }
-
-          try {
-            const { data: taskData } = await api.get(`/rooms/${base.id}/tasks`);
-            if (!cancelled) setTasks(Array.isArray(taskData) ? taskData : []);
-          } catch {
-            /* ignore */
-          }
+          // tasks list is loaded by the dedicated effect above
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -230,11 +217,12 @@ export default function RoomPage() {
     };
   }, [roomId, preloaded, toast]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Open the add-trackable modal if the URL hash is present
   useEffect(() => {
     if (window.location.hash === "#add-trackable") {
-      setTimeout(() => addRef.current?.focus(), 0);
+      setTrackableOpen(true);
     }
-  }, []);
+  }, [location.hash]);
 
   const visual = useMemo(() => getRoomVisual(room?.type), [room?.type]);
 
@@ -290,13 +278,13 @@ export default function RoomPage() {
           <source
             type="image/webp"
             srcSet={[
-              `${visual.image1x.replace(".jpg", ".webp")} 1x`,
+              `${(visual.image1x ?? "/images/room-fallback.jpg").replace(".jpg", ".webp")} 1x`,
               visual.image2x ? `${visual.image2x.replace(".jpg", ".webp")} 2x` : undefined,
             ].filter(Boolean).join(", ")}
             sizes="100vw"
           />
           <img
-            src={visual.image1x}
+            src={visual.image1x ?? "/images/room-fallback.jpg"}
             srcSet={visual.image2x ? `${visual.image2x} 2x` : undefined}
             alt={`${visual.label} photo`}
             className="h-48 w-full object-cover md:h-64"

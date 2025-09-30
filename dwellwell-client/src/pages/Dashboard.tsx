@@ -1,8 +1,9 @@
-//dwellwell-client/src/pages/Dashboard.tsx
+// dwellwell-client/src/pages/Dashboard.tsx
 import { useState } from 'react';
 import TaskCard from '@/components/features/TaskCard';
 import { initialTasks } from '../data/mockTasks';
 import { TaskCategory, TaskStatus } from '@shared/types/task';
+import { Button } from '@/components/ui/button';
 
 const categoryIcons: Record<TaskCategory, string> = {
   appliance: '🔧',
@@ -42,10 +43,7 @@ export default function Dashboard() {
       endOfWeek.setDate(startOfWeek.getDate() + 6);
       return taskDate >= startOfWeek && taskDate <= endOfWeek;
     } else if (timeframe === 'month') {
-      return (
-        taskDate.getFullYear() === now.getFullYear() &&
-        taskDate.getMonth() === now.getMonth()
-      );
+      return taskDate.getFullYear() === now.getFullYear() && taskDate.getMonth() === now.getMonth();
     } else if (timeframe === 'year') {
       return taskDate.getFullYear() === now.getFullYear();
     }
@@ -68,38 +66,31 @@ export default function Dashboard() {
       const updated = prev.map(task =>
         task.id === id
           ? {
-            ...task,
-            status: newStatus === 'remind' ? task.status : newStatus,
-            dueDate:
-              newStatus === 'remind' && days
-                ? new Date(
-                  new Date(task.dueDate).getTime() + days * 24 * 60 * 60 * 1000
-                )
-                  .toISOString()
-                  .split('T')[0]
-                : task.dueDate,
-            completedDate:
-              newStatus === 'COMPLETED'
-                ? new Date().toISOString().split('T')[0]
-                : task.completedDate,
-          }
+              ...task,
+              status: newStatus === 'remind' ? task.status : newStatus,
+              dueDate:
+                newStatus === 'remind' && days
+                  ? new Date(new Date(task.dueDate).getTime() + days * 86400000)
+                      .toISOString()
+                      .split('T')[0]
+                  : task.dueDate,
+              completedDate:
+                newStatus === 'COMPLETED'
+                  ? new Date().toISOString().split('T')[0]
+                  : task.completedDate,
+            }
           : task
       );
 
       const updatedTask = updated.find(t => t.id === id);
       if (updatedTask?.itemName) {
-        // Only check visible tasks in this group for auto-collapse
-        const relatedTasks = updated.filter(t =>
-          t.itemName === updatedTask.itemName && isInCurrentTimeframe(t.dueDate)
+        const relatedTasks = updated.filter(
+          t => t.itemName === updatedTask.itemName && isInCurrentTimeframe(t.dueDate)
         );
-
         const allDone = relatedTasks.every(t => t.status !== 'PENDING');
         if (allDone) {
           setTimeout(() => {
-            setCollapsedGroups(prev => ({
-              ...prev,
-              [updatedTask.itemName!]: true,
-            }));
+            setCollapsedGroups(prev => ({ ...prev, [updatedTask.itemName!]: true }));
           }, 1500);
         }
       }
@@ -108,20 +99,14 @@ export default function Dashboard() {
     });
   };
 
-
   const toggleGroup = (groupName: string) => {
-    setCollapsedGroups(prev => ({
-      ...prev,
-      [groupName]: !prev[groupName],
-    }));
+    setCollapsedGroups(prev => ({ ...prev, [groupName]: !prev[groupName] }));
   };
 
   const groupedTasks: Record<string, typeof tasks> = {};
   visibleTasks.forEach(task => {
     const key = task.itemName || 'General';
-    if (!groupedTasks[key]) {
-      groupedTasks[key] = [];
-    }
+    if (!groupedTasks[key]) groupedTasks[key] = [];
     groupedTasks[key].push(task);
   });
 
@@ -129,72 +114,48 @@ export default function Dashboard() {
     <div className="space-y-8 bg-brand-background p-4 sm:p-2 rounded">
       <div>
         <h1 className="text-3xl font-bold text-brand-primary">Dashboard</h1>
-        <p className="text-brand-foreground">
-          Welcome back! Here’s what’s coming up.
-        </p>
+        <p className="text-brand-foreground">Welcome back! Here’s what’s coming up.</p>
       </div>
 
       {/* View and Timeframe Controls */}
       <div className="flex flex-wrap gap-6 items-center mt-2">
-        <div className="flex gap-4 items-center">
-          <label className="text-sm font-medium text-brand-foreground">View:</label>
-          <button
+        <div className="flex gap-2 items-center">
+          <span className="text-sm font-medium text-brand-foreground">View:</span>
+          <Button
+            size="sm"
+            variant={viewMode === 'grouped' ? 'default' : 'secondary'}
             onClick={() => handleViewChange('grouped')}
-            className={`px-3 py-1 rounded text-sm ${viewMode === 'grouped'
-                ? 'bg-brand-primary text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
           >
             Grouped
-          </button>
-          <button
+          </Button>
+          <Button
+            size="sm"
+            variant={viewMode === 'flat' ? 'default' : 'secondary'}
             onClick={() => handleViewChange('flat')}
-            className={`px-3 py-1 rounded text-sm ${viewMode === 'flat'
-                ? 'bg-brand-primary text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
           >
             Flat
-          </button>
+          </Button>
         </div>
 
-        <div className="flex gap-4 items-center">
-          <label className="text-sm font-medium text-brand-foreground">Timeframe:</label>
-          <button
-            onClick={() => setTimeframe('week')}
-            className={`px-3 py-1 rounded text-sm ${timeframe === 'week'
-                ? 'bg-brand-primary text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-          >
+        <div className="flex gap-2 items-center">
+          <span className="text-sm font-medium text-brand-foreground">Timeframe:</span>
+          <Button size="sm" variant={timeframe === 'week' ? 'default' : 'secondary'} onClick={() => setTimeframe('week')}>
             Week
-          </button>
-          <button
-            onClick={() => setTimeframe('month')}
-            className={`px-3 py-1 rounded text-sm ${timeframe === 'month'
-                ? 'bg-brand-primary text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-          >
+          </Button>
+          <Button size="sm" variant={timeframe === 'month' ? 'default' : 'secondary'} onClick={() => setTimeframe('month')}>
             Month
-          </button>
-          <button
-            onClick={() => setTimeframe('year')}
-            className={`px-3 py-1 rounded text-sm ${timeframe === 'year'
-                ? 'bg-brand-primary text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-          >
+          </Button>
+          <Button size="sm" variant={timeframe === 'year' ? 'default' : 'secondary'} onClick={() => setTimeframe('year')}>
             Year
-          </button>
+          </Button>
         </div>
       </div>
 
       {/* All Tasks Complete Message */}
       {visibleTasks.length > 0 && visibleTasks.every(t => t.status !== 'PENDING') && (
-        <section className="bg-green-50 border border-green-200 rounded-xl p-6 shadow text-center">
-          <h2 className="text-2xl font-bold text-green-700 mb-2">🎉 All Tasks Complete!</h2>
-          <p className="text-gray-700 text-sm">You’ve crushed every task for this {timeframe}. Kick back and relax!</p>
+        <section className="bg-emerald-50 border border-emerald-200 rounded-xl p-6 shadow text-center">
+          <h2 className="text-2xl font-bold text-emerald-700 mb-2">🎉 All Tasks Complete!</h2>
+          <p className="text-muted-foreground text-sm">You’ve crushed every task for this {timeframe}. Kick back and relax!</p>
         </section>
       )}
 
@@ -221,39 +182,41 @@ export default function Dashboard() {
                   <div
                     className="flex items-center justify-between mb-2 cursor-pointer select-none"
                     onClick={() => toggleGroup(itemName)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && toggleGroup(itemName)}
+                    aria-expanded={!isCollapsed}
+                    aria-controls={`group-${itemName}`}
                   >
                     <h3 className="text-lg font-semibold text-brand-foreground flex items-center gap-2">
                       <span>{icon}</span> {itemName}
                     </h3>
                     <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-500">{percent}% complete</span>
-                      <span
-                        className={`transform transition-transform ${isCollapsed ? '-rotate-90' : 'rotate-0'
-                          }`}
-                      >
-                        ▶️
-                      </span>
+                      <span className="text-sm text-muted-foreground">{percent}% complete</span>
+                      <span className={`transform transition-transform ${isCollapsed ? '-rotate-90' : 'rotate-0'}`}>▶️</span>
                     </div>
                   </div>
 
-                  <div className="w-full h-2 bg-gray-200 rounded mb-3 overflow-hidden">
+                  <div className="w-full h-2 bg-surface-alt rounded mb-3 overflow-hidden">
                     <div
-                      className={`h-full transition-all duration-300 ${percent === 100
+                      className={[
+                        'h-full transition-all duration-300',
+                        percent === 100
                           ? 'bg-emerald-500'
                           : percent >= 75
-                            ? 'bg-lime-400'
-                            : percent >= 50
-                              ? 'bg-yellow-400'
-                              : percent >= 25
-                                ? 'bg-orange-400'
-                                : 'bg-red-500'
-                        }`}
+                          ? 'bg-lime-400'
+                          : percent >= 50
+                          ? 'bg-yellow-400'
+                          : percent >= 25
+                          ? 'bg-orange-400'
+                          : 'bg-red-500',
+                      ].join(' ')}
                       style={{ width: `${percent}%` }}
-                    ></div>
+                    />
                   </div>
 
                   {!isCollapsed && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div id={`group-${itemName}`} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                       {tasks.map(task => (
                         <TaskCard key={task.id} task={task} onStatusChange={handleStatusChange} />
                       ))}

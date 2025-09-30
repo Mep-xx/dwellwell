@@ -1,4 +1,4 @@
-//dwellwell-client/src/components/ui/dialog.tsx
+// dwellwell-client/src/components/ui/dialog.tsx
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -24,10 +24,9 @@ export function DialogContent({
         role="dialog"
         aria-modal="true"
         className={cn(
-          // Centered, capped width, nice spacing
           'fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2',
           'w-[calc(100vw-2rem)] sm:w-full sm:max-w-2xl max-h-[90vh]',
-          'rounded-xl bg-white p-6 shadow-lg focus:outline-none',
+          'rounded-xl border border-token bg-card p-6 shadow-lg focus:outline-none',
           'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
           className
         )}
@@ -35,7 +34,7 @@ export function DialogContent({
       >
         {children}
         <DialogPrimitive.Close
-          className="absolute right-4 top-4 text-gray-500 hover:text-black focus:outline-none"
+          className="absolute right-4 top-4 text-muted-foreground hover:text-body focus:outline-none"
           aria-label="Close"
         >
           <X className="h-5 w-5" />

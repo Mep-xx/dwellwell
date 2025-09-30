@@ -11,18 +11,18 @@ type DeleteHomeModalProps = {
 export function DeleteHomeModal({ isOpen, onConfirm, onCancel }: DeleteHomeModalProps) {
   return (
     <Dialog open={isOpen} onOpenChange={onCancel}>
-      <DialogContent className="max-w-md p-6 space-y-6">
+      <DialogContent className="max-w-md p-6 space-y-6 bg-card text-body border border-token">
         <div className="flex flex-col items-center text-center">
           <img
             src="/images/house_fadeout_placeholder.png"
             alt="Disappearing Home"
             className="w-24 h-24 mb-4 opacity-60"
           />
-          <DialogTitle className="text-red-600 text-2xl font-bold">Delete This Home?</DialogTitle>
-          <DialogDescription className="text-gray-700 pt-2">
+          <DialogTitle className="text-danger text-2xl font-bold">Delete This Home?</DialogTitle>
+          <DialogDescription className="text-muted pt-2">
             Deleting this home will permanently remove all related Rooms, Trackables, Lawn Profiles, Vehicles, and Tasks.
             <br /><br />
-            <strong>This action cannot be undone.</strong> Are you sure you want to continue?
+            <strong className="text-body">This action cannot be undone.</strong> Are you sure you want to continue?
           </DialogDescription>
         </div>
 

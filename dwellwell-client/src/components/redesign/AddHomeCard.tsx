@@ -10,8 +10,8 @@ export default function AddHomeCard({ className = "", onClick }: Props) {
   return (
     <button
       onClick={onClick}
-      className={`group h-44 w-full rounded-2xl border border-dashed border-gray-300 hover:border-brand-primary 
-                  text-gray-500 hover:text-brand-primary grid place-items-center transition ${className}`}
+      className={`group h-44 w-full rounded-2xl border border-dashed border-token hover:border-brand-primary 
+                  text-muted-foreground hover:text-brand-primary grid place-items-center transition bg-card ${className}`}
       title="Add a new home"
     >
       <div className="flex items-center gap-2">

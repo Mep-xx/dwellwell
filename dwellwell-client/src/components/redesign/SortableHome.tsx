@@ -30,7 +30,7 @@ export default function SortableHome({ id, disabled, handleAlign = "right", chil
           title="Drag to reorder"
           onMouseDown={stop}
           onClick={stop}
-          className={`absolute top-2 ${handleAlign === "right" ? "right-2" : "left-2"} z-10 inline-flex items-center justify-center rounded-md border bg-white/90 p-1 text-muted-foreground shadow-sm hover:bg-white focus:outline-none focus:ring-2 focus:ring-brand-primary`}
+          className={`absolute top-2 ${handleAlign === "right" ? "right-2" : "left-2"} z-10 inline-flex items-center justify-center rounded-md border border-token bg-card/90 p-1 text-muted-foreground shadow-sm hover:bg-card focus:outline-none focus:ring-2 focus:ring-brand-primary`}
           {...attributes}
           {...listeners}
         >

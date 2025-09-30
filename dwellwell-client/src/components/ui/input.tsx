@@ -1,23 +1,26 @@
 //dwellwell-client/src/components/ui/input.tsx
-import * as React from 'react';
-import { cn } from '@/lib/utils';
+import * as React from "react";
+import { cn } from "@/lib/utils";
 
 export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {}
 
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className, type = 'text', ...props }, ref) => {
+  ({ className, type = "text", ...props }, ref) => {
     return (
-      <input 
+      <input
         type={type}
+        ref={ref}
         className={cn(
-          "w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50",
+          "w-full rounded-md border border-token bg-card px-3 py-2 text-sm text-body shadow-sm",
+          "placeholder:text-muted-foreground",
+          "focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-brand-primary",
+          "disabled:cursor-not-allowed disabled:opacity-50",
           className
         )}
-        ref={ref}
         {...props}
       />
     );
   }
 );
 
-Input.displayName = 'Input';
+Input.displayName = "Input";

@@ -1,4 +1,4 @@
-//dwellwell-client/src/components/ui/checkbox.tsx
+// dwellwell-client/src/components/ui/checkbox.tsx
 import { InputHTMLAttributes } from 'react';
 import { cn } from '@/lib/utils';
 
@@ -9,7 +9,7 @@ export function Checkbox({ className, ...props }: CheckboxProps) {
     <input
       type="checkbox"
       className={cn(
-        'h-5 w-5 rounded border-gray-300 text-brand-primary focus:ring-brand-primary',
+        'h-5 w-5 rounded border-token bg-card text-brand-primary focus:ring-brand-primary',
         className
       )}
       {...props}

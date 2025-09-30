@@ -1,3 +1,4 @@
+// dwellwell-api/src/routes/trackables/update.ts
 import { Request, Response } from 'express';
 import { asyncHandler } from '../../middleware/asyncHandler';
 import { prisma } from '../../db/prisma';
@@ -9,6 +10,7 @@ import { prisma } from '../../db/prisma';
  * - Validates home/room reassignment
  * - Validates applianceCatalogId existence
  * - Parses purchaseDate
+ * - Updates generic/detail flags when details change (isGeneric, detailLevel, source)
  *
  * NOTE: This assumes Trackable has nullable columns:
  *   brand?: string | null
@@ -16,7 +18,10 @@ import { prisma } from '../../db/prisma';
  *   category?: string | null
  *   kind?: string | null   // "type" in the UI maps to "kind" in DB
  *
- * If your column names differ, adjust below where noted.
+ * And optional flags (added in schema for quick-add generics):
+ *   isGeneric: boolean @default(true)
+ *   detailLevel: 'generic' | 'basic' | 'detailed' | 'verified' @default(generic)
+ *   source: 'user_manual_entry' | 'user_quick_prompt' | 'admin_seed' | 'import_csv' | 'catalog_match'
  */
 
 const ALLOWED_CATEGORIES = new Set([
@@ -39,17 +44,38 @@ const ALLOWED_CATEGORIES = new Set([
   'furniture',        // couches, desks, etc.
 ]);
 
+function computeDetailLevel(brand?: any, model?: any, serial?: any): 'generic' | 'basic' | 'detailed' | 'verified' {
+  const hasBrand = !!brand;
+  const hasModel = !!model;
+  const hasSerial = !!serial;
+  if (!hasBrand && !hasModel && !hasSerial) return 'generic';
+  if (hasBrand && hasModel && hasSerial) return 'verified';
+  if (hasBrand && hasModel) return 'detailed';
+  return 'basic';
+}
+
 export default asyncHandler(async (req: Request, res: Response) => {
   const userId = (req as any).user?.id;
   const { trackableId } = req.params as any;
 
-  // Find by either ownership model
+  // Fetch current row with just enough to validate and compute diffs
   const current = await prisma.trackable.findFirst({
     where: {
       id: trackableId,
       OR: [{ ownerUserId: userId }, { home: { userId } }],
     },
-    select: { id: true, homeId: true },
+    select: {
+      id: true,
+      homeId: true,
+      roomId: true,
+      brand: true,
+      model: true,
+      serialNumber: true,
+      applianceCatalogId: true,
+      isGeneric: true,
+      detailLevel: true,
+      source: true,
+    },
   });
   if (!current) return res.status(404).json({ error: 'TRACKABLE_NOT_FOUND' });
 
@@ -64,7 +90,7 @@ export default asyncHandler(async (req: Request, res: Response) => {
     notes,
     imageUrl,
 
-    // new overrides (long-term UX)
+    // overrides
     brand,
     model,
     category,
@@ -102,8 +128,7 @@ export default asyncHandler(async (req: Request, res: Response) => {
     }
   }
 
-  // Long-term UX: allow brand/model/category/type overrides on Trackable itself
-  // These columns must exist on the Trackable model (nullable).
+  // Allow brand/model/category/type overrides on Trackable itself (nullable)
   if (brand !== undefined) data.brand = brand === null ? null : String(brand).slice(0, 128);
   if (model !== undefined) data.model = model === null ? null : String(model).slice(0, 128);
 
@@ -155,6 +180,31 @@ export default asyncHandler(async (req: Request, res: Response) => {
     }
   }
 
+  // --- Generic/detail flags: compute from final values we intend to persist ---
+  // We need the "would-be" values after this update, so derive them from payload-or-current.
+  const nextBrand = (brand !== undefined) ? (brand ?? null) : current.brand;
+  const nextModel = (model !== undefined) ? (model ?? null) : current.model;
+  const nextSerial = (serialNumber !== undefined) ? (serialNumber ?? null) : current.serialNumber;
+
+  const nextDetailLevel = computeDetailLevel(nextBrand, nextModel, nextSerial);
+  const nextIsGeneric = nextDetailLevel === 'generic';
+
+  // Update flags only if they are changing or if caller touched details/catalog
+  const touchedIdentityFields = (brand !== undefined) || (model !== undefined) || (serialNumber !== undefined) || (applianceCatalogId !== undefined);
+  if (touchedIdentityFields) {
+    data.isGeneric = nextIsGeneric;
+    data.detailLevel = nextDetailLevel;
+    // If linking to a catalog, record provenance as a helpful hint; otherwise keep prior/source unless this looks like a manual detail add.
+    if (applianceCatalogId !== undefined && applianceCatalogId !== null) {
+      data.source = 'catalog_match';
+    } else if (brand !== undefined || model !== undefined || serialNumber !== undefined) {
+      // only set to manual if not already catalog_match — avoid clobbering a prior explicit source from other flows
+      if (current.source !== 'catalog_match') {
+        data.source = 'user_manual_entry';
+      }
+    }
+  }
+
   // Perform update
   await prisma.trackable.update({
     where: { id: trackableId },
@@ -198,16 +248,22 @@ export default asyncHandler(async (req: Request, res: Response) => {
     nextDueDate: (updated as any).nextDueDate ?? null,
     counts: (updated as any).counts ?? { overdue: 0, dueSoon: 0, active: 0 },
 
+    // helpful UI signals
+    isGeneric: (updated as any).isGeneric ?? undefined,
+    detailLevel: (updated as any).detailLevel ?? undefined,
+    source: (updated as any).source ?? undefined,
+
     createdAt: updated.createdAt.toISOString(),
     lastCompletedAt: (updated as any).lastCompletedAt ?? null,
   };
 
   res.json(view);
 
+  // Kick task generation/enrichment asynchronously (safe fire-and-forget).
   try {
-    const { generateTasksForTrackable } = await import("../../services/taskgen");
+    const { generateTasksForTrackable } = await import('../../services/taskgen');
     await generateTasksForTrackable(trackableId);
   } catch (e) {
-    console.error("[trackables/update] taskgen error:", e);
+    console.error('[trackables/update] taskgen error:', e);
   }
 });

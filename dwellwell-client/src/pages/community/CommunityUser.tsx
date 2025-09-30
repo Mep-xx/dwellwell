@@ -1,4 +1,4 @@
-//dwellwell-client/src/pages/community/CommunityUser.tsx
+// dwellwell-client/src/pages/community/CommunityUser.tsx
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { forumApi } from "@/utils/apiForum";
@@ -6,18 +6,37 @@ import { forumApi } from "@/utils/apiForum";
 export default function CommunityUser() {
   const { userId = "" } = useParams();
   const [data, setData] = useState<any>(null);
-  useEffect(() => { forumApi.profile(userId).then(setData); }, [userId]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    forumApi.profile(userId).then(setData).finally(() => setLoading(false));
+  }, [userId]);
+
+  if (loading) {
+    return (
+      <div className="mx-auto max-w-3xl p-6 space-y-4">
+        <div className="h-16 rounded-2xl border bg-muted/30 animate-pulse" />
+        <div className="h-40 rounded-2xl border bg-muted/30 animate-pulse" />
+      </div>
+    );
+  }
   if (!data) return null;
+
   const { user, rep, threads, posts } = data;
 
   return (
     <div className="mx-auto max-w-3xl p-6 space-y-6">
       <div className="flex items-center gap-3">
-        {user.avatarUrl ? <img src={user.avatarUrl} className="h-12 w-12 rounded-full" /> :
-          <div className="h-12 w-12 rounded-full bg-muted" />}
+        {user.avatarUrl ? (
+          <img src={user.avatarUrl} className="h-12 w-12 rounded-full object-cover" />
+        ) : (
+          <div className="h-12 w-12 rounded-full bg-muted" />
+        )}
         <div>
           <div className="font-semibold">{user.email}</div>
-          <div className="text-sm text-muted-foreground">Lv {rep.level} • {rep.totalXP} XP</div>
+          <div className="text-sm text-muted-foreground">
+            Lv {rep.level} • {rep.totalXP} XP
+          </div>
         </div>
       </div>
 
@@ -28,11 +47,13 @@ export default function CommunityUser() {
             {threads.map((t: any) => (
               <Link
                 key={t.id}
-                className="block border rounded p-2 bg-white shadow-sm hover:bg-muted/20"
+                className="block border rounded-xl p-3 bg-white shadow-sm hover:bg-muted/20"
                 to={`/community/thread/${t.id}`}
               >
                 <div className="font-medium">{t.title}</div>
-                <div className="text-xs text-muted-foreground">in {t.category.name} • ▲ {t.score} • {new Date(t.lastPostAt).toLocaleString()}</div>
+                <div className="text-xs text-muted-foreground">
+                  in {t.category.name} • ▲ {t.score} • {new Date(t.lastPostAt).toLocaleString()}
+                </div>
               </Link>
             ))}
           </div>
@@ -43,11 +64,13 @@ export default function CommunityUser() {
             {posts.map((p: any) => (
               <Link
                 key={p.id}
-                className="block border rounded p-2 bg-white shadow-sm hover:bg-muted/20"
+                className="block border rounded-xl p-3 bg-white shadow-sm hover:bg-muted/20"
                 to={`/community/thread/${p.threadId}`}
               >
                 <div className="font-medium line-clamp-1">{p.thread?.title}</div>
-                <div className="text-xs text-muted-foreground">{new Date(p.createdAt).toLocaleString()}</div>
+                <div className="text-xs text-muted-foreground">
+                  {new Date(p.createdAt).toLocaleString()}
+                </div>
               </Link>
             ))}
           </div>

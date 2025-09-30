@@ -1,4 +1,4 @@
-// /dwellwell-client/src/components/redesign/HomeCardTile.tsx
+// dwellwell-client/src/components/redesign/HomeCardTile.tsx
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Home } from "@shared/types/home";
@@ -68,12 +68,12 @@ export default function HomeCardTile({
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") open();
         }}
-        className={`overflow-hidden rounded-2xl border bg-white shadow-sm transition hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary cursor-pointer ${className}`}
+        className={`overflow-hidden rounded-2xl border border-token bg-card shadow-sm transition hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary cursor-pointer ${className}`}
       >
         <div className="relative h-36 w-full">
           <img src={img} alt={label} title={label} className="h-full w-full object-cover" />
           {!home.isChecked && (
-            <span className="absolute top-2 left-2 rounded bg-gray-900/80 px-2 py-0.5 text-[11px] text-white">
+            <span className="absolute top-2 left-2 rounded bg-black/60 px-2 py-0.5 text-[11px] text-white">
               Not in To-Do
             </span>
           )}
@@ -107,7 +107,7 @@ export default function HomeCardTile({
 
         {/* Footer actions */}
         <div
-          className="flex items-center justify-between gap-3 border-t px-3 py-2"
+          className="flex items-center justify-between gap-3 border-t border-token px-3 py-2 bg-surface-alt/40"
           onClick={(e) => e.stopPropagation()}
           onKeyDown={(e) => e.stopPropagation()}
         >
@@ -121,7 +121,7 @@ export default function HomeCardTile({
 
           <button
             title="Delete home"
-            className="inline-flex items-center rounded-md border px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+            className="inline-flex items-center rounded-md border border-token px-2 py-1 text-xs text-red-600 hover:bg-red-50"
             onClick={() => setShowDelete(true)}
           >
             <Trash2 className="mr-1 h-3 w-3" />

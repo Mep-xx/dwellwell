@@ -4,24 +4,14 @@ import { api } from "@/utils/api";
 import type { Home } from "@shared/types/home";
 import type { Room } from "@shared/types/room";
 import { useNavigate } from "react-router-dom";
-
 import { HomeCard } from "@/components/features/HomeCard";
 import { DeleteHomeModal } from "@/components/features/DeleteHomeModal";
 import AddHomeWizard from "@/components/features/AddHomeWizard";
 import { useToast } from "@/components/ui/use-toast";
+import { Button } from "@/components/ui/button";
 
-type TaskSummary = {
-  complete: number;
-  dueSoon: number;
-  overdue: number;
-  total: number;
-};
-
-type HomeWithStats = Home & {
-  taskSummary?: TaskSummary;
-  rooms?: Room[];
-};
-
+type TaskSummary = { complete: number; dueSoon: number; overdue: number; total: number };
+type HomeWithStats = Home & { taskSummary?: TaskSummary; rooms?: Room[] };
 type ApiHome = Home & { rooms?: Room[] };
 
 export default function HomesPage() {
@@ -36,7 +26,6 @@ export default function HomesPage() {
   const navigate = useNavigate();
   const abortRef = useRef<AbortController | null>(null);
 
-  // --- derived, stable sort (nickname/address) ---
   const sortedHomes = useMemo(() => {
     return [...homes].sort((a, b) => {
       const ax = (a.nickname || a.address || "").toLowerCase().trim();
@@ -64,18 +53,15 @@ export default function HomesPage() {
       abortRef.current = ctrl;
 
       try {
-        const res = await api.get<ApiHome[]>("/homes", {
-          signal: ctrl.signal as any,
-        });
+        const res = await api.get<ApiHome[]>("/homes", { signal: ctrl.signal as any });
         const fetched = res.data;
 
         const enriched = await Promise.all(
           fetched.map(async (home) => {
             try {
-              const { data: taskSummary } = await api.get(
-                `/homes/${home.id}/summary`,
-                { signal: ctrl.signal as any }
-              );
+              const { data: taskSummary } = await api.get(`/homes/${home.id}/summary`, {
+                signal: ctrl.signal as any,
+              });
               return { ...home, taskSummary, rooms: home.rooms ?? [] };
             } catch {
               return { ...home, rooms: home.rooms ?? [] };
@@ -97,7 +83,6 @@ export default function HomesPage() {
     };
 
     fetchHomes();
-
     return () => {
       mounted = false;
       abortRef.current?.abort();
@@ -107,15 +92,11 @@ export default function HomesPage() {
   const toggleHomeChecked = async (homeId: string, newValue: boolean) => {
     const prev = homes;
     try {
-      setHomes((p) =>
-        p.map((h) => (h.id === homeId ? { ...h, isChecked: newValue } : h))
-      );
+      setHomes((p) => p.map((h) => (h.id === homeId ? { ...h, isChecked: newValue } : h)));
       await api.patch(`/homes/${homeId}`, { isChecked: newValue });
 
       toast({
-        title: newValue
-          ? "Home included in to-do list"
-          : "Home excluded from to-do list",
+        title: newValue ? "Home included in to-do list" : "Home excluded from to-do list",
         description: newValue
           ? "Tasks for this home will now appear in your maintenance dashboard."
           : "This home’s tasks will be hidden from your maintenance dashboard.",
@@ -144,11 +125,7 @@ export default function HomesPage() {
 
     try {
       await api.delete(`/homes/${targetId}`);
-      toast({
-        title: "Home deleted",
-        description: "This home has been removed.",
-        variant: "default",
-      });
+      toast({ title: "Home deleted", description: "This home has been removed." });
     } catch (err) {
       console.error("Failed to delete home:", err);
       setHomes(prev); // rollback
@@ -166,12 +143,9 @@ export default function HomesPage() {
     <div className="p-6">
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-3xl font-bold text-brand-primary">🏡 My Homes</h1>
-        <button
-          className="rounded bg-brand-primary px-4 py-2 text-white hover:bg-blue-600"
-          onClick={() => setShowAddModal(true)}
-        >
+        <Button onClick={() => setShowAddModal(true)} className="px-4">
           + Add Home
-        </button>
+        </Button>
       </div>
 
       {errorMsg && (
@@ -180,35 +154,26 @@ export default function HomesPage() {
         </div>
       )}
 
-      {/* Loading skeleton */}
       {loading ? (
         <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
-            <div
-              key={i}
-              className="h-56 w-full animate-pulse rounded-xl border bg-muted/30"
-            />
+            <div key={i} className="h-56 w-full animate-pulse rounded-xl border bg-muted/30" />
           ))}
         </div>
       ) : homes.length === 0 ? (
-        // Empty state
         <div className="mt-16 flex flex-col items-center justify-center">
           <div className="w-full max-w-xl rounded-2xl border border-dashed bg-muted/20 p-10 text-center">
             <div className="mb-2 text-2xl font-semibold">No homes yet</div>
             <p className="mb-6 text-sm text-muted-foreground">
-              Add your first home to start tracking maintenance, rooms, and
-              features. You can always edit details later.
+              Add your first home to start tracking maintenance, rooms, and features. You can always
+              edit details later.
             </p>
-            <button
-              className="rounded bg-brand-primary px-4 py-2 text-white hover:bg-blue-600"
-              onClick={() => setShowAddModal(true)}
-            >
+            <Button onClick={() => setShowAddModal(true)} className="px-4">
               + Add Home
-            </button>
+            </Button>
           </div>
         </div>
       ) : (
-        // Grid of homes
         <div className="flex flex-wrap gap-6">
           {sortedHomes.map((home) => (
             <div
@@ -217,9 +182,8 @@ export default function HomesPage() {
               onClick={() => openHome(home.id)}
               role="button"
               tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") openHome(home.id);
-              }}
+              onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && openHome(home.id)}
+              aria-label={`Open ${home.nickname || home.address}`}
             >
               <HomeCard
                 home={home}
@@ -238,7 +202,7 @@ export default function HomesPage() {
         onOpenChange={setShowAddModal}
         onFinished={(h) => {
           setShowAddModal(false);
-          openHome(h.id); // navigate straight to new home
+          openHome(h.id);
         }}
       />
 

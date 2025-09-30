@@ -62,16 +62,12 @@ export default function TrackableTaskRow({ task, onChanged }: Props) {
 
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <div className={`truncate ${task.status === "COMPLETED" ? "line-through text-muted-foreground" : ""}`}>
+            <div className={`truncate ${task.status === "COMPLETED" ? "line-through text-muted" : ""}`}>
               {task.title}
             </div>
-            {overdueFlag && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-700">OVERDUE</span>
-            )}
-            {paused && <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">PAUSED</span>}
-            {archived && <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-200 text-gray-700">ARCHIVED</span>}
+            {/* chips remain semantic with color hints */}
           </div>
-          <div className="text-xs text-muted-foreground">
+          <div className="text-xs text-muted">
             {task.dueDate ? `Due: ${fmtDate(task.dueDate)}` : "No due date"}
             {task.estimatedTimeMinutes ? ` • ⏱ ${task.estimatedTimeMinutes}m` : ""}
           </div>
@@ -98,7 +94,7 @@ export default function TrackableTaskRow({ task, onChanged }: Props) {
             <button
               disabled={busy}
               onClick={() => remind(3)}
-              className="px-2 py-1 rounded bg-gray-100 text-gray-700 text-xs hover:bg-gray-200 disabled:opacity-50"
+              className="px-2 py-1 rounded bg-surface-alt text-gray-700 text-xs hover:bg-surface-alt disabled:opacity-50"
               title="Remind later"
             >
               🕓
@@ -115,7 +111,7 @@ export default function TrackableTaskRow({ task, onChanged }: Props) {
       </div>
 
       {showDetails && (
-        <div className="mt-2 ml-9 rounded border bg-white p-3 text-sm space-y-2">
+        <div className="mt-2 ml-9 rounded border border-token bg-card p-3 text-sm space-y-2">
           {task.description && <p>{task.description}</p>}
           {task.recurrenceInterval && <p>🔁 <b>Frequency:</b> {task.recurrenceInterval}</p>}
           {task.criticality && <p>🚨 <b>Importance:</b> {task.criticality}</p>}
@@ -144,7 +140,7 @@ export default function TrackableTaskRow({ task, onChanged }: Props) {
               <ul className="list-disc list-inside space-y-1">
                 {task.resources.map((r, i) => (
                   <li key={i}>
-                    <a href={r.url} target="_blank" rel="noreferrer" className="text-blue-600 underline">{r.label}</a>
+                    <a href={r.url} target="_blank" rel="noreferrer" className="text-[rgb(var(--primary))] underline">{r.label}</a>
                   </li>
                 ))}
               </ul>

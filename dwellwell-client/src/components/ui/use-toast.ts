@@ -1,23 +1,27 @@
 //dwellwell-client/src/components/ui/use-toast.ts
-import { create } from 'zustand';
+import { create } from "zustand";
+
+type Variant = "default" | "success" | "info" | "warning" | "destructive";
 
 type Toast = {
   id: string;
   title?: string;
   description?: string;
-  variant?: 'default' | 'success' | 'info' | 'warning' | 'destructive';
+  variant?: Variant;
 };
 
 type ToastStore = {
   toasts: Toast[];
-  addToast: (toast: Omit<Toast, 'id'>) => void;
+  addToast: (toast: Omit<Toast, "id">) => void;
   removeToast: (id: string) => void;
 };
 
 export const useToastStore = create<ToastStore>((set) => ({
   toasts: [],
   addToast: (toast) => {
-    const id = crypto.randomUUID();
+    const id =
+      (globalThis.crypto?.randomUUID?.() ??
+        Math.random().toString(36).slice(2)) as string;
     const newToast = { id, ...toast };
     set((state) => ({
       toasts: [...state.toasts, newToast],
@@ -43,4 +47,5 @@ export const useToast = () => {
   };
 };
 
-export const toast = useToastStore.getState().addToast;
+// Convenience export, safe on both server and client
+export const toast = (t: Omit<Toast, "id">) => useToastStore.getState().addToast(t);

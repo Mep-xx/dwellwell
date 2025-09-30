@@ -14,10 +14,6 @@ export type AddressSuggestion = {
   apartment?: string;
 };
 
-// Props:
-// - displayValue: formatted text to show when an address is selected (locks the field)
-// - onSelectSuggestion: called with the chosen suggestion
-// - onClear?: optional; if provided, shows a "Change" button that clears the selection
 export function AddressAutocomplete({
   displayValue,
   onSelectSuggestion,
@@ -35,13 +31,17 @@ export function AddressAutocomplete({
   const [list, setList] = React.useState<AddressSuggestion[]>([]);
   const [open, setOpen] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
+  const [active, setActive] = React.useState(0);
 
-  // If we have a displayValue (i.e., selected), lock the field and hide suggestions
+  // a11y ids
+  const listboxId = React.useId();
+  const inputId = React.useId();
+
   const locked = !!displayValue;
 
-  // Debounced fetch
+  // Debounced fetch with cancellation
   React.useEffect(() => {
-    if (locked) return;                 // do nothing while locked
+    if (locked) return;
     if (!term || term.length < 3) {
       setList([]);
       setOpen(false);
@@ -49,14 +49,16 @@ export function AddressAutocomplete({
     }
 
     let ignore = false;
+    const c = new AbortController();
     const t = setTimeout(async () => {
       setLoading(true);
       try {
-        // Our API expects ?q=term
-        const res = await api.get('/mapbox/suggest', { params: { q: term } });
+        const res = await api.get('/mapbox/suggest', { params: { q: term }, signal: c.signal as any });
         if (!ignore) {
-          setList(res.data?.features ?? res.data ?? []); // tolerate raw features or mapped array
+          const items = (res.data?.features ?? res.data ?? []) as AddressSuggestion[];
+          setList(items);
           setOpen(true);
+          setActive(0);
         }
       } catch {
         if (!ignore) {
@@ -71,14 +73,48 @@ export function AddressAutocomplete({
     return () => {
       ignore = true;
       clearTimeout(t);
+      try { c.abort(); } catch {}
     };
   }, [term, locked]);
+
+  const onPick = (s: AddressSuggestion) => {
+    onSelectSuggestion(s);
+    setOpen(false);
+  };
+
+  // keyboard controls (on input)
+  const onKeyDown: React.KeyboardEventHandler<HTMLInputElement> = (e) => {
+    if (!open || locked) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActive((a) => Math.min(a + 1, Math.max(list.length - 1, 0)));
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActive((a) => Math.max(a - 1, 0));
+    }
+    if (e.key === 'Enter') {
+      if (list[active]) {
+        e.preventDefault();
+        onPick(list[active]);
+      }
+    }
+    if (e.key === 'Escape') {
+      setOpen(false);
+    }
+  };
 
   return (
     <div className={cn('relative', className)}>
       <div className="flex gap-2">
         <Input
-          value={locked ? (displayValue ?? "") : term}
+          id={inputId}
+          role="combobox"
+          aria-controls={listboxId}
+          aria-expanded={open}
+          aria-autocomplete="list"
+          value={locked ? (displayValue ?? '') : term}
           onChange={(e) => setTerm(e.target.value)}
           placeholder={placeholder}
           disabled={locked}
@@ -86,15 +122,16 @@ export function AddressAutocomplete({
           spellCheck={false}
           onFocus={() => { if (!locked && list.length > 0) setOpen(true); }}
           onBlur={() => { setTimeout(() => setOpen(false), 120); }}
+          onKeyDown={onKeyDown}
         />
         {locked && (
           <button
             type="button"
-            className="text-sm px-3 rounded border hover:bg-accent"
+            className="text-sm px-3 rounded border border-token hover:bg-accent"
             onClick={() => {
-              onClear?.();      // clear selection in parent
-              setTerm('');      // clear local input
-              setList([]);      // close list
+              onClear?.();
+              setTerm('');
+              setList([]);
               setOpen(false);
             }}
           >
@@ -104,25 +141,36 @@ export function AddressAutocomplete({
       </div>
 
       {!locked && open && (list.length > 0 || loading) && (
-        <div className="absolute z-50 mt-2 w-full max-h-56 overflow-auto rounded-md border bg-white shadow">
+        <div
+          id={listboxId}
+          role="listbox"
+          aria-labelledby={inputId}
+          className="absolute z-50 mt-2 w-full max-h-56 overflow-auto rounded-md border border-token bg-card shadow"
+        >
           {loading && (
             <div className="px-3 py-2 text-sm text-muted-foreground">Searching…</div>
           )}
           {!loading &&
-            list.map((s) => (
-              <button
-                key={s.id}
-                type="button"
-                className="w-full text-left px-3 py-2 hover:bg-accent"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => {
-                  onSelectSuggestion(s);
-                  setOpen(false);
-                }}
-              >
-                {s.place_name}
-              </button>
-            ))}
+            list.map((s, idx) => {
+              const isActive = idx === active;
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  role="option"
+                  aria-selected={isActive}
+                  className={cn(
+                    "w-full text-left px-3 py-2",
+                    isActive ? "bg-muted" : "hover:bg-accent"
+                  )}
+                  onMouseEnter={() => setActive(idx)}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => onPick(s)}
+                >
+                  {s.place_name}
+                </button>
+              );
+            })}
           {!loading && list.length === 0 && (
             <div className="px-3 py-2 text-sm text-muted-foreground">No matches</div>
           )}

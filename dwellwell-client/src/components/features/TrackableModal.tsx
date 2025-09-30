@@ -1,4 +1,3 @@
-//dwellwell-client/src/components/features/TrackableModal.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/utils/api";
 import { sanitize } from "@/utils/sanitize";
@@ -44,10 +43,18 @@ type ApplianceLookup = {
   matchedCatalogId?: string | null; // optional from AI endpoint
 };
 
+type HomeLite = {
+  id: string;
+  nickname?: string | null;
+  address: string;
+  city: string;
+  state: string;
+};
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="space-y-2">
-      <div className="text-sm font-medium text-gray-700">{title}</div>
+      <div className="text-sm font-medium text-body">{title}</div>
       {children}
     </div>
   );
@@ -56,7 +63,14 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 export default function TrackableModal({ isOpen, onClose, onSave, initialData }: Props) {
   const isEditing = Boolean(initialData?.id);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+
+  // NEW: homes + rooms
+  const [homes, setHomes] = useState<HomeLite[]>([]);
+  const [homesLoading, setHomesLoading] = useState(false);
+
   const [rooms, setRooms] = useState<Room[]>([]);
+  const [roomsLoading, setRoomsLoading] = useState(false);
+
   const [form, setForm] = useState<CreateTrackableDTO>({
     userDefinedName: "",
     brand: "",
@@ -89,7 +103,7 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  // hydrate on open / edit
+  // hydrate on open / edit (fields)
   useEffect(() => {
     if (initialData && initialData.id) {
       setForm({
@@ -137,10 +151,9 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
     setPhase("idle");
   };
 
-  // Clear timers on unmount or when modal closes to prevent setState-after-unmount
+  // Clear timers on unmount or when modal closes
   useEffect(() => {
     if (!isOpen) {
-      // modal just closed: clear timers and any open dropdown
       if (catalogTimer.current) clearTimeout(catalogTimer.current);
       if (aiTimer.current) clearTimeout(aiTimer.current);
       closeSuggestions();
@@ -151,7 +164,7 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
     };
   }, [isOpen]);
 
-  // click-outside & ESC & blur
+  // click-outside & ESC
   useEffect(() => {
     const onDocMouseDown = (e: MouseEvent) => {
       const target = e.target as Node;
@@ -175,16 +188,68 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
     };
   }, []);
 
+  // ******** NEW: Load homes when modal opens ********
   useEffect(() => {
-    const hid = initialData?.homeId;
-    if (!isOpen || !hid) { setRooms([]); return; }
+    if (!isOpen) return;
+    let cancelled = false;
+
     (async () => {
+      setHomesLoading(true);
       try {
-        const res = await api.get("/rooms", { params: { homeId: hid, includeDetails: false } });
-        setRooms(Array.isArray(res.data) ? res.data : []);
-      } catch { setRooms([]); }
+        const res = await api.get("/homes", { params: { mine: 1, limit: 500 } }).catch(() => ({ data: [] }));
+        if (cancelled) return;
+        const list: HomeLite[] = Array.isArray(res.data) ? res.data : [];
+        setHomes(list);
+
+        // Default selection
+        const preferred =
+          (initialData?.homeId && list.find(h => h.id === initialData.homeId)) ||
+          list[0] ||
+          null;
+
+        setForm(prev => ({
+          ...prev,
+          homeId: prev.homeId ?? preferred?.id ?? prev.homeId,
+        }));
+      } finally {
+        if (!cancelled) setHomesLoading(false);
+      }
     })();
+
+    return () => { cancelled = true; };
   }, [isOpen, initialData?.homeId]);
+
+  // ******** Load rooms whenever selected home changes ********
+  useEffect(() => {
+    if (!isOpen) return;
+    const hid = form.homeId;
+    let cancelled = false;
+
+    if (!hid) {
+      setRooms([]);
+      setRoomsLoading(false);
+      setForm(prev => ({ ...prev, roomId: undefined }));
+      return;
+    }
+
+    (async () => {
+      setRoomsLoading(true);
+      try {
+        const res = await api.get("/rooms", { params: { homeId: hid, includeDetails: false, limit: 1000 } });
+        if (cancelled) return;
+        const list: Room[] = Array.isArray(res.data) ? res.data : [];
+        setRooms(list);
+
+        if (form.roomId && !list.some(r => r.id === form.roomId)) {
+          setForm(prev => ({ ...prev, roomId: undefined }));
+        }
+      } finally {
+        if (!cancelled) setRoomsLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [isOpen, form.homeId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // when opening for a specific room, ensure it sticks
   useEffect(() => {
@@ -215,13 +280,13 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
       try {
         setPhase("catalog");
         const res = await api.get("/lookup/appliances", { params: { q } });
-        if (lastQueryRef.current !== q) return; // user typed again
+        if (lastQueryRef.current !== q) return;
         const cat: ApplianceLookup[] = Array.isArray(res.data) ? res.data : [];
 
         setSuggestions(cat);
         setShowSuggestions(cat.length > 0);
 
-        // 2) Only try AI if catalog empty, after ~1200ms of quiet
+        // 2) AI pass if catalog empty, after ~1200ms
         if (cat.length === 0) {
           aiTimer.current = setTimeout(async () => {
             try {
@@ -302,7 +367,7 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
           applianceCatalogId: cleaned.applianceCatalogId ?? null,
         });
       } else {
-        // If brand+model present, try to link to / create catalog entry
+        // If brand+model present, try to link/create catalog entry
         let applianceCatalogId = cleaned.applianceCatalogId;
         if (!applianceCatalogId && (cleaned.brand?.trim() || "") && (cleaned.model?.trim() || "")) {
           const fo = await api.post("/catalog/find-or-create", {
@@ -316,7 +381,7 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
           applianceCatalogId = fo.data?.id;
         }
 
-        // Send overrides to /trackables so brand/model/type/category persist on the item
+        // Create
         await api.post("/trackables", {
           userDefinedName: cleaned.userDefinedName,
           homeId: cleaned.homeId ?? undefined,
@@ -336,20 +401,22 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
       onClose();
     } catch (err) {
       console.error("Save failed", err);
-    }
-    finally {
+    } finally {
       setSubmitting(false);
     }
   };
 
   if (!isOpen) return null;
 
+  const homeLabel = (h: HomeLite) =>
+    h.nickname?.trim() || `${h.address}, ${h.city}, ${h.state}`;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-xl w-full max-w-xl p-6 shadow-lg relative">
+      <div className="bg-card text-body rounded-xl w-full max-w-xl p-6 shadow-lg relative border border-token">
         <button
           onClick={onClose}
-          className="absolute top-3 right-3 text-gray-400 hover:text-gray-600"
+          className="absolute top-3 right-3 text-muted hover:text-body"
           aria-label="Close"
         >
           <X className="h-5 w-5" />
@@ -359,7 +426,7 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
           {isEditing ? "Edit Trackable" : "Add New Trackable"}
         </h2>
 
-        <div className="min-h-[22px] mb-2 text-xs text-gray-500">
+        <div className="min-h-[22px] mb-2 text-xs text-muted">
           {phase === "catalog" && <span>Searching catalog…</span>}
           {phase === "ai" && <span>No catalog match — querying AI…</span>}
         </div>
@@ -375,23 +442,23 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
                 onChange={(e) => handleNameChange(e.target.value)}
                 onBlur={() => setTimeout(closeSuggestions, 100)} // let click land
                 placeholder="e.g., Bosch SilencePlus Dishwasher, Samsung Crystal UHD U8000F TV"
-                className="w-full border rounded px-3 py-2"
+                className="w-full border border-token bg-card text-body rounded px-3 py-2"
                 required
               />
               {showSuggestions && suggestions.length > 0 && (
                 <ul
                   ref={dropdownRef}
-                  className="absolute z-10 bg-white border rounded shadow w-full mt-1 max-h-48 overflow-y-auto"
+                  className="absolute z-10 bg-card text-body border border-token rounded shadow w-full mt-1 max-h-48 overflow-y-auto"
                 >
                   {suggestions.map((s, idx) => (
                     <li
                       key={`${s.brand}-${s.model}-${idx}`}
                       onMouseDown={(e) => e.preventDefault()}
                       onClick={() => applySuggestion(s)}
-                      className="p-2 hover:bg-gray-50 cursor-pointer text-sm"
+                      className="p-2 hover:bg-surface-alt cursor-pointer text-sm"
                     >
                       <span className="font-medium">{s.brand}</span> {s.model}
-                      {s.type ? <span className="text-gray-500"> • {s.type}</span> : null}
+                      {s.type ? <span className="text-muted"> • {s.type}</span> : null}
                     </li>
                   ))}
                 </ul>
@@ -401,34 +468,47 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
 
           <Section title="Location">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {/* Home select now lists ALL homes */}
               <select
                 value={form.homeId ?? ""}
                 onChange={(e) => {
                   const hid = e.target.value || undefined;
                   setForm((p) => ({ ...p, homeId: hid, roomId: undefined }));
                 }}
-                className="w-full border rounded px-3 py-2"
+                className="w-full border border-token bg-card text-body rounded px-3 py-2"
+                disabled={homesLoading}
               >
-                {/* single home context—lock to current home if provided */}
-                {form.homeId ? (
-                  <option value={form.homeId}>This Home</option>
-                ) : (
-                  <option value="">No home</option>
-                )}
+                <option value="">{homesLoading ? "Loading homes…" : "No home"}</option>
+                {homes.map((h) => (
+                  <option key={h.id} value={h.id}>
+                    {homeLabel(h)}
+                  </option>
+                ))}
               </select>
 
               <select
                 value={form.roomId ?? ""}
                 onChange={(e) => setForm((p) => ({ ...p, roomId: e.target.value || undefined }))}
-                className="w-full border rounded px-3 py-2"
-                disabled={!form.homeId}
+                className="w-full border border-token bg-card text-body rounded px-3 py-2"
+                disabled={!form.homeId || roomsLoading}
               >
-                <option value="">(No room)</option>
+                <option value="">
+                  {!form.homeId
+                    ? "Select a home first"
+                    : roomsLoading
+                      ? "Loading rooms…"
+                      : "(No room)"}
+                </option>
                 {rooms.map((r) => (
                   <option key={r.id} value={r.id}>{r.name}</option>
                 ))}
               </select>
             </div>
+            {!!form.homeId && !roomsLoading && rooms.length === 0 && (
+              <div className="mt-1 text-[11px] text-muted">
+                No rooms in this home yet. Add rooms from the Home → Rooms tab.
+              </div>
+            )}
           </Section>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -437,7 +517,7 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
                 name="category"
                 value={String(form.category || "general")}
                 onChange={(e) => onField("category", e.target.value)}
-                className="w-full border rounded px-3 py-2"
+                className="w-full border border-token bg-card text-body rounded px-3 py-2"
               >
                 {CATEGORY_OPTIONS.map((c) => (
                   <option key={c.value} value={c.value}>{c.label}</option>
@@ -464,7 +544,7 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
                 value={form.brand ?? ""}
                 onChange={(e) => onField("brand", e.target.value)}
                 placeholder="e.g., Samsung, Bosch, Apple"
-                className="w-full border rounded px-3 py-2"
+                className="w-full border border-token bg-card text-body rounded px-3 py-2"
               />
             </Section>
             <Section title="Model">
@@ -473,18 +553,18 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
                 value={form.model ?? ""}
                 onChange={(e) => onField("model", e.target.value)}
                 placeholder="e.g., UN55U8000F, SHXM63W55N, X90K"
-                className="w-full border rounded px-3 py-2"
+                className="w-full border border-token bg-card text-body rounded px-3 py-2"
               />
             </Section>
           </div>
 
-          <div className="border rounded-lg">
+          <div className="border border-token rounded-lg">
             <button
               type="button"
               onClick={() => setAdvancedOpen((v) => !v)}
               className="w-full flex items-center justify-between px-3 py-2 text-sm"
             >
-              <span className="font-medium text-gray-700">Advanced details</span>
+              <span className="font-medium text-body">Advanced details</span>
               {advancedOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </button>
 
@@ -496,7 +576,7 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
                     value={form.serialNumber ?? ""}
                     onChange={(e) => onField("serialNumber", e.target.value)}
                     placeholder="Optional"
-                    className="w-full border rounded px-3 py-2"
+                    className="w-full border border-token bg-card text-body rounded px-3 py-2"
                   />
                 </Section>
 
@@ -506,7 +586,7 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
                     value={form.imageUrl ?? ""}
                     onChange={(e) => onField("imageUrl", e.target.value)}
                     placeholder="https://…"
-                    className="w-full border rounded px-3 py-2"
+                    className="w-full border border-token bg-card text-body rounded px-3 py-2"
                   />
                 </Section>
 
@@ -517,7 +597,7 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
                     onChange={(e) => onField("notes", e.target.value)}
                     placeholder="Anything you want to remember…"
                     rows={3}
-                    className="w-full border rounded px-3 py-2"
+                    className="w-full border border-token bg-card text-body rounded px-3 py-2"
                   />
                 </Section>
               </div>
@@ -528,11 +608,15 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 border rounded text-gray-600 hover:bg-gray-100"
+              className="px-4 py-2 border border-token rounded text-muted hover:bg-surface-alt"
             >
               Cancel
             </button>
-            <button type="submit" disabled={submitting} className="px-4 py-2 bg-brand-primary text-white rounded hover:bg-blue-600 disabled:opacity-60">
+            <button
+              type="submit"
+              disabled={submitting}
+              className="px-4 py-2 bg-primary text-on-primary rounded hover:opacity-90 disabled:opacity-60"
+            >
               {isEditing ? "Save Changes" : "Save Trackable"}
             </button>
           </div>
