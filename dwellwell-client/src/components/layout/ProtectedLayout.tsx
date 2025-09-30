@@ -49,9 +49,9 @@ export default function ProtectedLayout() {
             <NavLink to="/app/trackables" className={({ isActive }) => navLinkClasses(isActive)}>
               🔧 Trackables
             </NavLink>
-            <NavLink to="/app/vehicles" className={({ isActive }) => navLinkClasses(isActive)}>
+            {/* <NavLink to="/app/vehicles" className={({ isActive }) => navLinkClasses(isActive)}>
               🚗 Vehicles
-            </NavLink>
+            </NavLink> */}
 
             {/* Admin section */}
             {user?.role === 'admin' && (

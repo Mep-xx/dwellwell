@@ -1,6 +1,6 @@
-// src/context/AuthContext.tsx
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { api, getToken, setToken } from '@/utils/api';
+import { startTokenRefresher, stopTokenRefresher, rescheduleTokenRefresher } from '@/utils/tokenRefresher';
 
 type User = { id: string; email: string; role: 'user' | 'admin' };
 type AuthContextType = {
@@ -42,6 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(JSON.parse(uRaw));
         setTokenState(t);
         setLoading(false);
+        startTokenRefresher();
         return;
       } catch {
         localStorage.removeItem(USER_KEY);
@@ -56,11 +57,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return; // 👈 no refresh cookie present; avoid 401 noise
         }
         const { data } = await api.post<{ accessToken: string }>('/auth/refresh', {});
-        const uRaw = localStorage.getItem(USER_KEY);
-        if (data?.accessToken && uRaw) {
+        const uRaw2 = localStorage.getItem(USER_KEY);
+        if (data?.accessToken && uRaw2) {
           setToken(data.accessToken);
           setTokenState(data.accessToken);
-          setUser(JSON.parse(uRaw));
+          setUser(JSON.parse(uRaw2));
+          startTokenRefresher();
         }
       } catch {
         // not logged in; ignore
@@ -68,6 +70,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setLoading(false);
       }
     })();
+
+    // Cleanup on unmount
+    return () => {
+      stopTokenRefresher();
+    };
   }, []);
 
   const login = (u: User, t: string) => {
@@ -75,6 +82,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setTokenState(t);
     localStorage.setItem(ACCESS_TOKEN_KEY, t);
     localStorage.setItem(USER_KEY, JSON.stringify(u));
+    startTokenRefresher(); // (re)start and schedule based on new token
+    rescheduleTokenRefresher();
   };
 
   const logout = () => {
@@ -82,6 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setTokenState(null);
     localStorage.removeItem(ACCESS_TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
+    stopTokenRefresher();
     // Best-effort server cookie clear
     api.post('/auth/logout').catch(() => { });
   };

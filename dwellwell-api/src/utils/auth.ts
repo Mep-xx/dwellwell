@@ -1,46 +1,32 @@
 // dwellwell-api/src/utils/auth.ts
-import * as jwt from 'jsonwebtoken';
+import jwt, { SignOptions } from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import argon2 from 'argon2';
 
-type Expires = jwt.SignOptions['expiresIn'];
+const ACCESS_SECRET = process.env.JWT_SECRET || 'dev-secret';
+const REFRESH_SECRET = process.env.REFRESH_TOKEN_SECRET || 'dev-refresh';
 
-const ACCESS_SECRET: jwt.Secret  = process.env.JWT_SECRET || 'dev-secret';
-const REFRESH_SECRET: jwt.Secret = process.env.REFRESH_TOKEN_SECRET || 'dev-refresh';
+// ✅ Access token = 24h (unless env overrides). Refresh = long-lived.
+const ACCESS_TTL: SignOptions['expiresIn'] = (process.env.ACCESS_TOKEN_TTL as any) || '24h';
+const REFRESH_TTL: SignOptions['expiresIn'] = (process.env.REFRESH_TOKEN_TTL as any) || '180d';
 
-// Normalize env -> `expiresIn` (number or template-literal string like "24h")
-function normalizeExpires(raw: string | undefined, fallback: Expires): Expires {
-  if (!raw) return fallback;
-  // If it's a plain integer string, use a number (e.g., "3600" -> 3600)
-  const n = Number(raw);
-  if (Number.isFinite(n) && String(n) === raw.trim()) return n as Expires;
-  // Otherwise pass the string through; JWT accepts "24h", "1d", "15m", etc.
-  return raw as unknown as Expires;
-}
-
-const ACCESS_TTL: Expires  = normalizeExpires(process.env.ACCESS_TOKEN_TTL,  '24h' as unknown as Expires);
-const REFRESH_TTL: Expires = normalizeExpires(process.env.REFRESH_TOKEN_TTL, '180d' as unknown as Expires);
-
-const PASSWORD_PEPPER = process.env.PASSWORD_PEPPER || 'dev-pepper';
-
-// ---------------- JWT (access/refresh) ----------------
 export function signAccess(p: { userId: string; role: string }) {
-  const opts: jwt.SignOptions = { expiresIn: ACCESS_TTL };
-  return jwt.sign(p, ACCESS_SECRET, opts);
+  return jwt.sign(p, ACCESS_SECRET, { expiresIn: ACCESS_TTL });
 }
 export function verifyAccess(token: string) {
   return jwt.verify(token, ACCESS_SECRET);
 }
 export function signRefresh(p: { userId: string; role: string }) {
-  const opts: jwt.SignOptions = { expiresIn: REFRESH_TTL };
-  return jwt.sign(p, REFRESH_SECRET, opts);
+  return jwt.sign(p, REFRESH_SECRET, { expiresIn: REFRESH_TTL });
 }
 export function verifyRefresh(token: string) {
   return jwt.verify(token, REFRESH_SECRET) as any;
 }
 
-// -------- refresh token hashing (DB-stored hash) ------
+const PASSWORD_PEPPER = process.env.PASSWORD_PEPPER || 'dev-pepper';
+
+// -------- refresh token hashing ------
 export async function hashToken(token: string) {
   return bcrypt.hash(token, 12);
 }
@@ -76,7 +62,6 @@ export async function comparePasswordVersioned(
     return { ok, shouldRehash: false };
   }
 
-  // Legacy bcrypt (no prefix)
   if (stored.startsWith('$2a$') || stored.startsWith('$2b$') || stored.startsWith('$2y$')) {
     const okWithoutPepper = await bcrypt.compare(plain, stored);
     if (okWithoutPepper) return { ok: true, shouldRehash: true };

@@ -1,30 +1,37 @@
-// dwellwell-api/src/routes/auth/refresh.ts
+//dwellwell-api/src/routes/auth/refresh.ts
 import type { Request, Response } from 'express';
 import { prisma } from '../../db/prisma';
 import { compareToken, hashToken, signAccess, signRefresh, verifyRefresh } from '../../utils/auth';
 import { COOKIE_SAMESITE, COOKIE_SECURE, REFRESH_COOKIE_PATH, REFRESH_MAX_AGE_MS, REFRESH_HINT_COOKIE } from '../../config/cookies';
 
 const IDLE_MAX_DAYS = Number(process.env.REFRESH_IDLE_MAX_DAYS ?? 0); // 0 = disabled
-
-// Allows two near-simultaneous refreshes (e.g., multi-tab) to succeed without global logout
 const ROTATION_GRACE_MS = Number(process.env.REFRESH_ROTATION_GRACE_MS ?? 15000);
 const MAX_CHAIN_HOPS = 5;
+const DEV = process.env.NODE_ENV !== 'production';
+
+function fail(res: Response, code: 'UNAUTHORIZED' | 'TOKEN_EXPIRED', detail: string) {
+  if (DEV) {
+    return res.status(401).json({ error: code, detail });
+  }
+  return res.status(401).json({ error: code });
+}
 
 export default async function refresh(req: Request, res: Response) {
   const incoming = (req as any).cookies?.refreshToken as string | undefined;
-  if (!incoming) return res.status(401).json({ error: 'UNAUTHORIZED' });
+  if (!incoming) {
+    return fail(res, 'UNAUTHORIZED', 'NO_COOKIE');
+  }
 
   let decoded: { userId: string; role?: string };
   try {
     decoded = verifyRefresh(incoming) as any;
   } catch {
-    return res.status(401).json({ error: 'TOKEN_EXPIRED' });
+    return fail(res, 'TOKEN_EXPIRED', 'REFRESH_JWT_INVALID_OR_EXPIRED');
   }
 
   const userId = decoded.userId;
   const role = decoded.role || 'user';
 
-  // Find user’s active, unexpired sessions
   const sessions = await prisma.refreshSession.findMany({
     where: { userId, revokedAt: null, expiresAt: { gt: new Date() } },
     orderBy: { createdAt: 'desc' },
@@ -37,13 +44,12 @@ export default async function refresh(req: Request, res: Response) {
   }
 
   if (!matched) {
-    // Don't nuke all sessions here; just clear cookies and ask to re-auth
+    // Just clear cookies for this browser
     res.clearCookie('refreshToken', { httpOnly: true, sameSite: COOKIE_SAMESITE, secure: COOKIE_SECURE, path: REFRESH_COOKIE_PATH });
     res.clearCookie(REFRESH_HINT_COOKIE, { path: REFRESH_COOKIE_PATH });
-    return res.status(401).json({ error: 'UNAUTHORIZED' });
+    return fail(res, 'UNAUTHORIZED', 'NO_MATCHING_SESSION');
   }
 
-  // Idle timeout enforcement (optional)
   if (IDLE_MAX_DAYS > 0) {
     const idleMs = Date.now() - new Date(matched.lastUsedAt).getTime();
     const maxIdleMs = IDLE_MAX_DAYS * 24 * 60 * 60 * 1000;
@@ -51,13 +57,12 @@ export default async function refresh(req: Request, res: Response) {
       await prisma.refreshSession.update({ where: { id: matched.id }, data: { revokedAt: new Date() } });
       res.clearCookie('refreshToken', { httpOnly: true, sameSite: COOKIE_SAMESITE, secure: COOKIE_SECURE, path: REFRESH_COOKIE_PATH });
       res.clearCookie(REFRESH_HINT_COOKIE, { path: REFRESH_COOKIE_PATH });
-      return res.status(401).json({ error: 'TOKEN_EXPIRED' });
+      return fail(res, 'TOKEN_EXPIRED', 'IDLE_TIMEOUT');
     }
   }
 
-  // If this token was already rotated, follow the chain forward and (within grace) accept it
   if (matched.replacedById) {
-    // Walk replacement chain to the newest node
+    // Follow chain to newest
     let cursor = matched;
     let hops = 0;
     while (cursor.replacedById && hops < MAX_CHAIN_HOPS) {
@@ -71,114 +76,80 @@ export default async function refresh(req: Request, res: Response) {
     const stillValid = !cursor.revokedAt && cursor.expiresAt > new Date();
 
     if (recent && stillValid) {
-      // Rotate again from the newest cursor to keep single-use guarantees
       const newRefresh = signRefresh({ userId, role });
       const newHash = await hashToken(newRefresh);
       const ua = req.headers['user-agent'] || '';
       const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || undefined;
       const expiresAt = new Date(Date.now() + REFRESH_MAX_AGE_MS);
 
-      const created = await prisma.$transaction(async (tx) => {
-        // Revoke the cursor session and create a replacement
+      await prisma.$transaction(async (tx) => {
         await tx.refreshSession.update({
           where: { id: cursor.id },
           data: { revokedAt: new Date(), lastUsedAt: new Date() },
         });
 
         const createdInner = await tx.refreshSession.create({
-          data: {
-            userId,
-            tokenHash: newHash,
-            userAgent: ua,
-            ip,
-            expiresAt,
-            lastUsedAt: new Date(),
-          },
+          data: { userId, tokenHash: newHash, userAgent: ua, ip, expiresAt, lastUsedAt: new Date() },
         });
 
         await tx.refreshSession.update({
           where: { id: cursor.id },
           data: { replacedById: createdInner.id },
         });
-
-        return createdInner;
       });
 
       const accessToken = signAccess({ userId, role });
 
       res.cookie('refreshToken', newRefresh, {
-        httpOnly: true,
-        sameSite: COOKIE_SAMESITE,
-        secure: COOKIE_SECURE,
-        maxAge: REFRESH_MAX_AGE_MS,
-        path: REFRESH_COOKIE_PATH,
+        httpOnly: true, sameSite: COOKIE_SAMESITE, secure: COOKIE_SECURE,
+        maxAge: REFRESH_MAX_AGE_MS, path: REFRESH_COOKIE_PATH,
       });
       res.cookie(REFRESH_HINT_COOKIE, '1', {
-        httpOnly: false,
-        sameSite: COOKIE_SAMESITE,
-        secure: COOKIE_SECURE,
-        maxAge: REFRESH_MAX_AGE_MS,
-        path: REFRESH_COOKIE_PATH,
+        httpOnly: false, sameSite: COOKIE_SAMESITE, secure: COOKIE_SECURE,
+        maxAge: REFRESH_MAX_AGE_MS, path: REFRESH_COOKIE_PATH,
       });
 
       return res.json({ accessToken });
     }
 
-    // Outside grace window → likely replay; don’t revoke all, just fail
+    // Outside grace → replay or stale chain
     res.clearCookie('refreshToken', { httpOnly: true, sameSite: COOKIE_SAMESITE, secure: COOKIE_SECURE, path: REFRESH_COOKIE_PATH });
     res.clearCookie(REFRESH_HINT_COOKIE, { path: REFRESH_COOKIE_PATH });
-    return res.status(401).json({ error: 'UNAUTHORIZED' });
+    return fail(res, 'UNAUTHORIZED', 'ROTATION_REPLAY_OR_STALE_CHAIN');
   }
 
-  // Normal happy path: rotate matched
+  // Normal rotate
   const newRefresh = signRefresh({ userId, role });
   const newHash = await hashToken(newRefresh);
   const ua = req.headers['user-agent'] || '';
   const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || undefined;
   const expiresAt = new Date(Date.now() + REFRESH_MAX_AGE_MS);
 
-  const created = await prisma.$transaction(async (tx) => {
-    // Revoke old & create replacement atomically
+  await prisma.$transaction(async (tx) => {
     await tx.refreshSession.update({
       where: { id: matched!.id },
       data: { revokedAt: new Date(), lastUsedAt: new Date() },
     });
 
     const createdInner = await tx.refreshSession.create({
-      data: {
-        userId,
-        tokenHash: newHash,
-        userAgent: ua,
-        ip,
-        expiresAt,
-        lastUsedAt: new Date(),
-      },
+      data: { userId, tokenHash: newHash, userAgent: ua, ip, expiresAt, lastUsedAt: new Date() },
     });
 
     await tx.refreshSession.update({
       where: { id: matched!.id },
       data: { replacedById: createdInner.id },
     });
-
-    return createdInner;
   });
 
   const accessToken = signAccess({ userId, role });
 
   res.cookie('refreshToken', newRefresh, {
-    httpOnly: true,
-    sameSite: COOKIE_SAMESITE,
-    secure: COOKIE_SECURE,
-    maxAge: REFRESH_MAX_AGE_MS,
-    path: REFRESH_COOKIE_PATH,
+    httpOnly: true, sameSite: COOKIE_SAMESITE, secure: COOKIE_SECURE,
+    maxAge: REFRESH_MAX_AGE_MS, path: REFRESH_COOKIE_PATH,
   });
-
   res.cookie(REFRESH_HINT_COOKIE, '1', {
-    httpOnly: false,
-    sameSite: COOKIE_SAMESITE,
-    secure: COOKIE_SECURE,
-    maxAge: REFRESH_MAX_AGE_MS,
-    path: REFRESH_COOKIE_PATH,
+    httpOnly: false, sameSite: COOKIE_SAMESITE, secure: COOKIE_SECURE,
+    maxAge: REFRESH_MAX_AGE_MS, path: REFRESH_COOKIE_PATH,
   });
 
   return res.json({ accessToken });
