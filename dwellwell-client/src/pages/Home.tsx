@@ -364,20 +364,37 @@ export default function HomePage() {
       </div>
 
       {/* ======= Tabs ======= */}
-      <div className="mt-4 border-b border-slate-200 dark:border-slate-800">
-        {(["overview", "details", "rooms", "features", "services", "docs"] as TabKey[]).map(key => (
-          <button
-            className={`tab-btn ${tab === key ? "tab-btn--active" : ""}`}
-            onClick={() => setTabAndUrl(key)}
-          >
-            {key === "overview" ? "Overview" :
-              key === "details" ? "Details" :
-                key === "rooms" ? "Rooms" :
-                  key === "features" ? "Features" :
-                    key === "services" ? "Services" : "Photos & Docs"}
-          </button>
-        ))}
-      </div>
+      <nav className="mt-4 border-b border-slate-200 dark:border-slate-800" role="tablist" aria-label="Home tabs">
+        <ul className="flex -mb-px">
+          {(
+            ["overview", "details", "rooms", "features", "services", "docs"] as TabKey[]
+          ).map((k) => {
+            const active = tab === k;
+            return (
+              <li key={k}>
+                <button
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setTabAndUrl(k)}
+                  className={
+                    "px-3 py-2 text-sm border-b-2 mr-1 transition-colors " +
+                    (active
+                      ? "border-brand-primary text-brand-primary font-semibold"
+                      : "border-transparent text-slate-600 hover:text-brand-primary dark:text-slate-300 dark:hover:text-white dark:hover:border-slate-500")
+                  }
+                >
+                  {k === "overview" ? "Overview" :
+                    k === "details" ? "Details" :
+                      k === "rooms" ? "Rooms" :
+                        k === "features" ? "Features" :
+                          k === "services" ? "Services" : "Photos & Docs"}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </nav>
+
 
       {/* ======= Tab Panels ======= */}
       {tab === "overview" && (
