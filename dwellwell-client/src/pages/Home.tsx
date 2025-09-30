@@ -126,7 +126,7 @@ export default function HomePage() {
           try {
             const up = await api.get("/tasks", { params: { homeId: id, limit: 10, sort: "dueDate" } });
             pool = Array.isArray(up.data) ? up.data : [];
-          } catch {/* ignore */ }
+          } catch { /* ignore */ }
         }
 
         const ranked = [...pool].sort((a, b) => {
@@ -147,7 +147,8 @@ export default function HomePage() {
         }
       } finally { if (!cancelled) setTasksLoading(false); }
     }
-    load(); return () => { cancelled = true; };
+    load();
+    return () => { cancelled = true; };
   }, [id]);
 
   useEffect(() => {
@@ -198,13 +199,20 @@ export default function HomePage() {
 
   // ---- memoized derived data (ALWAYS run; never after a conditional return)
   const img = useMemo(() => resolveHomeImageUrl(home?.imageUrl), [home?.imageUrl]);
+
+  // NEW: enable Zillow button based on having enough address parts
+  const hasAddress = useMemo(() => !!(home?.address && home?.city && home?.state && home?.zip), [home]);
+
   const zillowUrl = useMemo(() => {
-    if (!home) return null;
+    if (!hasAddress || !home) return null;
     return buildZillowUrl({
-      address: home.address, apartment: (home as any).apartment ?? null,
-      city: home.city, state: home.state, zip: home.zip,
+      address: home.address,
+      apartment: (home as any).apartment ?? null,
+      city: home.city,
+      state: home.state,
+      zip: home.zip,
     });
-  }, [home]);
+  }, [hasAddress, home]);
 
   const overdueCount = useMemo(() => activeTasks.filter(isOverdue).length, [activeTasks]);
   const dueSoonCount = useMemo(() => activeTasks.filter(isDueSoon).length, [activeTasks]);
@@ -290,7 +298,7 @@ export default function HomePage() {
           )}
         </div>
 
-        <div className="flex flex-col gap-3 border-t bg-white p-4 md:flex-row md:items-center md:justify-between">
+        <div className="flex flex-col gap-3 border-t bg-card p-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-xl font-semibold leading-tight">
               {`${home.address}, ${home.city}, ${home.state} ${home.zip}`}
@@ -307,25 +315,42 @@ export default function HomePage() {
           <div className="flex flex-wrap items-center gap-2">
             {/* Zillow */}
             <Button
-              variant="secondary"
+              variant="default"
               onClick={() => {
-                const url = zillowUrl;
-                if (!url) {
+                if (!hasAddress) {
                   toast({ title: "Missing address", description: "Need address, city, state, and ZIP to open Zillow.", variant: "destructive" });
+                  return;
+                }
+                const url =
+                  zillowUrl ??
+                  buildZillowUrl({
+                    address: home.address,
+                    apartment: (home as any).apartment ?? null,
+                    city: home.city,
+                    state: home.state,
+                    zip: home.zip,
+                  });
+
+                if (!url) {
+                  toast({
+                    title: "Couldn’t create Zillow link",
+                    description: "The address format might be unusual. Try editing the address on the Details tab.",
+                    variant: "destructive",
+                  });
                   return;
                 }
                 window.open(url, "_blank", "noopener,noreferrer");
               }}
               className="flex items-center gap-2"
-              disabled={!zillowUrl}
-              title={zillowUrl ? "Open this address on Zillow" : "Enter full address to enable"}
+              disabled={!hasAddress}
+              title={hasAddress ? "Open this address on Zillow" : "Enter full address to enable"}
             >
               <img src="/images/zillow-logo.png" alt="Zillow" className="h-5 w-5 object-contain" />
               <span>View on Zillow</span>
             </Button>
 
             {/* Include in To-Do */}
-            <div className="flex items-center gap-2 rounded-lg border bg-white px-3 py-1.5 text-sm">
+            <div className="flex items-center gap-2 rounded-lg border bg-card px-3 py-1.5 text-sm">
               <Switch checked={home.isChecked} onCheckedChange={toggleChecked} />
               <span>Include in To-Do</span>
             </div>
@@ -339,14 +364,11 @@ export default function HomePage() {
       </div>
 
       {/* ======= Tabs ======= */}
-      <div className="mt-4 border-b">
+      <div className="mt-4 border-b border-slate-200 dark:border-slate-800">
         {(["overview", "details", "rooms", "features", "services", "docs"] as TabKey[]).map(key => (
           <button
-            key={key}
+            className={`tab-btn ${tab === key ? "tab-btn--active" : ""}`}
             onClick={() => setTabAndUrl(key)}
-            className={`px-3 py-2 text-sm -mb-px border-b-2 mr-1 ${tab === key ? "border-brand-primary text-brand-primary font-semibold"
-              : "border-transparent text-gray-600 hover:text-brand-primary"
-              }`}
           >
             {key === "overview" ? "Overview" :
               key === "details" ? "Details" :
@@ -372,10 +394,6 @@ export default function HomePage() {
                   title: "Added to your home",
                   description: "We created routine tasks for it. You can add brand/model later.",
                 });
-                // (Optional) trigger a task refresh if you want the new tasks to show immediately
-                // ;(async () => {
-                //   try { await api.get("/tasks", { params: { homeId: id, status: "active", limit: 50 } }); } catch {}
-                // })();
               }}
             />
           </div>
@@ -389,7 +407,7 @@ export default function HomePage() {
               value={tasksLoading ? "…" : `${score}`} suffix={tasksLoading ? "" : "/ 100"}
               tone={tasksLoading ? "neutral" : score >= 80 ? "good" : score >= 60 ? "ok" : "warn"}
             />
-            <div className="rounded-2xl border bg-white p-4 flex items-center justify-between">
+            <div className="rounded-2xl border bg-card p-4 flex items-center justify-between">
               <div className="flex items-center gap-2 text-xs text-muted-foreground"><ListChecks className="h-5 w-5" /><span>Tasks</span></div>
               <Button size="sm" onClick={() => navigate(`/app/tasks?homeId=${encodeURIComponent(home.id)}`)} className="ml-2">View Tasks</Button>
             </div>
@@ -398,7 +416,7 @@ export default function HomePage() {
           {/* Recent + Upcoming Tasks */}
           <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-12">
             {/* Upcoming Tasks */}
-            <div className="rounded-2xl border bg-white p-4 lg:col-span-8 order-2 lg:order-1">
+            <div className="rounded-2xl border bg-card p-4 lg:col-span-8 order-2 lg:order-1">
               <div className="mb-2 flex items-center justify-between">
                 <div className="font-semibold">Upcoming Tasks</div>
                 <Button size="sm" variant="ghost" onClick={() => navigate(`/app/tasks?homeId=${encodeURIComponent(home.id)}`)}>
@@ -419,7 +437,7 @@ export default function HomePage() {
                     const roomName = (t as any).roomName as string | undefined;
                     const trackableName = (t as any).trackableName as string | undefined;
                     return (
-                      <li key={t.id} className="flex items-center justify-between rounded-lg border bg-white px-3 py-2">
+                      <li key={t.id} className="flex items-center justify-between rounded-lg border bg-card px-3 py-2">
                         <div className="min-w-0">
                           <div className="truncate text-sm">{t.title || "Task"}</div>
                           <div className="text-xs text-muted-foreground">
@@ -430,8 +448,8 @@ export default function HomePage() {
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          {overdue && <span className="rounded bg-red-50 px-1.5 py-0.5 text-[11px] text-red-700 border border-red-200">Overdue</span>}
-                          {!overdue && soon && <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[11px] text-amber-700 border border-amber-200">Due soon</span>}
+                          {overdue && <span className="chip-danger">Overdue</span>}
+                          {!overdue && soon && <span className="chip-warn">Due soon</span>}
                           <Button size="sm" variant="ghost" onClick={() => navigate(`/app/tasks?taskId=${encodeURIComponent(t.id)}`)}>Open</Button>
                         </div>
                       </li>
@@ -441,14 +459,14 @@ export default function HomePage() {
               )}
             </div>
 
-            <div className="rounded-2xl border bg-white p-4 lg:col-span-4 order-1 lg:order-2">
+            <div className="rounded-2xl border bg-card p-4 lg:col-span-4 order-1 lg:order-2">
               <div className="mb-2 font-semibold">Recent Activity</div>
               {recent.length === 0 ? (
                 <div className="text-sm text-muted-foreground">No recent activity.</div>
               ) : (
                 <ul className="space-y-2">
                   {recent.map((r) => (
-                    <li key={r.id} className="flex items-center gap-2 rounded-lg border bg-white px-3 py-2">
+                    <li key={r.id} className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2">
                       <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                       <div className="flex-1">
                         <div className="text-sm">{r.title}</div>
@@ -472,14 +490,14 @@ export default function HomePage() {
               setSummary((s) =>
                 s
                   ? {
-                      ...s,
-                      squareFeet: (next.squareFeet as any) ?? s.squareFeet,
-                      yearBuilt: (next.yearBuilt as any) ?? s.yearBuilt,
-                      hasCentralAir: typeof (next as any).hasCentralAir === "boolean" ? (next as any).hasCentralAir : s.hasCentralAir,
-                      hasBaseboard: typeof (next as any).hasBaseboard === "boolean" ? (next as any).hasBaseboard : s.hasBaseboard,
-                      features: Array.isArray((next as any).features) ? ((next as any).features as string[]) : s.features,
-                      nickname: typeof next.nickname === "string" ? (next.nickname as string) : s.nickname,
-                    }
+                    ...s,
+                    squareFeet: (next.squareFeet as any) ?? s.squareFeet,
+                    yearBuilt: (next.yearBuilt as any) ?? s.yearBuilt,
+                    hasCentralAir: typeof (next as any).hasCentralAir === "boolean" ? (next as any).hasCentralAir : s.hasCentralAir,
+                    hasBaseboard: typeof (next as any).hasBaseboard === "boolean" ? (next as any).hasBaseboard : s.hasBaseboard,
+                    features: Array.isArray((next as any).features) ? ((next as any).features as string[]) : s.features,
+                    nickname: typeof next.nickname === "string" ? (next.nickname as string) : s.nickname,
+                  }
                   : s
               );
             }}
@@ -488,7 +506,7 @@ export default function HomePage() {
       )}
 
       {tab === "rooms" && (
-        <div className="mt-6 rounded-2xl border bg-white p-4">
+        <div className="mt-6 rounded-2xl border bg-card p-4">
           {/* Optional: also show QuickPromptsBar here if you want it visible per-room */}
           {/* <QuickPromptsBar homeId={home.id} rooms={home.rooms ?? []} trackables={trackablesLite} onCreated={() => { refetchTrackablesLite(); }} /> */}
           <RoomsPanel homeId={home.id} tasksByRoom={tasksByRoom} onAddTrackable={(roomId) => { setPrefillRoomId(roomId); setTrackableOpen(true); }} />
@@ -496,21 +514,21 @@ export default function HomePage() {
       )}
 
       {tab === "features" && (
-        <div className="mt-6 rounded-2xl border bg-white p-4">
+        <div className="mt-6 rounded-2xl border bg-card p-4">
           <h2 className="text-sm font-semibold mb-1">Features</h2>
           <p className="text-sm text-muted-foreground">Coming soon — curated quick-add + suggestions.</p>
         </div>
       )}
 
       {tab === "services" && (
-        <div className="mt-6 rounded-2xl border bg-white p-4">
+        <div className="mt-6 rounded-2xl border bg-card p-4">
           <h2 className="text-sm font-semibold mb-1">Services</h2>
           <p className="text-sm text-muted-foreground">Keep your HVAC/boiler and other providers here. (MVP placeholder.)</p>
         </div>
       )}
 
       {tab === "docs" && (
-        <div className="mt-6 rounded-2xl border bg-white p-4">
+        <div className="mt-6 rounded-2xl border bg-card p-4">
           <h2 className="text-sm font-semibold mb-1">Photos & Docs</h2>
           <p className="text-sm text-muted-foreground">Upload invoices, warranties, manuals, etc. (MVP placeholder.)</p>
         </div>
@@ -535,23 +553,32 @@ function StatusCard({
   tone?: "neutral" | "good" | "ok" | "warn" | "danger";
 }) {
   const toneClasses =
-    tone === "good" ? "border-emerald-200 bg-emerald-50/70" :
-      tone === "ok" ? "border-blue-200 bg-blue-50/70" :
-        tone === "warn" ? "border-amber-200 bg-amber-50/70" :
-          tone === "danger" ? "border-red-200 bg-red-50/70" :
-            "border-gray-200 bg-white";
+    tone === "good"
+      ? "border-emerald-200 bg-emerald-50/70 dark:border-emerald-900/40 dark:bg-emerald-950/30"
+      : tone === "ok"
+        ? "border-blue-200 bg-blue-50/70 dark:border-blue-900/40 dark:bg-blue-950/30"
+        : tone === "warn"
+          ? "border-amber-200 bg-amber-50/70 dark:border-amber-900/40 dark:bg-amber-950/30"
+          : tone === "danger"
+            ? "border-red-200 bg-red-50/70 dark:border-red-900/40 dark:bg-red-950/30"
+            : "border-slate-200 bg-card dark:border-slate-800 dark:bg-slate-900/40";
+
   const textTone =
-    tone === "good" ? "text-emerald-700" :
-      tone === "ok" ? "text-blue-700" :
-        tone === "warn" ? "text-amber-700" :
-          tone === "danger" ? "text-red-700" :
-            "text-gray-800";
+    tone === "good"
+      ? "text-emerald-700 dark:text-emerald-300"
+      : tone === "ok"
+        ? "text-blue-700 dark:text-blue-300"
+        : tone === "warn"
+          ? "text-amber-700 dark:text-amber-300"
+          : tone === "danger"
+            ? "text-red-700 dark:text-red-300"
+            : "text-slate-800 dark:text-slate-100";
 
   return (
     <div className={`rounded-2xl border ${toneClasses} p-4`}>
       <div className="flex items-center gap-2 text-xs text-muted-foreground">{icon}<span>{label}</span></div>
       <div className={`mt-1 text-2xl font-semibold ${textTone}`}>
-        {value}{suffix ? <span className="text-sm text-gray-500 ml-1">{suffix}</span> : null}
+        {value}{suffix ? <span className="text-sm text-slate-500 dark:text-slate-400 ml-1">{suffix}</span> : null}
       </div>
     </div>
   );

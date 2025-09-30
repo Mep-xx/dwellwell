@@ -95,9 +95,7 @@
   }
 
   /* ---------- Base paint ---------- */
-  * {
-    border-color: rgb(var(--border) / 1);
-  }
+  * { border-color: rgb(var(--border) / 1); }
 
   body {
     background-color: rgb(var(--surface) / 1);
@@ -107,7 +105,7 @@
 
 /* ============================================================================
    SEMANTIC UTILITIES
-   (Added text-primary, border-primary, and a soft primary background)
+   (tokenized helpers you can use anywhere)
 ============================================================================ */
 
 @layer utilities {
@@ -118,19 +116,17 @@
   .bg-primary      { background-color: rgb(var(--primary) / 1); }
   .bg-accent       { background-color: rgb(var(--accent) / 1); }
 
-  /* NEW: soft primary background (for “active” nav pills etc.) */
+  /* soft primary background (for active pills/badges) */
   .bg-primary-soft { background-color: rgb(var(--primary) / 0.10); }
 
   /* text colors */
   .text-body       { color: rgb(var(--text) / 1); }
   .text-muted      { color: rgb(var(--muted) / 1); }
   .text-on-primary { color: rgb(var(--on-primary) / 1); }
-  /* NEW: tokenized primary text color */
   .text-primary    { color: rgb(var(--primary) / 1); }
 
   /* borders & rings */
   .border-token    { border-color: rgb(var(--border) / 1); }
-  /* NEW: tokenized primary border */
   .border-primary  { border-color: rgb(var(--primary) / 1); }
 
   .ring-primary    { --tw-ring-color: rgb(var(--primary) / 1); }
@@ -150,19 +146,38 @@
 
 /* ============================================================================
    COMPONENT PRIMITIVES
+   (used across pages; color-safe in both modes)
 ============================================================================ */
 
 @layer components {
-  .panel { @apply bg-card text-body border border-token rounded-xl; }
-  .panel-hover { @apply hover:border-primary/50; }
-  .token-btn { @apply inline-flex items-center justify-between rounded-xl border border-token bg-card text-body px-3 py-2; }
-  .token-menu { @apply panel shadow-xl p-1; }
+  .panel         { @apply bg-card text-body border border-token rounded-xl; }
+  .panel-hover   { @apply hover:border-primary/50; }
+  .token-btn     { @apply inline-flex items-center justify-between rounded-xl border border-token bg-card text-body px-3 py-2; }
+  .token-menu    { @apply panel shadow-xl p-1; }
+
+  /* Surfaces */
+  .surface-card    { @apply border rounded-2xl bg-card; }
+  .surface-card-sm { @apply border rounded-lg bg-card; }
+
+  /* Tabs */
+  .tab-btn {
+    @apply px-3 py-2 text-sm -mb-px border-b-2 mr-1 transition-colors
+           border-transparent text-slate-600 hover:text-brand-primary
+           dark:text-slate-300 dark:hover:text-white dark:hover:border-slate-500;
+  }
+  .tab-btn--active { @apply border-brand-primary text-brand-primary font-semibold; }
+
+  /* Status chips */
+  .chip         { @apply rounded px-1.5 py-0.5 text-[11px] border; }
+  .chip-danger  { @apply chip bg-red-50 text-red-700 border-red-200 dark:bg-red-950/30 dark:text-red-300 dark:border-red-900/40; }
+  .chip-warn    { @apply chip bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-300 dark:border-amber-900/40; }
+  .chip-neutral { @apply chip bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-900/40 dark:text-slate-200 dark:border-slate-800; }
 }
 
 /* --------------------------------------------------------------------------
-   (Keep this tiny reset if you prefer)
+   Tiny reset to keep borders & body color in sync with tokens
 -------------------------------------------------------------------------- */
 @layer base {
-  * { --tw-border-opacity: 1; border-color: rgb(var(--border) / var(--tw-border-opacity)); }
-  body { background-color: rgb(var(--surface) / 1); color: rgb(var(--text) / 1); }
+  *   { --tw-border-opacity: 1; border-color: rgb(var(--border) / var(--tw-border-opacity)); }
+  body{ background-color: rgb(var(--surface) / 1); color: rgb(var(--text) / 1); }
 }

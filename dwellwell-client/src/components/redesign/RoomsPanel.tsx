@@ -107,8 +107,6 @@ function DroppableSection({
 type Props = {
   homeId: string;
   tasksByRoom?: Record<string, { overdue: number; soon: number }>;
-  /** Optional: when provided, shows “Add Trackable” controls and
-   *  calls back with an optional roomId to prefill the modal. */
   onAddTrackable?: (roomId?: string) => void;
 };
 
@@ -216,11 +214,6 @@ export default function RoomsPanel({ homeId, tasksByRoom, onAddTrackable }: Prop
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold">Rooms ({rooms.length})</h3>
         <div className="flex items-center gap-2">
-          {onAddTrackable && (
-            <Button variant="outline" onClick={() => onAddTrackable()}>
-              + Add Trackable
-            </Button>
-          )}
           <Button onClick={() => openCreateFor(1)}>+ Add Room</Button>
         </div>
       </div>

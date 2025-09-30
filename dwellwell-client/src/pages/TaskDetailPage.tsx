@@ -239,7 +239,7 @@ export default function TaskDetailPage() {
       </div>
 
       {/* Mobile footer */}
-      <div className="fixed inset-x-0 bottom-0 z-20 bg-white/85 backdrop-blur border-t p-3 flex md:hidden gap-2">
+      <div className="fixed inset-x-0 bottom-0 z-20 bg-card/85 backdrop-blur border-t p-3 flex md:hidden gap-2">
         <RunnerButton path="complete" label="Complete" variant="primary" taskId={task.id}/>
         <RunnerButton path="snooze" label="Snooze 7d" body={{ days: 7 }} taskId={task.id}/>
       </div>

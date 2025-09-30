@@ -109,7 +109,7 @@ export default function CommunityThread() {
 
       <div className="space-y-4">
         {thread.posts.map((p: any) => (
-          <div key={p.id} className="border rounded-2xl p-4 bg-white shadow-sm">
+          <div key={p.id} className="border rounded-2xl p-4 bg-card shadow-sm">
             <div className="flex items-center justify-between gap-3">
               <UserChip user={p.author} rep={rep[p.author.id] ?? { level: 1, totalXP: 0 }} />
               <div className="flex items-center gap-2">
@@ -140,7 +140,7 @@ export default function CommunityThread() {
         ))}
       </div>
 
-      <div className="border rounded-2xl p-4 bg-white shadow-sm">
+      <div className="border rounded-2xl p-4 bg-card shadow-sm">
         <Textarea
           value={reply}
           onChange={(e) => setReply(e.target.value)}

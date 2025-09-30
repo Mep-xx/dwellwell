@@ -43,7 +43,7 @@ export default function QuickPromptsBar({ homeId, rooms, trackables, onCreated, 
           <div className="text-sm font-medium">Quick add common items</div>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {visible.map(({ room, prompt }) => (
-              <div key={prompt.id} className="flex items-center justify-between rounded-lg border p-2 bg-white/70 dark:bg-zinc-900/40">
+              <div key={prompt.id} className="flex items-center justify-between rounded-lg border p-2 bg-card/70 dark:bg-zinc-900/40">
                 <div className="mr-2 text-sm">
                   <div className="font-medium">{room.name || (room.type || "Room")}</div>
                   <div className="text-xs text-muted-foreground">{prompt.label}</div>

@@ -1,13 +1,13 @@
 // dwellwell-client/src/pages/Settings.tsx
-import * as React from 'react';
-import { useEffect, useRef, useState } from 'react';
+import * as React from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   fetchSettings,
   updateSettings,
   updateNotificationPrefs,
   rotateIcalToken,
-} from '@/utils/settings';
+} from "@/utils/settings";
 
 import type {
   NotificationPreference,
@@ -16,27 +16,27 @@ import type {
   NotificationFrequency,
   NotificationChannel,
   NotificationEvent,
-} from '@/types/settings';
+} from "@/types/settings";
 
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Switch } from '@/components/ui/switch';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-import { useTheme } from '@/context/ThemeContext';
-import { THEME_CHOICES } from '@/theme/themes';
-import { THEME_SWATCHES } from '@/theme/swatches';
+import { useTheme } from "@/context/ThemeContext";
+import { THEME_CHOICES } from "@/theme/themes";
+import { THEME_SWATCHES } from "@/theme/swatches";
 
 /* ---------------- helpers ---------------- */
-function toCtxMode(m: UserSettings['theme']): 'system' | 'light' | 'dark' {
-  if (m === 'LIGHT') return 'light';
-  if (m === 'DARK') return 'dark';
-  return 'system';
+function toCtxMode(m: UserSettings["theme"]): "system" | "light" | "dark" {
+  if (m === "LIGHT") return "light";
+  if (m === "DARK") return "dark";
+  return "system";
 }
-function toServerMode(m: 'system' | 'light' | 'dark'): UserSettings['theme'] {
-  if (m === 'light') return 'LIGHT';
-  if (m === 'dark') return 'DARK';
-  return 'SYSTEM';
+function toServerMode(m: "system" | "light" | "dark"): UserSettings["theme"] {
+  if (m === "light") return "LIGHT";
+  if (m === "dark") return "DARK";
+  return "SYSTEM";
 }
 
 /* ============================================================================ */
@@ -52,7 +52,7 @@ export default function SettingsPage() {
   const [savingSettings, setSavingSettings] = useState(false);
   const [savingNotifs, setSavingNotifs] = useState(false);
 
-  // keep currently selected style family locally (not persisted server-side yet)
+  // style family is only client-side for now
   const [family, setFamily] = useState(theme.style);
 
   useEffect(() => {
@@ -67,23 +67,23 @@ export default function SettingsPage() {
         setLocal(data.settings);
         setNotifLocal(data.notificationPrefs);
 
-        // hydrate ThemeContext (mode + fontScale). we keep the last chosen family locally
         setTheme({
           mode: toCtxMode(data.settings.theme),
-          style: theme.style ?? 'default',
+          style: theme.style ?? "default",
         });
-        setFamily(theme.style ?? 'default');
+        setFamily(theme.style ?? "default");
       } catch (e: any) {
-        setErr(e?.message || 'Failed to load settings');
+        setErr(e?.message || "Failed to load settings");
       } finally {
         setIsLoading(false);
       }
     })();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // keep local family in sync when ThemeContext changes elsewhere
   useEffect(() => setFamily(theme.style), [theme.style]);
 
   async function saveSettings(next: UserSettings) {
@@ -94,13 +94,12 @@ export default function SettingsPage() {
       setLocal(updated);
       setBundle((prev) => (prev ? { ...prev, settings: updated } : prev));
 
-      // apply immediately (mode from server, style from local family)
       setTheme({
         mode: toCtxMode(updated.theme),
         style: family,
       });
     } catch (e: any) {
-      setErr(e?.message || 'Failed to save settings');
+      setErr(e?.message || "Failed to save settings");
     } finally {
       setSavingSettings(false);
     }
@@ -113,7 +112,7 @@ export default function SettingsPage() {
       const updated = await updateNotificationPrefs(notifLocal);
       setNotifLocal(updated);
     } catch (e: any) {
-      setErr(e?.message || 'Failed to save notification preferences');
+      setErr(e?.message || "Failed to save notification preferences");
     } finally {
       setSavingNotifs(false);
     }
@@ -124,12 +123,10 @@ export default function SettingsPage() {
     try {
       const token = await rotateIcalToken();
       setBundle((prev) =>
-        prev
-          ? { ...prev, settings: { ...prev.settings, icalFeedToken: token } }
-          : prev
+        prev ? { ...prev, settings: { ...prev.settings, icalFeedToken: token } } : prev
       );
     } catch (e: any) {
-      setErr(e?.message || 'Failed to rotate iCal token');
+      setErr(e?.message || "Failed to rotate iCal token");
     }
   }
 
@@ -150,12 +147,10 @@ export default function SettingsPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-3">
-            {/* Single Theme chooser (mode + family together) */}
             <div className="sm:col-span-3">
               <label className="text-sm font-medium">Theme</label>
               <div className="mt-2">
                 <ThemeDropdown
-                  // find the closest current choice (by mode + family)
                   selectedId={(() => {
                     const mode = toCtxMode(s.theme);
                     const target = THEME_CHOICES.find(
@@ -166,10 +161,8 @@ export default function SettingsPage() {
                   onSelect={(id) => {
                     const choice = THEME_CHOICES.find((c) => c.id === id);
                     if (!choice) return;
-                    // update local server-backed mode
                     const newServerMode = toServerMode(choice.mode);
                     setLocal({ ...s, theme: newServerMode });
-                    // update local family + live apply
                     setFamily(choice.style);
                     setTheme({
                       mode: choice.mode,
@@ -218,7 +211,7 @@ export default function SettingsPage() {
               onChange={(e) =>
                 setLocal({
                   ...s,
-                  defaultDaysBeforeDue: parseInt(e.target.value || '0', 10),
+                  defaultDaysBeforeDue: parseInt(e.target.value || "0", 10),
                 })
               }
             />
@@ -259,7 +252,7 @@ export default function SettingsPage() {
           </div>
           {bundle.settings.icalFeedToken && (
             <div className="text-sm">
-              iCal URL:{' '}
+              iCal URL:{" "}
               <code>{`${window.location.origin}/ical/${bundle.settings.icalFeedToken}.ics`}</code>
             </div>
           )}
@@ -302,21 +295,21 @@ function NotificationsMatrix({
   saving?: boolean;
 }) {
   const events: { key: NotificationEvent; label: string }[] = [
-    { key: 'TASK_DUE_SOON', label: 'Task due soon' },
-    { key: 'TASK_OVERDUE', label: 'Task overdue' },
-    { key: 'WEEKLY_DIGEST', label: 'Weekly digest' },
-    { key: 'NEW_TASKS_ADDED', label: 'New tasks added' },
-    { key: 'TRACKABLE_MILESTONE', label: 'Trackable milestone' },
-    { key: 'GAMIFICATION_LEVEL_UP', label: 'Level up' },
+    { key: "TASK_DUE_SOON", label: "Task due soon" },
+    { key: "TASK_OVERDUE", label: "Task overdue" },
+    { key: "WEEKLY_DIGEST", label: "Weekly digest" },
+    { key: "NEW_TASKS_ADDED", label: "New tasks added" },
+    { key: "TRACKABLE_MILESTONE", label: "Trackable milestone" },
+    { key: "GAMIFICATION_LEVEL_UP", label: "Level up" },
   ];
 
   const channels: { key: NotificationChannel; label: string }[] = [
-    { key: 'EMAIL', label: 'Email' },
-    { key: 'PUSH', label: 'Push' },
-    { key: 'SMS', label: 'SMS' },
+    { key: "EMAIL", label: "Email" },
+    { key: "PUSH", label: "Push" },
+    { key: "SMS", label: "SMS" },
   ];
 
-  const freqs: NotificationFrequency[] = ['IMMEDIATE', 'DAILY_DIGEST', 'WEEKLY_DIGEST'];
+  const freqs: NotificationFrequency[] = ["IMMEDIATE", "DAILY_DIGEST", "WEEKLY_DIGEST"];
 
   function getPref(event: NotificationEvent, channel: NotificationChannel): NotificationPreference {
     return (
@@ -326,7 +319,7 @@ function NotificationsMatrix({
         event,
         channel,
         enabled: false,
-        frequency: 'IMMEDIATE',
+        frequency: "IMMEDIATE",
         homeId: null,
         trackableId: null,
       }
@@ -347,7 +340,7 @@ function NotificationsMatrix({
     });
   }
 
-  const channelEnabled = (c: NotificationChannel) => (emailOnly ? c === 'EMAIL' : true);
+  const channelEnabled = (c: NotificationChannel) => (emailOnly ? c === "EMAIL" : true);
 
   return (
     <Card>
@@ -394,7 +387,7 @@ function NotificationsMatrix({
                           >
                             {freqs.map((f) => (
                               <option key={f} value={f}>
-                                {f.replace('_', ' ')}
+                                {f.replace("_", " ")}
                               </option>
                             ))}
                           </select>
@@ -436,8 +429,8 @@ function ThemeDropdown({
       if (listRef.current?.contains(t)) return;
       setOpen(false);
     }
-    document.addEventListener('mousedown', onDown);
-    return () => document.removeEventListener('mousedown', onDown);
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
   }, [open]);
 
   const current = THEME_CHOICES.find((c) => c.id === selectedId);
@@ -454,7 +447,7 @@ function ThemeDropdown({
         <div className="flex items-center gap-3 min-w-0">
           {current && <SwatchRow swatch={THEME_SWATCHES[current.id]} />}
           <div className="min-w-0">
-            <div className="font-medium truncate">{current?.label ?? 'Choose theme'}</div>
+            <div className="font-medium truncate">{current?.label ?? "Choose theme"}</div>
             <div className="text-xs text-muted">Theme preview</div>
           </div>
         </div>
@@ -476,9 +469,12 @@ function ThemeDropdown({
                   <button
                     role="option"
                     aria-selected={active}
-                    onClick={() => { onSelect(opt.id); setOpen(false); }}
+                    onClick={() => {
+                      onSelect(opt.id);
+                      setOpen(false);
+                    }}
                     className={`w-full cursor-pointer rounded-lg border p-3 text-left transition
-                      ${active ? 'border-primary ring-2 ring-primary' : 'border-token hover:border-primary/40'}`}
+                      ${active ? "border-primary ring-2 ring-primary" : "border-token hover:border-primary/40"}`}
                   >
                     <div className="flex items-center gap-3">
                       <SwatchRow swatch={s} />
@@ -529,16 +525,16 @@ function SwatchRow({
     <div
       title={title}
       className="h-6 w-8 rounded-md border"
-      style={{ backgroundColor: c, borderColor: 'rgba(0,0,0,0.15)' }}
+      style={{ backgroundColor: c, borderColor: "rgba(0,0,0,0.15)" }}
     />
   );
   return (
     <div className="flex items-center gap-1.5 shrink-0">
-      {box(swatch.surface, 'surface')}
-      {box(swatch.surfaceAlt, 'surfaceAlt')}
-      {box(swatch.primary, 'primary')}
-      {box(swatch.accent, 'accent')}
-      {box(swatch.text, 'text')}
+      {box(swatch.surface, "surface")}
+      {box(swatch.surfaceAlt, "surfaceAlt")}
+      {box(swatch.primary, "primary")}
+      {box(swatch.accent, "accent")}
+      {box(swatch.text, "text")}
     </div>
   );
 }

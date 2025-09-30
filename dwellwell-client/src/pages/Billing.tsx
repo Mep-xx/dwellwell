@@ -64,7 +64,7 @@ export default function Billing() {
       <h1 className="text-3xl font-bold text-brand-primary">Billing</h1>
 
       {/* Current Plan */}
-      <section className="bg-white border rounded-xl p-6 shadow-sm space-y-3">
+      <section className="bg-card border rounded-xl p-6 shadow-sm space-y-3">
         <h2 className="text-xl font-semibold">Your Plan</h2>
         <div className="flex items-center justify-between">
           <div>
@@ -76,7 +76,7 @@ export default function Billing() {
       </section>
 
       {/* Comparison Table */}
-      <section className="bg-white border rounded-xl p-6 shadow-sm">
+      <section className="bg-card border rounded-xl p-6 shadow-sm">
         <h2 className="text-xl font-semibold mb-4">Compare Plans</h2>
         <div className="grid grid-cols-3 gap-4 text-left text-sm">
           <div className="font-medium">Feature</div>
@@ -112,7 +112,7 @@ export default function Billing() {
       </section>
 
       {/* Billing History */}
-      <section className="bg-white border rounded-xl p-6 shadow-sm">
+      <section className="bg-card border rounded-xl p-6 shadow-sm">
         <h2 className="text-xl font-semibold mb-4">Billing History</h2>
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left border-t border-gray-100">

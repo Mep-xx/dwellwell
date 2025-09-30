@@ -47,7 +47,7 @@ export default function CommunityUser() {
             {threads.map((t: any) => (
               <Link
                 key={t.id}
-                className="block border rounded-xl p-3 bg-white shadow-sm hover:bg-muted/20"
+                className="block border rounded-xl p-3 bg-card shadow-sm hover:bg-muted/20"
                 to={`/community/thread/${t.id}`}
               >
                 <div className="font-medium">{t.title}</div>
@@ -64,7 +64,7 @@ export default function CommunityUser() {
             {posts.map((p: any) => (
               <Link
                 key={p.id}
-                className="block border rounded-xl p-3 bg-white shadow-sm hover:bg-muted/20"
+                className="block border rounded-xl p-3 bg-card shadow-sm hover:bg-muted/20"
                 to={`/community/thread/${p.threadId}`}
               >
                 <div className="font-medium line-clamp-1">{p.thread?.title}</div>

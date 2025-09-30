@@ -62,11 +62,11 @@ export default function Tasks() {
         <h1 className="text-2xl font-semibold">Tasks</h1>
       </div>
 
-      {loading && <div className="p-6 rounded-2xl border bg-white">Loading…</div>}
+      {loading && <div className="p-6 rounded-2xl border bg-card">Loading…</div>}
       {err && !loading && <div className="p-6 rounded-2xl border bg-red-50 text-red-700">{err}</div>}
 
       {!loading && !err && items.length === 0 && (
-        <div className="p-6 rounded-2xl border bg-white text-slate-600">No tasks yet.</div>
+        <div className="p-6 rounded-2xl border bg-card text-slate-600">No tasks yet.</div>
       )}
 
       {!loading && !err && items.length > 0 && (
@@ -98,15 +98,17 @@ function TaskRow({ task, highlight }: { task: Task; highlight?: boolean }) {
 
   const due = task.dueDate ? new Date(task.dueDate).toLocaleDateString() : "No due date";
   const chips =
-    task.status === "COMPLETED" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
-    task.status === "SKIPPED" ? "bg-amber-50 text-amber-700 border-amber-200" :
-    "bg-slate-50 text-slate-700 border-slate-200";
+    task.status === "COMPLETED"
+      ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-900/40"
+      : task.status === "SKIPPED"
+        ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-300 dark:border-amber-900/40"
+        : "bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-900/40 dark:text-slate-200 dark:border-slate-800";
 
   return (
     <Link
       ref={rowRef}
       to={`/app/tasks/${task.id}`}
-      className={`block rounded-2xl border bg-white p-4 transition hover:shadow-sm shadow-sm ${highlight ? "ring-2 ring-brand-primary/40" : ""}`}
+      className={`block rounded-2xl border bg-card p-4 transition hover:shadow-sm shadow-sm ${highlight ? "ring-2 ring-brand-primary/40" : ""}`}
     >
       <div className="flex items-start gap-3">
         <div className="h-2.5 w-2.5 rounded-full mt-1.5" style={{ background: statusDot(task.status) }} />

@@ -65,7 +65,7 @@ export default function CommunityHome() {
               className={`block rounded-xl border p-4 hover:shadow-sm ring-1 ${meta.ring} ${meta.bg}`}
             >
               <div className="flex items-center gap-2 font-semibold">
-                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-white dark:bg-slate-900 ring-1 ring-black/5">
+                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-card dark:bg-slate-900 ring-1 ring-black/5">
                   {meta.icon}
                 </span>
                 {c.name}
@@ -85,7 +85,7 @@ export default function CommunityHome() {
               <Link
                 key={t.id}
                 to={`/community/thread/${t.id}`}
-                className="block rounded-xl border p-3 bg-white shadow-sm hover:bg-muted/20"
+                className="block rounded-xl border p-3 bg-card shadow-sm hover:bg-muted/20"
               >
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">

@@ -36,7 +36,7 @@ function ThreadRowBase({ t }: { t: Thread }) {
   );
 
   return (
-    <div className="flex gap-4 p-4 border rounded-2xl bg-white shadow-sm hover:bg-muted/10 transition">
+    <div className="flex gap-4 p-4 border rounded-2xl bg-card shadow-sm hover:bg-muted/10 transition">
       <div className="flex flex-col items-center w-12 text-sm text-muted-foreground">
         <div className="font-semibold leading-none">▲ {t.score ?? 0}</div>
         <div className="leading-none mt-1">{t.commentCount ?? 0}💬</div>
