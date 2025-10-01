@@ -1,241 +1,264 @@
 // dwellwell-client/src/pages/Dashboard.tsx
-import { useState } from 'react';
-import TaskCard from '@/components/features/TaskCard';
-import { initialTasks } from '../data/mockTasks';
-import { TaskCategory, TaskStatus } from '@shared/types/task';
-import { Button } from '@/components/ui/button';
+import { useEffect, useMemo, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { useTasksApi, type TaskListItem } from "@/hooks/useTasksApi";
+import TaskDrawer from "@/components/features/TaskDrawer";
+import { useAuth } from "@/context/AuthContext";
 
-const categoryIcons: Record<TaskCategory, string> = {
-  appliance: '🔧',
-  bathroom: '🛁',
-  cooling: '❄️',
-  electrical: '💡',
-  flooring: '🧹',
-  garage: '🚗',
-  general: '📌',
-  heating: '🔥',
-  kitchen: '🍽️',
-  outdoor: '🌿',
-  plumbing: '🚿',
-  safety: '🛑',
-  windows: '🪟',
-};
+type ViewMode = "grouped" | "flat";
+type Timeframe = "week" | "month" | "year";
 
-type ViewMode = 'grouped' | 'flat';
-type Timeframe = 'week' | 'month' | 'year';
+function formatDue(due: string | null) {
+  if (!due) return "";
+  const d = new Date(due);
+  return d.toLocaleDateString();
+}
+
+function Chip({ children }: { children: React.ReactNode }) {
+  // uses your .chip neutral styling from global.css
+  return <span className="chip-neutral inline-flex items-center gap-1">{children}</span>;
+}
 
 export default function Dashboard() {
-  const [tasks, setTasks] = useState(initialTasks);
+  const { user, loading: authLoading } = useAuth();
+  const { listTasks } = useTasksApi();
+
   const [viewMode, setViewMode] = useState<ViewMode>(
-    () => (localStorage.getItem('dwellwell-view') as ViewMode) || 'grouped'
+    () => (localStorage.getItem("dwellwell-view") as ViewMode) || "flat"
   );
-  const [timeframe, setTimeframe] = useState<Timeframe>('week');
-  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+  const [timeframe, setTimeframe] = useState<Timeframe>("week");
+  const [tasks, setTasks] = useState<TaskListItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  // Drawer
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [activeTaskId, setActiveTaskId] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (authLoading || !user) return;
+
+    (async () => {
+      setLoading(true);
+      setErr(null);
+      try {
+        const rows = await listTasks({ status: "active", limit: 300, sort: "dueDate" });
+        if (!cancelled) setTasks(rows);
+      } catch (e: any) {
+        if (!cancelled) setErr(e?.message || "Failed to load tasks");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [authLoading, user, listTasks]);
 
   const now = new Date();
-
-  const isInCurrentTimeframe = (dateStr: string) => {
+  const isInCurrentTimeframe = (dateStr: string | null) => {
+    if (!dateStr) return false;
     const taskDate = new Date(dateStr);
-    if (timeframe === 'week') {
+    if (timeframe === "week") {
       const startOfWeek = new Date(now);
       startOfWeek.setDate(now.getDate() - now.getDay());
       const endOfWeek = new Date(startOfWeek);
       endOfWeek.setDate(startOfWeek.getDate() + 6);
       return taskDate >= startOfWeek && taskDate <= endOfWeek;
-    } else if (timeframe === 'month') {
+    } else if (timeframe === "month") {
       return taskDate.getFullYear() === now.getFullYear() && taskDate.getMonth() === now.getMonth();
-    } else if (timeframe === 'year') {
+    } else if (timeframe === "year") {
       return taskDate.getFullYear() === now.getFullYear();
     }
     return true;
   };
 
-  const visibleTasks = tasks.filter(task => isInCurrentTimeframe(task.dueDate));
+  const visibleTasks = useMemo(
+    () =>
+      tasks
+        .filter(t => t.status === "PENDING" && isInCurrentTimeframe(t.dueDate))
+        .sort((a, b) => {
+          const ad = a.dueDate ? new Date(a.dueDate).getTime() : 0;
+          const bd = b.dueDate ? new Date(b.dueDate).getTime() : 0;
+          return ad - bd;
+        }),
+    [tasks, timeframe]
+  );
 
-  const handleViewChange = (mode: ViewMode) => {
-    setViewMode(mode);
-    localStorage.setItem('dwellwell-view', mode);
-  };
+  // Grouped mode buckets
+  const grouped = useMemo(() => {
+    if (viewMode !== "grouped") return null;
+    const groups: Record<string, TaskListItem[]> = { Today: [], "This Week": [], Later: [] };
+    const endOfWeek = new Date(now);
+    endOfWeek.setDate(now.getDate() - now.getDay() + 6);
 
-  const handleStatusChange = (
-    id: string,
-    newStatus: TaskStatus | 'remind',
-    days?: number
-  ) => {
-    setTasks(prev => {
-      const updated = prev.map(task =>
-        task.id === id
-          ? {
-              ...task,
-              status: newStatus === 'remind' ? task.status : newStatus,
-              dueDate:
-                newStatus === 'remind' && days
-                  ? new Date(new Date(task.dueDate).getTime() + days * 86400000)
-                      .toISOString()
-                      .split('T')[0]
-                  : task.dueDate,
-              completedDate:
-                newStatus === 'COMPLETED'
-                  ? new Date().toISOString().split('T')[0]
-                  : task.completedDate,
-            }
-          : task
-      );
+    for (const t of visibleTasks) {
+      const d = t.dueDate ? new Date(t.dueDate) : null;
+      if (d && d.toDateString() === now.toDateString()) groups["Today"].push(t);
+      else if (d && d <= endOfWeek) groups["This Week"].push(t);
+      else groups["Later"].push(t);
+    }
+    return groups;
+  }, [visibleTasks, viewMode]);
 
-      const updatedTask = updated.find(t => t.id === id);
-      if (updatedTask?.itemName) {
-        const relatedTasks = updated.filter(
-          t => t.itemName === updatedTask.itemName && isInCurrentTimeframe(t.dueDate)
-        );
-        const allDone = relatedTasks.every(t => t.status !== 'PENDING');
-        if (allDone) {
-          setTimeout(() => {
-            setCollapsedGroups(prev => ({ ...prev, [updatedTask.itemName!]: true }));
-          }, 1500);
-        }
-      }
-
-      return updated;
-    });
-  };
-
-  const toggleGroup = (groupName: string) => {
-    setCollapsedGroups(prev => ({ ...prev, [groupName]: !prev[groupName] }));
-  };
-
-  const groupedTasks: Record<string, typeof tasks> = {};
-  visibleTasks.forEach(task => {
-    const key = task.itemName || 'General';
-    if (!groupedTasks[key]) groupedTasks[key] = [];
-    groupedTasks[key].push(task);
-  });
+  // Shared “active pill” class for token-friendly buttons
+  const activePill = "bg-primary-soft text-primary border-primary";
 
   return (
-    <div className="space-y-8 bg-brand-background p-4 sm:p-2 rounded">
-      <div>
-        <h1 className="text-3xl font-bold text-brand-primary">Dashboard</h1>
-        <p className="text-brand-foreground">Welcome back! Here’s what’s coming up.</p>
-      </div>
+    <div className="space-y-6 p-4 sm:p-2 rounded bg-surface">
+      <header className="mb-1">
+        <h1 className="text-3xl font-bold text-body">Dashboard</h1>
+        <p className="text-muted">Welcome back! Here’s what’s coming up.</p>
+      </header>
 
-      {/* View and Timeframe Controls */}
-      <div className="flex flex-wrap gap-6 items-center mt-2">
+      {/* Controls (token-friendly) */}
+      <div className="flex flex-wrap gap-6 items-center">
         <div className="flex gap-2 items-center">
-          <span className="text-sm font-medium text-brand-foreground">View:</span>
+          <span className="text-sm font-medium text-body">View:</span>
           <Button
             size="sm"
-            variant={viewMode === 'grouped' ? 'default' : 'secondary'}
-            onClick={() => handleViewChange('grouped')}
+            variant="secondary"
+            className={`rd-md ${viewMode === "grouped" ? activePill : ""}`}
+            onClick={() => {
+              setViewMode("grouped");
+              localStorage.setItem("dwellwell-view", "grouped");
+            }}
           >
             Grouped
           </Button>
           <Button
             size="sm"
-            variant={viewMode === 'flat' ? 'default' : 'secondary'}
-            onClick={() => handleViewChange('flat')}
+            variant="secondary"
+            className={`rd-md ${viewMode === "flat" ? activePill : ""}`}
+            onClick={() => {
+              setViewMode("flat");
+              localStorage.setItem("dwellwell-view", "flat");
+            }}
           >
             Flat
           </Button>
         </div>
 
         <div className="flex gap-2 items-center">
-          <span className="text-sm font-medium text-brand-foreground">Timeframe:</span>
-          <Button size="sm" variant={timeframe === 'week' ? 'default' : 'secondary'} onClick={() => setTimeframe('week')}>
+          <span className="text-sm font-medium text-body">Timeframe:</span>
+          <Button
+            size="sm"
+            variant="secondary"
+            className={`rd-md ${timeframe === "week" ? activePill : ""}`}
+            onClick={() => setTimeframe("week")}
+          >
             Week
           </Button>
-          <Button size="sm" variant={timeframe === 'month' ? 'default' : 'secondary'} onClick={() => setTimeframe('month')}>
+          <Button
+            size="sm"
+            variant="secondary"
+            className={`rd-md ${timeframe === "month" ? activePill : ""}`}
+            onClick={() => setTimeframe("month")}
+          >
             Month
           </Button>
-          <Button size="sm" variant={timeframe === 'year' ? 'default' : 'secondary'} onClick={() => setTimeframe('year')}>
+          <Button
+            size="sm"
+            variant="secondary"
+            className={`rd-md ${timeframe === "year" ? activePill : ""}`}
+            onClick={() => setTimeframe("year")}
+          >
             Year
           </Button>
         </div>
       </div>
 
-      {/* All Tasks Complete Message */}
-      {visibleTasks.length > 0 && visibleTasks.every(t => t.status !== 'PENDING') && (
-        <section className="bg-emerald-50 border border-emerald-200 rounded-xl p-6 shadow text-center">
-          <h2 className="text-2xl font-bold text-emerald-700 mb-2">🎉 All Tasks Complete!</h2>
-          <p className="text-muted-foreground text-sm">You’ve crushed every task for this {timeframe}. Kick back and relax!</p>
+      {/* States */}
+      {(authLoading || loading) && <div className="text-sm text-muted">Loading tasks…</div>}
+      {!authLoading && !loading && err && (
+        <div className="surface-card p-3 text-sm text-red-700 bg-red-50 dark:bg-red-950/20">{err}</div>
+      )}
+      {!authLoading && !loading && !err && visibleTasks.length === 0 && (
+        <div className="surface-card p-6 text-sm text-muted">No tasks in this timeframe.</div>
+      )}
+
+      {/* Content */}
+      {!authLoading && !loading && !err && visibleTasks.length > 0 && (
+        <section className="space-y-4">
+          <h2 className="text-xl font-semibold text-body">🛠️ Your Tasks</h2>
+
+          {viewMode === "flat" && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {visibleTasks.map((t) => (
+                <button
+                  key={t.id}
+                  className="text-left surface-card-sm p-3 shadow-sm hover:bg-surface-alt focus:outline-none panel-hover"
+                  onClick={() => { setActiveTaskId(t.id); setDrawerOpen(true); }}
+                  aria-label={`Open ${t.title}`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg leading-none">{t.icon || "🧰"}</span>
+                        <div className="font-medium truncate text-body">{t.title}</div>
+                      </div>
+
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {t.roomName && <Chip>{t.roomName}</Chip>}
+                        {t.itemName && <Chip>{t.itemName}</Chip>}
+                        {t.category && <Chip>{t.category}</Chip>}
+                      </div>
+                    </div>
+
+                    <div className="text-xs text-muted shrink-0 mt-0.5">
+                      {formatDue(t.dueDate)}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {viewMode === "grouped" && grouped && (
+            <div className="space-y-8">
+              {Object.entries(grouped).map(([label, rows]) =>
+                rows.length ? (
+                  <div key={label} className="space-y-3">
+                    <div className="text-sm font-semibold text-muted">{label}</div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {rows.map((t) => (
+                        <button
+                          key={t.id}
+                          className="text-left surface-card-sm p-3 shadow-sm hover:bg-surface-alt focus:outline-none panel-hover"
+                          onClick={() => { setActiveTaskId(t.id); setDrawerOpen(true); }}
+                          aria-label={`Open ${t.title}`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-lg leading-none">{t.icon || "🧰"}</span>
+                                <div className="font-medium truncate text-body">{t.title}</div>
+                              </div>
+
+                              <div className="mt-1 flex flex-wrap gap-1">
+                                {t.roomName && <Chip>{t.roomName}</Chip>}
+                                {t.itemName && <Chip>{t.itemName}</Chip>}
+                                {t.category && <Chip>{t.category}</Chip>}
+                              </div>
+                            </div>
+
+                            <div className="text-xs text-muted shrink-0 mt-0.5">
+                              {formatDue(t.dueDate)}
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null
+              )}
+            </div>
+          )}
         </section>
       )}
 
-      {/* Tasks */}
-      <section>
-        <h2 className="text-xl font-semibold text-brand-foreground mb-4">🛠️ Your Tasks</h2>
-
-        {viewMode === 'grouped' ? (
-          <>
-            {Object.entries(groupedTasks).map(([itemName, tasks]) => {
-              const category = tasks[0].category || 'general';
-              const icon = categoryIcons[category as TaskCategory];
-
-              const total = tasks.length;
-              const completed = tasks.filter(t => t.status === 'COMPLETED').length;
-              const skipped = tasks.filter(t => t.status === 'SKIPPED').length;
-              const done = completed + skipped;
-              const percent = Math.round((done / total) * 100);
-
-              const isCollapsed = collapsedGroups[itemName];
-
-              return (
-                <div key={itemName} className="mb-6">
-                  <div
-                    className="flex items-center justify-between mb-2 cursor-pointer select-none"
-                    onClick={() => toggleGroup(itemName)}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && toggleGroup(itemName)}
-                    aria-expanded={!isCollapsed}
-                    aria-controls={`group-${itemName}`}
-                  >
-                    <h3 className="text-lg font-semibold text-brand-foreground flex items-center gap-2">
-                      <span>{icon}</span> {itemName}
-                    </h3>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-muted-foreground">{percent}% complete</span>
-                      <span className={`transform transition-transform ${isCollapsed ? '-rotate-90' : 'rotate-0'}`}>▶️</span>
-                    </div>
-                  </div>
-
-                  <div className="w-full h-2 bg-surface-alt rounded mb-3 overflow-hidden">
-                    <div
-                      className={[
-                        'h-full transition-all duration-300',
-                        percent === 100
-                          ? 'bg-emerald-500'
-                          : percent >= 75
-                          ? 'bg-lime-400'
-                          : percent >= 50
-                          ? 'bg-yellow-400'
-                          : percent >= 25
-                          ? 'bg-orange-400'
-                          : 'bg-red-500',
-                      ].join(' ')}
-                      style={{ width: `${percent}%` }}
-                    />
-                  </div>
-
-                  {!isCollapsed && (
-                    <div id={`group-${itemName}`} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {tasks.map(task => (
-                        <TaskCard key={task.id} task={task} onStatusChange={handleStatusChange} />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {[...visibleTasks]
-              .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
-              .map(task => (
-                <TaskCard key={task.id} task={task} onStatusChange={handleStatusChange} />
-              ))}
-          </div>
-        )}
-      </section>
+      {/* Drawer */}
+      <TaskDrawer taskId={activeTaskId} open={drawerOpen} onOpenChange={setDrawerOpen} />
     </div>
   );
 }

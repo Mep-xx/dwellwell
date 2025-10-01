@@ -25,7 +25,7 @@ import HomesRedesign from '@/pages/HomesRedesign';
 
 // NEW
 import Tasks from '@/pages/Tasks';
-import TaskDetailPage from '@/pages/TaskDetailPage';
+import TaskRunnerPage from '@/pages/TaskRunner'; // swapped in here
 
 // community
 import CommunityHome from '@/pages/community/CommunityHome';
@@ -33,7 +33,7 @@ import CommunityCategory from '@/pages/community/CommunityCategory';
 import CommunityThread from '@/pages/community/CommunityThread';
 import CommunityUser from '@/pages/community/CommunityUser';
 
-// admin (unchanged)
+// admin
 import AdminDashboard from '@/pages/admin/AdminDashboard';
 import AdminTaskTemplates from '@/pages/admin/AdminTaskTemplates';
 import AdminHomes from '@/pages/admin/AdminHomes';
@@ -61,7 +61,7 @@ export default function AppRoutes() {
         </Route>
       </Route>
 
-      {/* Keep a public redirect so old links still work */}
+      {/* Public redirect for old links */}
       <Route path="/v2/homes" element={<Navigate to="/app/v2/homes" replace />} />
 
       {/* Private */}
@@ -80,7 +80,7 @@ export default function AppRoutes() {
 
         {/* Tasks */}
         <Route path="/app/tasks" element={<Tasks />} />
-        <Route path="/app/tasks/:taskId" element={<TaskDetailPage />} />
+        <Route path="/app/tasks/:taskId" element={<TaskRunnerPage />} />
 
         {/* Account */}
         <Route path="/app/profile" element={<Profile />} />
@@ -95,6 +95,7 @@ export default function AppRoutes() {
         <Route path="/admin/AdminTrackables" element={<AdminTrackables />} />
         <Route path="/admin/AdminTaskGenIssues" element={<AdminTaskGenIssues />} />
 
+        {/* Community */}
         <Route path="/community" element={<CommunityHome />} />
         <Route path="/community/:categorySlug" element={<CommunityCategory />} />
         <Route path="/community/thread/:threadId" element={<CommunityThread />} />

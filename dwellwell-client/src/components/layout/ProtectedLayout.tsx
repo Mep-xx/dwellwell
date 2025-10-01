@@ -2,6 +2,7 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useMemo } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import GlobalTaskDrawer from "@/components/features/GlobalTaskDrawer";
 
 export default function ProtectedLayout() {
   const navigate = useNavigate();
@@ -15,10 +16,9 @@ export default function ProtectedLayout() {
 
   // Active vs. idle styles use **theme tokens** (no raw Tailwind grays)
   const navLinkClasses = (isActive: boolean) =>
-    `block py-2 rounded-r-md transition-colors pl-4 ${
-      isActive
-        ? 'bg-primary-soft text-primary font-semibold border-l-4 border-primary'
-        : 'text-muted hover:text-body'
+    `block py-2 rounded-r-md transition-colors pl-4 ${isActive
+      ? 'bg-primary-soft text-primary font-semibold border-l-4 border-primary'
+      : 'text-muted hover:text-body'
     }`;
 
   const handleLogout = () => {
@@ -113,6 +113,7 @@ export default function ProtectedLayout() {
           © {new Date().getFullYear()} DwellWell. All rights reserved.
         </footer>
       </main>
+      <GlobalTaskDrawer />
     </div>
   );
 }
