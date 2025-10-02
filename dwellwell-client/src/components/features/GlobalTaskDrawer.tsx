@@ -2,8 +2,10 @@
 import { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import TaskDrawer from "./TaskDrawer";
+import { useTaskDetailPref } from "@/hooks/useTaskDetailPref";
 
 export default function GlobalTaskDrawer() {
+  const pref = useTaskDetailPref(); // "drawer" | "card"
   const loc = useLocation();
   const navigate = useNavigate();
 
@@ -16,12 +18,15 @@ export default function GlobalTaskDrawer() {
     navigate({ pathname: loc.pathname, search: next.toString() }, { replace: true });
   };
 
+  // Body scroll lock while open
   useEffect(() => {
     if (!taskId) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => { document.body.style.overflow = prev; };
   }, [taskId]);
+
+  if (pref !== "drawer" || !taskId) return null;
 
   return (
     <TaskDrawer taskId={taskId} open={!!taskId} onOpenChange={(v) => !v && handleClose()} />

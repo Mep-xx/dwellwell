@@ -1,4 +1,4 @@
-//dwellwell-api/src/routes/settings/routes.getNotifications.ts
+// dwellwell-api/src/routes/settings/get-notifications.ts
 import { Request, Response } from 'express';
 import { prisma } from '../../db/prisma';
 import { asyncHandler } from '../../middleware/asyncHandler';

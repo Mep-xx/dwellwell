@@ -1,4 +1,4 @@
-//dwellwell-api/src/routes/settings/routes.putNotifications.ts
+// dwellwell-api/src/routes/settings/update-notifications.ts
 import { Request, Response } from 'express';
 import { prisma } from '../../db/prisma';
 import { asyncHandler } from '../../middleware/asyncHandler';
@@ -20,21 +20,45 @@ const PrefArray = z.array(PrefSchema).max(100);
 export default asyncHandler(async (req: Request, res: Response) => {
   const userId = (req as any).user.id as string;
   const list = PrefArray.parse(req.body ?? []);
-  const ops = list.map(p =>
-    prisma.notificationPreference.upsert({
-      where: {
-        userId_event_channel_homeId_trackableId: {
+
+  const results = await prisma.$transaction(async (tx) => {
+    const out = [];
+    for (const p of list) {
+      const existing = await tx.notificationPreference.findFirst({
+        where: {
           userId,
           event: p.event,
           channel: p.channel,
           homeId: p.homeId ?? null,
           trackableId: p.trackableId ?? null,
-        }
-      },
-      create: { userId, ...p },
-      update: { enabled: p.enabled, frequency: p.frequency }
-    })
-  );
-  const out = await prisma.$transaction(ops);
-  res.json(out);
+        },
+      });
+
+      if (existing) {
+        out.push(
+          await tx.notificationPreference.update({
+            where: { id: existing.id },
+            data: { enabled: p.enabled, frequency: p.frequency },
+          })
+        );
+      } else {
+        out.push(
+          await tx.notificationPreference.create({
+            data: {
+              userId,
+              event: p.event,
+              channel: p.channel,
+              enabled: p.enabled,
+              frequency: p.frequency,
+              homeId: p.homeId ?? null,
+              trackableId: p.trackableId ?? null,
+            },
+          })
+        );
+      }
+    }
+    return out;
+  });
+
+  res.json(results);
 });

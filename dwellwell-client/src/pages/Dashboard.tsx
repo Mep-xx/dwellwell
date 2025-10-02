@@ -1,9 +1,11 @@
 // dwellwell-client/src/pages/Dashboard.tsx
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useTasksApi, type TaskListItem } from "@/hooks/useTasksApi";
-import TaskDrawer from "@/components/features/TaskDrawer";
+import TaskCardExpandable from "@/components/features/TaskCardExpandable";
 import { useAuth } from "@/context/AuthContext";
+import { useTaskDetailPref } from "@/hooks/useTaskDetailPref";
 
 type ViewMode = "grouped" | "flat";
 type Timeframe = "week" | "month" | "year";
@@ -15,13 +17,16 @@ function formatDue(due: string | null) {
 }
 
 function Chip({ children }: { children: React.ReactNode }) {
-  // uses your .chip neutral styling from global.css
   return <span className="chip-neutral inline-flex items-center gap-1">{children}</span>;
 }
 
 export default function Dashboard() {
   const { user, loading: authLoading } = useAuth();
   const { listTasks } = useTasksApi();
+  const pref = useTaskDetailPref(); // "drawer" | "card"
+
+  const navigate = useNavigate();
+  const loc = useLocation();
 
   const [viewMode, setViewMode] = useState<ViewMode>(
     () => (localStorage.getItem("dwellwell-view") as ViewMode) || "flat"
@@ -31,9 +36,8 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  // Drawer
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [activeTaskId, setActiveTaskId] = useState<string | undefined>(undefined);
+  // Only used for the "card" preference
+  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -52,7 +56,9 @@ export default function Dashboard() {
       }
     })();
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [authLoading, user, listTasks]);
 
   const now = new Date();
@@ -76,7 +82,7 @@ export default function Dashboard() {
   const visibleTasks = useMemo(
     () =>
       tasks
-        .filter(t => t.status === "PENDING" && isInCurrentTimeframe(t.dueDate))
+        .filter((t) => t.status === "PENDING" && isInCurrentTimeframe(t.dueDate))
         .sort((a, b) => {
           const ad = a.dueDate ? new Date(a.dueDate).getTime() : 0;
           const bd = b.dueDate ? new Date(b.dueDate).getTime() : 0;
@@ -101,8 +107,62 @@ export default function Dashboard() {
     return groups;
   }, [visibleTasks, viewMode]);
 
-  // Shared “active pill” class for token-friendly buttons
   const activePill = "bg-primary-soft text-primary border-primary";
+
+  function openDrawerViaUrl(taskId: string) {
+    const params = new URLSearchParams(loc.search);
+    params.set("taskId", taskId);
+    navigate({ pathname: loc.pathname, search: params.toString() });
+  }
+
+  function handleTaskClick(id: string) {
+    if (pref === "drawer") {
+      openDrawerViaUrl(id); // no local state
+    } else {
+      setExpandedTaskId((prev) => (prev === id ? null : id));
+    }
+  }
+
+  function renderTaskCard(t: TaskListItem) {
+    const expanded = pref === "card" && expandedTaskId === t.id;
+
+    return (
+      <div key={t.id} className="w-full">
+        <button
+          type="button"
+          className="text-left surface-card-sm w-full p-3 shadow-sm hover:bg-surface-alt focus:outline-none panel-hover rounded-lg"
+          onClick={() => handleTaskClick(t.id)}
+          aria-label={`Open ${t.title}`}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-lg leading-none">{t.icon || "🧰"}</span>
+                <div className="font-medium truncate text-body">{t.title}</div>
+              </div>
+
+              <div className="mt-1 flex flex-wrap gap-1">
+                {t.roomName && <Chip>{t.roomName}</Chip>}
+                {t.itemName && <Chip>{t.itemName}</Chip>}
+                {t.category && <Chip>{t.category}</Chip>}
+              </div>
+            </div>
+
+            <div className="text-xs text-muted shrink-0 mt-0.5">
+              {formatDue(t.dueDate)}
+            </div>
+          </div>
+        </button>
+
+        {expanded && (
+          <div className="mt-2">
+            {/* Open immediately, no duplicate header */}
+            <TaskCardExpandable t={t} initiallyOpen showHeader={false} />
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 p-4 sm:p-2 rounded bg-surface">
@@ -111,7 +171,7 @@ export default function Dashboard() {
         <p className="text-muted">Welcome back! Here’s what’s coming up.</p>
       </header>
 
-      {/* Controls (token-friendly) */}
+      {/* Controls */}
       <div className="flex flex-wrap gap-6 items-center">
         <div className="flex gap-2 items-center">
           <span className="text-sm font-medium text-body">View:</span>
@@ -184,33 +244,7 @@ export default function Dashboard() {
 
           {viewMode === "flat" && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {visibleTasks.map((t) => (
-                <button
-                  key={t.id}
-                  className="text-left surface-card-sm p-3 shadow-sm hover:bg-surface-alt focus:outline-none panel-hover"
-                  onClick={() => { setActiveTaskId(t.id); setDrawerOpen(true); }}
-                  aria-label={`Open ${t.title}`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-lg leading-none">{t.icon || "🧰"}</span>
-                        <div className="font-medium truncate text-body">{t.title}</div>
-                      </div>
-
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {t.roomName && <Chip>{t.roomName}</Chip>}
-                        {t.itemName && <Chip>{t.itemName}</Chip>}
-                        {t.category && <Chip>{t.category}</Chip>}
-                      </div>
-                    </div>
-
-                    <div className="text-xs text-muted shrink-0 mt-0.5">
-                      {formatDue(t.dueDate)}
-                    </div>
-                  </div>
-                </button>
-              ))}
+              {visibleTasks.map((t) => renderTaskCard(t))}
             </div>
           )}
 
@@ -221,33 +255,7 @@ export default function Dashboard() {
                   <div key={label} className="space-y-3">
                     <div className="text-sm font-semibold text-muted">{label}</div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {rows.map((t) => (
-                        <button
-                          key={t.id}
-                          className="text-left surface-card-sm p-3 shadow-sm hover:bg-surface-alt focus:outline-none panel-hover"
-                          onClick={() => { setActiveTaskId(t.id); setDrawerOpen(true); }}
-                          aria-label={`Open ${t.title}`}
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className="text-lg leading-none">{t.icon || "🧰"}</span>
-                                <div className="font-medium truncate text-body">{t.title}</div>
-                              </div>
-
-                              <div className="mt-1 flex flex-wrap gap-1">
-                                {t.roomName && <Chip>{t.roomName}</Chip>}
-                                {t.itemName && <Chip>{t.itemName}</Chip>}
-                                {t.category && <Chip>{t.category}</Chip>}
-                              </div>
-                            </div>
-
-                            <div className="text-xs text-muted shrink-0 mt-0.5">
-                              {formatDue(t.dueDate)}
-                            </div>
-                          </div>
-                        </button>
-                      ))}
+                      {rows.map((t) => renderTaskCard(t))}
                     </div>
                   </div>
                 ) : null
@@ -256,9 +264,6 @@ export default function Dashboard() {
           )}
         </section>
       )}
-
-      {/* Drawer */}
-      <TaskDrawer taskId={activeTaskId} open={drawerOpen} onOpenChange={setDrawerOpen} />
     </div>
   );
 }

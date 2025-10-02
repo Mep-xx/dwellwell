@@ -1,4 +1,4 @@
-//dwellwell-api/src/routes/settings/routes.put.ts
+// dwellwell-api/src/routes/settings/update.ts
 import { Request, Response } from 'express';
 import { prisma } from '../../db/prisma';
 import { asyncHandler } from '../../middleware/asyncHandler';
@@ -19,6 +19,7 @@ const SettingsSchema = z.object({
   allowTaskDelete: z.boolean().optional(),
 
   googleCalendarEnabled: z.boolean().optional(),
+  taskDetailView: z.enum(['drawer','card']).optional(),
 });
 
 export default asyncHandler(async (req: Request, res: Response) => {

@@ -1,4 +1,4 @@
-//dwellwell-api/src/routes/settings/routes.get.ts
+// dwellwell-api/src/routes/settings/get.ts
 import { Request, Response } from 'express';
 import { prisma } from '../../db/prisma';
 import { asyncHandler } from '../../middleware/asyncHandler';
@@ -18,7 +18,7 @@ export default asyncHandler(async (req: Request, res: Response) => {
   res.json({
     settings,
     notificationPrefs,
-    profile,            // FYI: timezone/units may live here already per your schema
-    communication: comms // emailEnabled, pushEnabled, reminderLeadDays, quietHours
+    profile,
+    communication: comms,
   });
 });

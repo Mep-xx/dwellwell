@@ -5,6 +5,8 @@ export type NotificationEvent =
   | 'NEW_TASKS_ADDED' | 'TRACKABLE_MILESTONE' | 'GAMIFICATION_LEVEL_UP';
 export type NotificationChannel = 'EMAIL' | 'PUSH' | 'SMS';
 export type NotificationFrequency = 'IMMEDIATE' | 'DAILY_DIGEST' | 'WEEKLY_DIGEST';
+export type TaskDetailView = "drawer" | "card";
+
 
 export type UserSettings = {
   theme: ThemeMode;
@@ -19,6 +21,8 @@ export type UserSettings = {
   autoAssignRoomTasks: boolean;
   allowTaskDisable: boolean;
   allowTaskDelete: boolean;
+
+  taskDetailView?: TaskDetailView;
 
   googleCalendarEnabled: boolean;
   icalFeedToken?: string | null;

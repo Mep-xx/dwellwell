@@ -1,20 +1,20 @@
-//dwellwell-api/src/routes/settings/index.ts
+// dwellwell-api/src/routes/settings/index.ts
 import { Router } from 'express';
 import { requireAuth } from '../../middleware/requireAuth';
-import getSettings from './routes.get';
-import putSettings from './routes.put';
-import getNotifs from './routes.getNotifications';
-import putNotifs from './routes.putNotifications';
-import rotateIcal from './routes.rotateIcal';
+import getSettings from './get';
+import updateSettings from './update';
+import getNotifs from './get-notifications';
+import updateNotifs from './update-notifications';
+import rotateIcal from './rotate-ical';
 
 const router = Router();
 router.use(requireAuth);
 
 router.get('/', getSettings);
-router.put('/', putSettings);
+router.put('/', updateSettings);
 
 router.get('/notifications', getNotifs);
-router.put('/notifications', putNotifs);
+router.put('/notifications', updateNotifs);
 
 router.post('/ical/rotate', rotateIcal);
 

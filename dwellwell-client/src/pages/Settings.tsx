@@ -1,4 +1,5 @@
 // dwellwell-client/src/pages/Settings.tsx
+// dwellwell-client/src/pages/Settings.tsx
 import * as React from "react";
 import { useEffect, useRef, useState } from "react";
 
@@ -27,6 +28,9 @@ import { useTheme } from "@/context/ThemeContext";
 import { THEME_CHOICES } from "@/theme/themes";
 import { THEME_SWATCHES } from "@/theme/swatches";
 
+// mirror to localStorage used by Dashboard
+import { setTaskDetailPref } from "@/hooks/useTaskDetailPref";
+
 /* ---------------- helpers ---------------- */
 function toCtxMode(m: UserSettings["theme"]): "system" | "light" | "dark" {
   if (m === "LIGHT") return "light";
@@ -49,9 +53,6 @@ export default function SettingsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
-  const [savingSettings, setSavingSettings] = useState(false);
-  const [savingNotifs, setSavingNotifs] = useState(false);
-
   // style family is only client-side for now
   const [family, setFamily] = useState(theme.style);
 
@@ -63,12 +64,22 @@ export default function SettingsPage() {
       try {
         const data = await fetchSettings();
         if (!alive) return;
+
+        // Normalize + mirror to localStorage immediately
+        const normalized: UserSettings = {
+          ...data.settings,
+          taskDetailView: data.settings.taskDetailView ?? "drawer",
+        };
+        if (normalized.taskDetailView === "drawer" || normalized.taskDetailView === "card") {
+          setTaskDetailPref(normalized.taskDetailView);
+        }
+
         setBundle(data);
-        setLocal(data.settings);
+        setLocal(normalized);
         setNotifLocal(data.notificationPrefs);
 
         setTheme({
-          mode: toCtxMode(data.settings.theme),
+          mode: toCtxMode(normalized.theme),
           style: theme.style ?? "default",
         });
         setFamily(theme.style ?? "default");
@@ -78,43 +89,50 @@ export default function SettingsPage() {
         setIsLoading(false);
       }
     })();
-    return () => {
-      alive = false;
-    };
+    return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => setFamily(theme.style), [theme.style]);
 
-  async function saveSettings(next: UserSettings) {
-    setSavingSettings(true);
+  // Instant save helper (partial patch)
+  async function instantSave(patch: Partial<UserSettings>) {
+    if (!local) return;
     setErr(null);
     try {
-      const updated = await updateSettings(next);
+      const nextLocal = { ...local, ...patch };
+      setLocal(nextLocal);
+      const updated = await updateSettings(patch);
       setLocal(updated);
       setBundle((prev) => (prev ? { ...prev, settings: updated } : prev));
 
-      setTheme({
-        mode: toCtxMode(updated.theme),
-        style: family,
-      });
+      // reflect theme & drawer/card to the client immediately
+      setTheme({ mode: toCtxMode(updated.theme), style: family });
+      if (typeof updated.taskDetailView !== "undefined") {
+        const v = updated.taskDetailView;
+        if (v === "drawer" || v === "card") setTaskDetailPref(v);
+      }
     } catch (e: any) {
       setErr(e?.message || "Failed to save settings");
-    } finally {
-      setSavingSettings(false);
     }
   }
 
+  // debounce for numeric input
+  const debounceRef = useRef<number | null>(null);
+  function debouncedSave(patch: Partial<UserSettings>, delay = 350) {
+    if (debounceRef.current) window.clearTimeout(debounceRef.current);
+    debounceRef.current = window.setTimeout(() => {
+      instantSave(patch);
+    }, delay);
+  }
+
   async function saveNotifs() {
-    setSavingNotifs(true);
     setErr(null);
     try {
       const updated = await updateNotificationPrefs(notifLocal);
       setNotifLocal(updated);
     } catch (e: any) {
       setErr(e?.message || "Failed to save notification preferences");
-    } finally {
-      setSavingNotifs(false);
     }
   }
 
@@ -134,6 +152,7 @@ export default function SettingsPage() {
     return <div className="p-6">Loading settings…</div>;
   }
   const s = local;
+  const activePill = "bg-primary-soft text-primary border-primary";
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 p-6">
@@ -158,25 +177,17 @@ export default function SettingsPage() {
                     );
                     return target?.id ?? THEME_CHOICES[0].id;
                   })()}
-                  onSelect={(id) => {
+                  onSelect={async (id) => {
                     const choice = THEME_CHOICES.find((c) => c.id === id);
                     if (!choice) return;
-                    const newServerMode = toServerMode(choice.mode);
-                    setLocal({ ...s, theme: newServerMode });
                     setFamily(choice.style);
-                    setTheme({
-                      mode: choice.mode,
-                      style: choice.style,
-                    });
+                    await instantSave({ theme: toServerMode(choice.mode) });
+                    setTheme({ mode: choice.mode, style: choice.style });
                   }}
                 />
               </div>
             </div>
           </div>
-
-          <Button onClick={() => saveSettings(s)} disabled={savingSettings}>
-            Save Appearance
-          </Button>
         </CardContent>
       </Card>
 
@@ -185,22 +196,64 @@ export default function SettingsPage() {
         <CardHeader>
           <CardTitle>Tasks & Defaults</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-6">
+          <section className="space-y-2">
+            <div className="text-sm font-medium">Task interaction style</div>
+            <p className="text-xs text-muted">Choose how task details open when you click a card.</p>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="secondary"
+                className={`rd-md ${s.taskDetailView === "drawer" ? "bg-primary-soft text-primary border-primary" : ""}`}
+                onClick={async () => {
+                  const updated = await updateSettings({ taskDetailView: "drawer" });
+                  setTaskDetailPref("drawer");
+                  setLocal(updated);
+                }}
+              >
+                Flyout drawer
+              </Button>
+
+              <Button
+                size="sm"
+                variant="secondary"
+                className={`rd-md ${s.taskDetailView === "card" ? "bg-primary-soft text-primary border-primary" : ""}`}
+                onClick={async () => {
+                  const updated = await updateSettings({ taskDetailView: "card" });
+                  setTaskDetailPref("card");
+                  setLocal(updated);
+                }}
+              >
+                Expand in place
+              </Button>
+            </div>
+          </section>
+
           <ToggleRow
             label="Auto-assign room tasks"
             value={s.autoAssignRoomTasks}
-            onChange={(v) => setLocal({ ...s, autoAssignRoomTasks: v })}
+            onChange={async (v) => {
+              const updated = await updateSettings({ autoAssignRoomTasks: v });
+              setLocal(updated);
+            }}
           />
           <ToggleRow
             label="Allow task disable"
             value={s.allowTaskDisable}
-            onChange={(v) => setLocal({ ...s, allowTaskDisable: v })}
+            onChange={async (v) => {
+              const updated = await updateSettings({ allowTaskDisable: v });
+              setLocal(updated);
+            }}
           />
           <ToggleRow
             label="Allow task delete"
             value={s.allowTaskDelete}
-            onChange={(v) => setLocal({ ...s, allowTaskDelete: v })}
+            onChange={async (v) => {
+              const updated = await updateSettings({ allowTaskDelete: v });
+              setLocal(updated);
+            }}
           />
+
           <div>
             <label className="text-sm font-medium">Default reminder lead (days)</label>
             <Input
@@ -208,17 +261,13 @@ export default function SettingsPage() {
               min="0"
               max="30"
               value={s.defaultDaysBeforeDue}
-              onChange={(e) =>
-                setLocal({
-                  ...s,
-                  defaultDaysBeforeDue: parseInt(e.target.value || "0", 10),
-                })
-              }
+              onChange={async (e) => {
+                const val = parseInt(e.target.value || "0", 10);
+                const updated = await updateSettings({ defaultDaysBeforeDue: val });
+                setLocal(updated);
+              }}
             />
           </div>
-          <Button onClick={() => saveSettings(s)} disabled={savingSettings}>
-            Save Task Defaults
-          </Button>
         </CardContent>
       </Card>
 
@@ -228,7 +277,6 @@ export default function SettingsPage() {
         setPrefs={setNotifLocal}
         onSave={saveNotifs}
         emailOnly
-        saving={savingNotifs}
       />
 
       {/* Integrations */}
@@ -240,12 +288,9 @@ export default function SettingsPage() {
           <ToggleRow
             label="Enable Google Calendar"
             value={s.googleCalendarEnabled}
-            onChange={(v) => setLocal({ ...s, googleCalendarEnabled: v })}
+            onChange={(v) => instantSave({ googleCalendarEnabled: v })}
           />
           <div className="flex items-center gap-2">
-            <Button onClick={() => saveSettings(s)} disabled={savingSettings}>
-              Save
-            </Button>
             <Button variant="secondary" onClick={handleRotateIcal}>
               Rotate iCal URL
             </Button>
@@ -286,13 +331,11 @@ function NotificationsMatrix({
   setPrefs,
   onSave,
   emailOnly,
-  saving,
 }: {
   prefs: NotificationPreference[];
   setPrefs: React.Dispatch<React.SetStateAction<NotificationPreference[]>>;
   onSave: () => void;
   emailOnly?: boolean;
-  saving?: boolean;
 }) {
   const events: { key: NotificationEvent; label: string }[] = [
     { key: "TASK_DUE_SOON", label: "Task due soon" },
@@ -400,9 +443,7 @@ function NotificationsMatrix({
             </tbody>
           </table>
         </div>
-        <Button onClick={onSave} disabled={saving}>
-          Save Notifications
-        </Button>
+        <Button onClick={onSave}>Save Notifications</Button>
       </CardContent>
     </Card>
   );
@@ -415,7 +456,7 @@ function ThemeDropdown({
   onSelect,
 }: {
   selectedId: string;
-  onSelect: (id: string) => void;
+  onSelect: (id: string) => void | Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
@@ -469,8 +510,8 @@ function ThemeDropdown({
                   <button
                     role="option"
                     aria-selected={active}
-                    onClick={() => {
-                      onSelect(opt.id);
+                    onClick={async () => {
+                      await onSelect(opt.id);
                       setOpen(false);
                     }}
                     className={`w-full cursor-pointer rounded-lg border p-3 text-left transition

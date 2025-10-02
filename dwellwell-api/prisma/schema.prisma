@@ -1079,6 +1079,11 @@ model GamificationEvent {
  * =========================
  */
 
+enum TaskDetailView {
+  drawer
+  card
+}
+
 model UserSettings {
   userId        String   @id
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -1098,6 +1103,8 @@ model UserSettings {
   autoAssignRoomTasks   Boolean @default(true)
   allowTaskDisable      Boolean @default(true)
   allowTaskDelete       Boolean @default(true)
+
+  taskDetailView        TaskDetailView @default(drawer)
 
   // Integrations
   googleCalendarEnabled Boolean @default(false)
