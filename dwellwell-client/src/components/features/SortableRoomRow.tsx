@@ -97,15 +97,6 @@ export const SortableRoomRow = forwardRef<HTMLDivElement, Props>(function Sortab
               <Badge tone="neutral" title="Total tasks in this room">{total} total</Badge>
               <Badge tone="info" title="Trackables in this room">{trackables} trackables</Badge>
             </div>
-
-            {onAddTrackable && (
-              <button
-                onClick={(e) => { e.stopPropagation(); onAddTrackable(); }}
-                className="mt-1 text-xs text-[rgb(var(--primary))] hover:underline"
-              >
-                + Add trackable
-              </button>
-            )}
           </div>
 
           {/* actions */}

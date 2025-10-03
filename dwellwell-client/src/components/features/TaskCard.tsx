@@ -1,302 +1,398 @@
-//dwellwell-client/src/components/features/TaskCard.tsx
-import { useState } from 'react';
-import { api } from '@/utils/api';
-import { Task } from '@shared/types/task';
-import { categoryGradients } from '../../data/mockTasks';
+// dwellwell-client/src/components/features/TaskCard.tsx
+import { useEffect, useMemo, useRef, useState, MouseEvent } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  CalendarDays, CheckCircle2, Clock4, ChevronDown, ChevronUp,
+  CornerDownRight, ExternalLink, RotateCcw
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useTasksApi, type TaskListItem, type TaskDetail } from "@/hooks/useTasksApi";
+import { useTaskDetailPref } from "@/hooks/useTaskDetailPref";
 
 type Props = {
-  task: Task;
-  onStatusChange: (id: string, newStatus: Task['status'] | 'remind', days?: number) => void;
+  t: TaskListItem;
+  onOpenDrawer?: (taskId: string) => void;
+  density?: "cozy" | "compact";
 };
 
-const categoryIcons: Record<string, string> = {
-  appliance: '🔧',
-  bathroom: '🛁',
-  cooling: '❄️',
-  electrical: '💡',
-  flooring: '🧹',
-  garage: '🚗',
-  general: '📌',
-  heating: '🔥',
-  kitchen: '🍽️',
-  outdoor: '🌿',
-  plumbing: '🚿',
-  safety: '🛑',
-  windows: '🪟',
-};
+export default function TaskCard({ t, onOpenDrawer, density = "cozy" }: Props) {
+  const pref = useTaskDetailPref(); // "drawer" | "card"
+  const { getDetail, complete, uncomplete, snooze } = useTasksApi();
 
-export default function TaskCard({ task, onStatusChange }: Props) {
-  const icon = task.category ? categoryIcons[task.category] ?? '📌' : '📌';
-  const [showDetails, setShowDetails] = useState(false);
+  // local status so we can persist UI without a list refetch
+  const [status, setStatus] = useState<TaskListItem["status"]>(t.status);
+  const [completedAt, setCompletedAt] = useState<string | null>(t.completedAt ?? null);
 
-  const statusStyles = {
-    PENDING: 'border-blue-400',
-    COMPLETED: 'border-green-500 text-green-700',
-    SKIPPED: 'border-yellow-500 text-yellow-700 italic',
-  } as const;
+  const [expanded, setExpanded] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [detail, setDetail] = useState<TaskDetail | null>(null);
+  const [err, setErr] = useState<string | null>(null);
 
-  const handleAndCollapse = (newStatus: Task['status'] | 'remind', days?: number) => {
-    setShowDetails(false);
-    onStatusChange(task.id, newStatus, days);
-  };
+  // feel-good completion overlay (contained to the card)
+  const [celebrate, setCelebrate] = useState(false);
+  const [busy, setBusy] = useState(false);
 
-  const gradient = categoryGradients[task.category || 'general'];
+  // collapse if switching to drawer
+  useEffect(() => {
+    if (pref === "drawer" && expanded) setExpanded(false);
+  }, [pref, expanded]);
 
-  // Lifecycle helpers
-  const pauseTask = async () => {
+  // load details when expanded (card mode)
+  useEffect(() => {
+    if (!expanded || pref !== "card") return;
+    let cancelled = false;
+    (async () => {
+      setLoading(true); setErr(null);
+      try {
+        const d = await getDetail(t.id);
+        if (!cancelled) setDetail(d);
+      } catch (e: any) {
+        if (!cancelled) setErr(e?.message || "Failed to load task");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [expanded, pref, t.id, getDetail]);
+
+  const steps = detail?.content?.steps ?? [];
+
+  const due = useMemo(
+    () => (t.dueDate ? new Date(t.dueDate).toLocaleDateString() : undefined),
+    [t.dueDate]
+  );
+
+  const isCompleted = status === "COMPLETED";
+  const cardDim = isCompleted ? "opacity-80" : "";
+
+  function onHeaderClick() {
+    if (pref === "drawer") onOpenDrawer?.(t.id);
+    else setExpanded((v) => !v);
+  }
+  function stop(e: MouseEvent) { e.stopPropagation(); }
+
+  async function handleComplete(e: MouseEvent) {
+    stop(e);
+    if (busy || isCompleted) return;
+    setBusy(true);
     try {
-      await api.post(`/tasks/${task.id}/pause`);
-      onStatusChange(task.id, task.status);
-    } catch (e) {
-      console.error('Failed to pause task', e);
+      await complete(t.id);
+      setStatus("COMPLETED");
+      const nowIso = new Date().toISOString();
+      setCompletedAt(nowIso);
+      setCelebrate(true);
+      setTimeout(() => setCelebrate(false), 900);
+      setExpanded(false);
+    } finally {
+      setBusy(false);
     }
-  };
+  }
 
-  const resumeTask = async () => {
+  async function handleUndo(e: MouseEvent) {
+    stop(e);
+    if (busy || !isCompleted) return;
+    setBusy(true);
     try {
-      await api.post(`/tasks/${task.id}/resume`, { mode: 'forward' });
-      onStatusChange(task.id, task.status);
-    } catch (e) {
-      console.error('Failed to resume task', e);
+      await uncomplete(t.id);
+      setStatus("PENDING");
+      setCompletedAt(null);
+    } finally {
+      setBusy(false);
     }
-  };
+  }
 
-  const archiveTask = async () => {
-    try {
-      await api.post(`/tasks/${task.id}/archive`);
-      onStatusChange(task.id, task.status);
-    } catch (e) {
-      console.error('Failed to archive task', e);
-    }
-  };
+  async function handleDefer(e: MouseEvent) {
+    stop(e);
+    await snooze(t.id, 30); // TEMP until dedicated defer endpoint
+  }
 
-  const unarchiveTask = async () => {
-    try {
-      await api.post(`/tasks/${task.id}/unarchive`, { mode: 'forward' });
-      onStatusChange(task.id, task.status);
-    } catch (e) {
-      console.error('Failed to unarchive task', e);
-    }
-  };
-
-  const pausedAt = (task as any).pausedAt as string | undefined;
-  const archivedAt = (task as any).archivedAt as string | undefined;
+  // Only show the thumbnail box if (a) there’s an image available OR (b) this is tied to a trackable.
+  const showThumb = Boolean(detail?.task?.imageUrl || detail?.template?.imageUrl || t.trackableId);
 
   return (
-    <div
-      onClick={() => setShowDetails(prev => !prev)}
-      className={`cursor-pointer bg-gradient-to-br ${gradient} border-l-4 border border-token shadow p-4 rounded-2xl flex flex-col justify-between transition-shadow duration-300 hover:shadow-md ${statusStyles[task.status]}`}
+    <motion.div
+      layout
+      initial={{ opacity: 0, scale: 0.985 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.98 }}
+      className={`relative self-start rounded-xl border border-token bg-card text-body ${density === "compact" ? "p-3" : "p-4"} shadow transition-all hover:shadow-lg hover:-translate-y-0.5 ${cardDim}`}
     >
-      <div className="mb-2">
-        <div className="flex items-center gap-2 text-2xl text-body">
-          {icon}
-          <h3 className={`text-lg font-semibold ${task.status === 'COMPLETED' ? 'line-through' : ''}`}>
-            {task.title}
-          </h3>
+      {/* celebration overlay */}
+      <AnimatePresence>
+        {celebrate && (
+          <motion.div
+            key="celebrate"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="pointer-events-none absolute inset-0 rounded-xl bg-emerald-500/10"
+          />
+        )}
+      </AnimatePresence>
 
-          {/* Lifecycle chips */}
-          {pausedAt && (
-            <span className="ml-2 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
-              Paused
+      {/* Header (no icon duplicated up here) */}
+      <button type="button" className="w-full text-left" onClick={onHeaderClick} aria-label={`Open ${t.title}`}>
+        <div className="flex items-start">
+          <h3 className={`${density === "compact" ? "text-base" : "text-lg"} font-semibold leading-tight truncate pr-3`}>
+            <span className="text-xl leading-none">{t.icon || "🧰"}</span>
+            <span className={`truncate ${isCompleted ? "line-through decoration-1 decoration-muted-foreground/60" : ""}`}>
+              {t.title}
             </span>
-          )}
-          {archivedAt && (
-            <span className="ml-2 text-xs bg-surface-alt text-gray-700 px-2 py-0.5 rounded-full">
-              Archived
+          </h3>
+          <div className="ml-auto flex items-center gap-2">
+            {due && status !== "COMPLETED" && (
+              <span className="text-xs px-2 py-0.5 rounded border border-token text-body bg-surface-alt/60 inline-flex items-center gap-1">
+                <CalendarDays className="h-3.5 w-3.5" />
+                {due}
+              </span>
+            )}
+            <span className={`text-xs px-2 py-0.5 rounded-full ${statusPill(status)}`}>
+              {statusLabel(status, completedAt)}
             </span>
-          )}
+          </div>
         </div>
 
-        {task.itemName && (
-          <p className="text-sm text-muted mt-1">🛠 {task.itemName}</p>
-        )}
-
-        <div className="mt-2 text-sm text-muted space-y-1">
-          <div>
-            📅 Finish by <span className="font-medium text-body">{task.dueDate}</span>
-          </div>
-          {task.estimatedTimeMinutes ? (
-            <div>⏱ {task.estimatedTimeMinutes} min task</div>
+        <div className="mt-2 text-sm text-muted">
+          <span>
+            {t.roomName ? `Room: ${t.roomName}` : ""}
+            {t.roomName && t.itemName ? " • " : ""}
+            {t.itemName ? t.itemName : ""}
+          </span>
+          {t.estimatedTimeMinutes ? (
+            <span>{(t.roomName || t.itemName) ? " • " : ""}{t.estimatedTimeMinutes}m</span>
           ) : null}
         </div>
-      </div>
+      </button>
 
-      <div
-        className={`transition-all duration-300 overflow-hidden ${
-          showDetails ? 'max-h-[1000px] opacity-100 mt-3' : 'max-h-0 opacity-0'
-        }`}
-      >
-        <div className="bg-surface-alt border border-token p-3 rounded text-sm space-y-2 text-body">
-          {task.description && <p>{task.description}</p>}
+      <div className={`h-[2px] bg-surface-alt rounded ${density === "compact" ? "mt-2" : "mt-3"}`} />
 
-          {task.recurrenceInterval && (
-            <p>
-              🔁 <strong>Recommended Frequency:</strong> {task.recurrenceInterval}
-            </p>
-          )}
+      {/* Thumb + actions */}
+      <div className="mt-3 flex items-center gap-3">
+        {showThumb && (
+          <div className={`shrink-0 ${density === "compact" ? "w-12 h-12" : "w-14 h-14"} rounded-xl bg-surface-alt flex items-center justify-center overflow-hidden border border-token`}>
+            {detail?.task?.imageUrl || detail?.template?.imageUrl ? (
+              <img
+                src={(detail?.task?.imageUrl || detail?.template?.imageUrl) as string}
+                alt=""
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <span className="text-xl">{t.icon || "🧰"}</span>
+            )}
+          </div>
+        )}
 
-          {task.criticality && (
-            <p>
-              🚨 <strong>Importance:</strong>{' '}
-              {task.criticality.charAt(0).toUpperCase() + task.criticality.slice(1)}
-            </p>
-          )}
+        <div className="flex-1">
+          {/* Actions with icons */}
+          {!isCompleted ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button size="sm" onClick={handleComplete} className={`h-8 ${density === "compact" ? "px-2" : "px-3"}`} title="Mark Complete" disabled={busy}>
+                <CheckCircle2 className="h-4 w-4 mr-1 -ml-0.5" />
+                Complete
+              </Button>
 
-          {typeof task.deferLimitDays === 'number' && (
-            <p>
-              🕓 Can be safely delayed up to <strong>{task.deferLimitDays} days</strong>
-            </p>
-          )}
+              <SnoozeMenu onSnooze={(d) => snooze(t.id, d)} triggerClassName="h-8 px-3" />
 
-          {typeof task.estimatedCost === 'number' && (
-            <p>
-              💵 Estimated Cost: <strong>${task.estimatedCost}</strong>
-            </p>
-          )}
+              <Button size="sm" variant="outline" onClick={handleDefer} className={`h-8 ${density === "compact" ? "px-2" : "px-3"}`} title="Defer to next occurrence">
+                <CornerDownRight className="h-4 w-4 mr-1 -ml-0.5" />
+                Defer
+              </Button>
 
-          {task.canBeOutsourced && (
-            <p>
-              🧰 This task <strong>can be outsourced</strong> to a professional
-            </p>
-          )}
+              <Button
+                size="sm"
+                variant="ghost"
+                className={`h-8 ${density === "compact" ? "px-2" : "px-3"}`}
+                onClick={(e) => { e.stopPropagation(); window.open(`/app/tasks/${encodeURIComponent(t.id)}`, "_blank", "noopener,noreferrer"); }}
+                title="Open full page"
+              >
+                <ExternalLink className="h-4 w-4" />
+              </Button>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button size="sm" variant="secondary" onClick={handleUndo} className={`h-8 ${density === "compact" ? "px-2" : "px-3"}`} title="Mark as not complete" disabled={busy}>
+                <RotateCcw className="h-4 w-4 mr-1 -ml-0.5" />
+                Undo
+              </Button>
 
-          {task.location && (
-            <p>
-              📍 Location: <strong>{task.location}</strong>
-            </p>
-          )}
-
-          {task.steps && task.steps.length > 0 && (
-            <div>
-              <p className="font-medium mb-1">Steps:</p>
-              <ol className="list-decimal list-inside space-y-1">
-                {task.steps.map((step, idx) => (
-                  <li key={idx}>{step}</li>
-                ))}
-              </ol>
+              <Button
+                size="sm"
+                variant="ghost"
+                className={`h-8 ${density === "compact" ? "px-2" : "px-3"}`}
+                onClick={(e) => { e.stopPropagation(); window.open(`/app/tasks/${encodeURIComponent(t.id)}`, "_blank", "noopener,noreferrer"); }}
+                title="Open full page"
+              >
+                <ExternalLink className="h-4 w-4" />
+              </Button>
             </div>
           )}
 
-          {task.equipmentNeeded && task.equipmentNeeded.length > 0 && (
-            <div>
-              <p className="font-medium mb-1">You'll Need:</p>
-              <ul className="list-disc list-inside space-y-1">
-                {task.equipmentNeeded.map((item, idx) => (
-                  <li key={idx}>{item}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {task.resources && task.resources.length > 0 && (
-            <div>
-              <p className="font-medium mb-1">Helpful Links:</p>
-              <ul className="list-disc list-inside space-y-1">
-                {task.resources.map((res, idx) => (
-                  <li key={idx}>
-                    <a
-                      href={res.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[rgb(var(--primary))] underline"
-                    >
-                      {res.label}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {task.imageUrl && (
-            <img
-              src={task.imageUrl}
-              alt="Task item"
-              className="mt-2 w-full max-h-48 object-cover rounded"
-            />
-          )}
+          {density === "cozy" && t.category && <p className="mt-1 text-xs text-muted truncate">{t.category}</p>}
         </div>
       </div>
 
-      <div
-        className="flex flex-wrap gap-2 mt-4"
-        onClick={e => e.stopPropagation()}
+      {/* Expand toggle (chip style) */}
+      {pref === "card" && !isCompleted && density === "cozy" && (
+        <div className="mt-3">
+          <button
+            onClick={(e) => { e.stopPropagation(); setExpanded((prev) => !prev); }}
+            className="px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-[rgb(var(--primary))] rounded-full
+                       flex items-center gap-2 text-sm font-medium transition-colors"
+            title={expanded ? "Hide Details" : "Show Details"}
+          >
+            {expanded ? "Hide Details" : "Show Details"}
+            {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </button>
+        </div>
+      )}
+
+      {/* Expandable details */}
+      <AnimatePresence initial={false}>
+        {pref === "card" && expanded && !isCompleted && (
+          <motion.div
+            key="expand"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25 }}
+            className="overflow-hidden"
+          >
+            <div className="mt-4 rounded-xl border border-token bg-surface-alt p-3 space-y-3">
+              {loading && (
+                <div className="grid gap-2">
+                  <div className="h-4 w-1/3 animate-pulse rounded bg-card border border-token" />
+                  <div className="h-10 w-full animate-pulse rounded bg-card border border-token" />
+                </div>
+              )}
+
+              {err && (
+                <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded p-2">
+                  {err}
+                </div>
+              )}
+
+              {!loading && !err && detail && (
+                <>
+                  {(detail.task.description || detail.template?.summary) && (
+                    <p className="text-sm">{detail.task.description ?? detail.template?.summary}</p>
+                  )}
+
+                  {steps.length > 0 && (
+                    <div>
+                      <div className="text-sm font-semibold mb-1">Steps</div>
+                      <ol className="list-decimal list-inside space-y-1 text-sm">
+                        {steps.map((s: any, i: number) => (
+                          <li key={i}>
+                            {typeof s === "string" ? s : (s?.title || s?.body || "Step")}
+                            {s?.mediaUrl && (
+                              <a className="ml-2 text-primary underline" href={s.mediaUrl} target="_blank" rel="noopener noreferrer">
+                                View
+                              </a>
+                            )}
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
+/* ------ helpers ------ */
+
+function statusLabel(s: TaskListItem["status"], completedAt?: string | null) {
+  if (s === "COMPLETED") {
+    const d = completedAt ? new Date(completedAt).toLocaleDateString() : "";
+    return d ? `Completed • ${d}` : "Completed";
+  }
+  if (s === "SKIPPED") return "Skipped";
+  return "Pending";
+}
+
+function statusPill(s: TaskListItem["status"]) {
+  if (s === "COMPLETED") return "bg-emerald-100 text-emerald-700";
+  if (s === "SKIPPED") return "bg-slate-200 text-slate-700";
+  return "bg-surface-alt text-gray-700";
+}
+
+/* ------ Snooze dropdown ------ */
+
+function SnoozeMenu({
+  onSnooze,
+  triggerClassName = "",
+}: {
+  onSnooze: (days: number) => void;
+  triggerClassName?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    function onDoc(e: MouseEvent) {
+      if (!open) return;
+      const target = e.target as Node;
+      if (btnRef.current && !btnRef.current.contains(target)) {
+        const menu = document.getElementById("task-snooze-pop");
+        if (menu && !menu.contains(target)) setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+
+  return (
+    <div className="relative inline-block">
+      <Button
+        size="sm"
+        variant="secondary"
+        onClick={(e) => { e.stopPropagation(); setOpen(v => !v); }}
+        className={triggerClassName}
+        ref={btnRef as any}
+        title="Snooze"
       >
-        {/* Primary status actions */}
-        {task.status === 'PENDING' && !pausedAt && !archivedAt && (
-          <>
+        <Clock4 className="h-4 w-4 mr-1 -ml-0.5" />
+        Snooze
+        <ChevronDown className="h-4 w-4 ml-1 opacity-70" />
+      </Button>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            id="task-snooze-pop"
+            initial={{ opacity: 0, scale: 0.98, y: 6 }}
+            animate={{ opacity: 1, scale: 1, y: 4 }}
+            exit={{ opacity: 0, scale: 0.98, y: 6 }}
+            transition={{ duration: 0.12 }}
+            className="absolute z-20 mt-1 min-w-[160px] rounded-md border bg-popover shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button className="w-full text-left px-3 py-2 text-sm hover:bg-surface-alt" onClick={() => { onSnooze(3); setOpen(false); }}>
+              3 days
+            </button>
+            <button className="w-full text-left px-3 py-2 text-sm hover:bg-surface-alt" onClick={() => { onSnooze(7); setOpen(false); }}>
+              7 days
+            </button>
+            <div className="h-px bg-border mx-2" />
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                (e.currentTarget as HTMLButtonElement).classList.add('scale-105');
-                setTimeout(() => {
-                  (e.currentTarget as HTMLButtonElement).classList.remove('scale-105');
-                }, 150);
-                handleAndCollapse('COMPLETED');
+              className="w-full text-left px-3 py-2 text-sm hover:bg-surface-alt"
+              onClick={() => {
+                const v = prompt("Snooze how many days?", "14");
+                const d = Math.max(1, parseInt(String(v || "14"), 10) || 14);
+                onSnooze(d);
+                setOpen(false);
               }}
-              className="px-3 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200 text-sm transition-transform duration-150 ease-in-out"
             >
-              ✅ Mark Complete
+              Custom…
             </button>
-            <button
-              onClick={() => handleAndCollapse('SKIPPED')}
-              className="px-3 py-1 bg-yellow-100 text-yellow-700 rounded hover:bg-yellow-200 text-sm"
-            >
-              ⏭ Skip
-            </button>
-            <button
-              onClick={() => handleAndCollapse('remind', 3)}
-              className="px-3 py-1 bg-surface-alt text-body rounded hover:bg-card border border-token text-sm"
-            >
-              🕓 Remind Me Later
-            </button>
-          </>
+          </motion.div>
         )}
-
-        {(task.status === 'COMPLETED' || task.status === 'SKIPPED') && !archivedAt && (
-          <button
-            onClick={() => onStatusChange(task.id, 'PENDING')}
-            className="px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 text-sm"
-          >
-            🔄 Reopen Task
-          </button>
-        )}
-
-        {/* Lifecycle controls */}
-        {!archivedAt && !pausedAt && (
-          <button
-            onClick={pauseTask}
-            className="px-3 py-1 bg-amber-100 text-amber-700 rounded hover:bg-amber-200 text-sm"
-          >
-            ⏸ Pause
-          </button>
-        )}
-
-        {pausedAt && !archivedAt && (
-          <button
-            onClick={resumeTask}
-            className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200 text-sm"
-          >
-            ▶️ Resume
-          </button>
-        )}
-
-        {!archivedAt ? (
-          <button
-            onClick={archiveTask}
-            className="px-3 py-1 bg-surface-alt text-body rounded hover:bg-card border border-token text-sm"
-          >
-            🗄 Archive
-          </button>
-        ) : (
-          <button
-            onClick={unarchiveTask}
-            className="px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 text-sm"
-          >
-            ♻️ Unarchive
-          </button>
-        )}
-      </div>
+      </AnimatePresence>
     </div>
   );
 }

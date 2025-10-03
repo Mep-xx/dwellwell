@@ -13,9 +13,8 @@ import unarchive from './unarchive';
 import updates from './updates';
 import templateDiff from './templateDiff';
 import applyTemplateUpdates from './applyTemplateUpdates';
-
-// NEW
 import getDetail from './taskDetail';
+import uncomplete from './uncomplete';
 
 const router = Router();
 router.use(requireAuth);
@@ -34,9 +33,8 @@ router.post('/:taskId/pause', pause);
 router.post('/:taskId/resume', resume);
 router.post('/:taskId/archive', archive);
 router.post('/:taskId/unarchive', unarchive);
-
+router.post('/:taskId/uncomplete', uncomplete);
 router.get('/:taskId', getDetail);
-
 router.use("/taskgen", taskgen);
 
 export default router;

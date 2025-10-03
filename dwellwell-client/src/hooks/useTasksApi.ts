@@ -170,10 +170,15 @@ export function useTasksApi() {
     });
   }, []);
 
+  const uncomplete = useCallback(async (taskId: string) => {
+    return fetchJson(`/api/tasks/${encodeURIComponent(taskId)}/uncomplete`, { method: "POST" });
+  }, []);
+
   return {
     listTasks,
     getDetail,
     complete,
+    uncomplete,
     snooze,
     pause,
     resume,

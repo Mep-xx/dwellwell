@@ -3,21 +3,19 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useTasksApi, type TaskListItem } from "@/hooks/useTasksApi";
-import TaskCardExpandable from "@/components/features/TaskCardExpandable";
+import TaskCard from "@/components/features/TaskCard";
+import TaskBoard from "@/components/features/TaskBoard";
 import { useAuth } from "@/context/AuthContext";
 import { useTaskDetailPref } from "@/hooks/useTaskDetailPref";
 
 type ViewMode = "grouped" | "flat";
 type Timeframe = "week" | "month" | "year";
 
-function formatDue(due: string | null) {
-  if (!due) return "";
-  const d = new Date(due);
-  return d.toLocaleDateString();
-}
-
-function Chip({ children }: { children: React.ReactNode }) {
-  return <span className="chip-neutral inline-flex items-center gap-1">{children}</span>;
+// ---- timeframe persistence helpers ----
+const TF_KEY = "dwellwell-timeframe";
+function readSavedTimeframe(): Timeframe {
+  const v = (localStorage.getItem(TF_KEY) || "").toLowerCase();
+  return (v === "week" || v === "month" || v === "year") ? (v as Timeframe) : "week";
 }
 
 export default function Dashboard() {
@@ -31,13 +29,15 @@ export default function Dashboard() {
   const [viewMode, setViewMode] = useState<ViewMode>(
     () => (localStorage.getItem("dwellwell-view") as ViewMode) || "flat"
   );
-  const [timeframe, setTimeframe] = useState<Timeframe>("week");
+  const [timeframe, setTimeframe] = useState<Timeframe>(() => readSavedTimeframe()); // <- persisted
   const [tasks, setTasks] = useState<TaskListItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  // Only used for the "card" preference
-  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
+  // persist timeframe whenever it changes
+  useEffect(() => {
+    localStorage.setItem(TF_KEY, timeframe);
+  }, [timeframe]);
 
   useEffect(() => {
     let cancelled = false;
@@ -56,9 +56,7 @@ export default function Dashboard() {
       }
     })();
 
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [authLoading, user, listTasks]);
 
   const now = new Date();
@@ -91,77 +89,12 @@ export default function Dashboard() {
     [tasks, timeframe]
   );
 
-  // Grouped mode buckets
-  const grouped = useMemo(() => {
-    if (viewMode !== "grouped") return null;
-    const groups: Record<string, TaskListItem[]> = { Today: [], "This Week": [], Later: [] };
-    const endOfWeek = new Date(now);
-    endOfWeek.setDate(now.getDate() - now.getDay() + 6);
-
-    for (const t of visibleTasks) {
-      const d = t.dueDate ? new Date(t.dueDate) : null;
-      if (d && d.toDateString() === now.toDateString()) groups["Today"].push(t);
-      else if (d && d <= endOfWeek) groups["This Week"].push(t);
-      else groups["Later"].push(t);
-    }
-    return groups;
-  }, [visibleTasks, viewMode]);
-
   const activePill = "bg-primary-soft text-primary border-primary";
 
   function openDrawerViaUrl(taskId: string) {
     const params = new URLSearchParams(loc.search);
     params.set("taskId", taskId);
     navigate({ pathname: loc.pathname, search: params.toString() });
-  }
-
-  function handleTaskClick(id: string) {
-    if (pref === "drawer") {
-      openDrawerViaUrl(id); // no local state
-    } else {
-      setExpandedTaskId((prev) => (prev === id ? null : id));
-    }
-  }
-
-  function renderTaskCard(t: TaskListItem) {
-    const expanded = pref === "card" && expandedTaskId === t.id;
-
-    return (
-      <div key={t.id} className="w-full">
-        <button
-          type="button"
-          className="text-left surface-card-sm w-full p-3 shadow-sm hover:bg-surface-alt focus:outline-none panel-hover rounded-lg"
-          onClick={() => handleTaskClick(t.id)}
-          aria-label={`Open ${t.title}`}
-        >
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="text-lg leading-none">{t.icon || "🧰"}</span>
-                <div className="font-medium truncate text-body">{t.title}</div>
-              </div>
-
-              <div className="mt-1 flex flex-wrap gap-1">
-                {t.roomName && <Chip>{t.roomName}</Chip>}
-                {t.itemName && <Chip>{t.itemName}</Chip>}
-                {t.category && <Chip>{t.category}</Chip>}
-              </div>
-            </div>
-
-            <div className="text-xs text-muted shrink-0 mt-0.5">
-              {formatDue(t.dueDate)}
-            </div>
-          </div>
-        </button>
-
-        {expanded && (
-          <div className="mt-2">
-            {/* Open immediately, no duplicate header */}
-            <TaskCardExpandable t={t} initiallyOpen showHeader={false} />
-          </div>
-        )}
-      </div>
-    );
   }
 
   return (
@@ -239,30 +172,32 @@ export default function Dashboard() {
 
       {/* Content */}
       {!authLoading && !loading && !err && visibleTasks.length > 0 && (
-        <section className="space-y-4">
-          <h2 className="text-xl font-semibold text-body">🛠️ Your Tasks</h2>
-
+        <>
+          {/* FLAT view */}
           {viewMode === "flat" && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {visibleTasks.map((t) => renderTaskCard(t))}
-            </div>
+            <section className="space-y-4">
+              <h2 className="text-xl font-semibold text-body">🛠️ Your Tasks</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-start content-start">
+                {visibleTasks.map((t) => (
+                  <TaskCard
+                    key={t.id}
+                    t={t}
+                    onOpenDrawer={(id) => openDrawerViaUrl(id)}
+                    // density="compact"
+                  />
+                ))}
+              </div>
+            </section>
           )}
 
-          {viewMode === "grouped" && grouped && (
-            <div className="space-y-8">
-              {Object.entries(grouped).map(([label, rows]) =>
-                rows.length ? (
-                  <div key={label} className="space-y-3">
-                    <div className="text-sm font-semibold text-muted">{label}</div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {rows.map((t) => renderTaskCard(t))}
-                    </div>
-                  </div>
-                ) : null
-              )}
-            </div>
+          {/* GROUPED view */}
+          {viewMode === "grouped" && (
+            <TaskBoard
+              tasks={visibleTasks}
+              onOpenDrawer={(id) => openDrawerViaUrl(id)}
+            />
           )}
-        </section>
+        </>
       )}
     </div>
   );
