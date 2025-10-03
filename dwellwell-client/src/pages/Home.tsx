@@ -8,8 +8,7 @@ import { resolveHomeImageUrl } from "@/utils/images";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import {
-  Pencil, Trash2, MapPin, AlertCircle, Clock, Target, ListChecks,
-  CheckCircle2
+  Trash2, MapPin, AlertCircle, Clock, Target, ListChecks, CheckCircle2
 } from "lucide-react";
 import HomePhotoDropzone from "@/components/ui/HomePhotoDropzone";
 import { useToast } from "@/components/ui/use-toast";
@@ -17,8 +16,9 @@ import { buildZillowUrl } from "@/utils/zillowUrl";
 import HomeMetaCard from "@/components/redesign/HomeMetaCard";
 import type { HomeWithMeta } from "@/types/extended";
 import RoomsPanel from "@/components/redesign/RoomsPanel";
-import TrackableModal from "@/components/features/TrackableModal"; // NEW
-import QuickPromptsBar from "@/components/features/QuickPromptsBar"; // NEW
+import TrackableModal from "@/components/features/TrackableModal";
+import type { CreateTrackableDTO } from "@/components/features/TrackableModal";
+import QuickPromptsBar from "@/components/features/QuickPromptsBar";
 
 /* ====================== Types ====================== */
 type Summary = {
@@ -71,6 +71,9 @@ export default function HomePage() {
   const [trackableOpen, setTrackableOpen] = useState(false);
   const [prefillRoomId, setPrefillRoomId] = useState<string | undefined>(undefined);
 
+  // NEW: allow prefill of kind/category/name when "Add details" is used
+  const [trackableDraft, setTrackableDraft] = useState<Partial<CreateTrackableDTO> | null>(null);
+
   // NEW: Lite trackables list for QuickPromptsBar (id, roomId, kind)
   const [trackablesLite, setTrackablesLite] = useState<Array<{ id: string; roomId?: string | null; kind?: string | null }>>([]);
 
@@ -98,8 +101,6 @@ export default function HomePage() {
     const qs = (params.get("tab") || "").toLowerCase();
     if (["overview", "details", "rooms", "features", "services", "docs"].includes(qs)) {
       setTab(qs as TabKey);
-    } else {
-      // keep existing tab if invalid / missing
     }
   }, [location.search]);
 
@@ -197,12 +198,11 @@ export default function HomePage() {
     } catch { /* ignore */ }
   }, [id]);
 
-  // ---- memoized derived data (ALWAYS run; never after a conditional return)
+  // ---- memoized derived data
   const img = useMemo(() => resolveHomeImageUrl(home?.imageUrl), [home?.imageUrl]);
 
-  // NEW: enable Zillow button based on having enough address parts
+  // Zillow availability
   const hasAddress = useMemo(() => !!(home?.address && home?.city && home?.state && home?.zip), [home]);
-
   const zillowUrl = useMemo(() => {
     if (!hasAddress || !home) return null;
     return buildZillowUrl({
@@ -229,7 +229,7 @@ export default function HomePage() {
     return by;
   }, [activeTasks]);
 
-  // ---- actions (callbacks are stable; still declared before any conditional returns)
+  // ---- actions
   const onUploaded = (absoluteUrl: string) => setHome((h) => (h ? { ...h, imageUrl: absoluteUrl } : h));
 
   const toggleChecked = async (value: boolean) => {
@@ -258,12 +258,13 @@ export default function HomePage() {
     } finally { setDeleting(false); }
   };
 
-  const openAddTrackable = useCallback((roomId?: string) => {
+  const openAddTrackable = useCallback((roomId?: string, draft?: Partial<CreateTrackableDTO>) => {
     setPrefillRoomId(roomId);
+    setTrackableDraft(draft ?? null);
     setTrackableOpen(true);
   }, []);
 
-  /* -------- guards (AFTER all hooks) -------- */
+  /* -------- guards -------- */
   if (loading) {
     return (
       <div className="mx-auto w-full max-w-7xl px-4 py-6">
@@ -355,7 +356,7 @@ export default function HomePage() {
               <span>Include in To-Do</span>
             </div>
 
-            {/* Edit / Delete */}
+            {/* Delete */}
             <Button variant="destructive" className="gap-2" onClick={deleteHome} disabled={deleting}>
               <Trash2 className="h-4 w-4" /> Delete
             </Button>
@@ -395,26 +396,9 @@ export default function HomePage() {
         </ul>
       </nav>
 
-
       {/* ======= Tab Panels ======= */}
       {tab === "overview" && (
         <>
-          {/* Quick add common items (Yes/No prompts) */}
-          <div className="mt-4">
-            <QuickPromptsBar
-              homeId={home.id}
-              rooms={home.rooms ?? []}
-              trackables={trackablesLite}
-              onCreated={() => {
-                refetchTrackablesLite();
-                toast({
-                  title: "Added to your home",
-                  description: "We created routine tasks for it. You can add brand/model later.",
-                });
-              }}
-            />
-          </div>
-
           {/* Status strip */}
           <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-4">
             <StatusCard icon={<AlertCircle className="h-5 w-5" />} label="Overdue" value={tasksLoading ? "…" : String(overdueCount)} tone="danger" />
@@ -424,9 +408,34 @@ export default function HomePage() {
               value={tasksLoading ? "…" : `${score}`} suffix={tasksLoading ? "" : "/ 100"}
               tone={tasksLoading ? "neutral" : score >= 80 ? "good" : score >= 60 ? "ok" : "warn"}
             />
-            <div className="rounded-2xl border bg-card p-4 flex items-center justify-between">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground"><ListChecks className="h-5 w-5" /><span>Tasks</span></div>
-              <Button size="sm" onClick={() => navigate(`/app/tasks?homeId=${encodeURIComponent(home.id)}`)} className="ml-2">View Tasks</Button>
+
+            <div className="rounded-2xl border bg-card p-3 overflow-hidden">
+              <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
+                <ListChecks className="h-5 w-5" />
+                <span>Quick add common items</span>
+              </div>
+              <QuickPromptsBar
+                homeId={home.id}
+                rooms={home.rooms ?? []}
+                trackables={trackablesLite}
+                className="w-full max-w-full"
+                onCreated={() => {
+                  refetchTrackablesLite();
+                  toast({
+                    title: "Added to your home",
+                    description: "We created routine tasks for it. You can add brand/model later.",
+                  });
+                }}
+                onAddDetails={({ roomId, kind, category }) => {
+                  openAddTrackable(roomId, {
+                    userDefinedName: "",
+                    roomId,
+                    homeId: home.id,
+                    type: kind,
+                    category: category ?? undefined,
+                  });
+                }}
+              />
             </div>
           </div>
 
@@ -450,7 +459,6 @@ export default function HomePage() {
                   {homeTasks.map((t) => {
                     const overdue = isOverdue(t);
                     const soon = isDueSoon(t);
-                    // room / trackable context badges (best-effort)
                     const roomName = (t as any).roomName as string | undefined;
                     const trackableName = (t as any).trackableName as string | undefined;
                     return (
@@ -524,9 +532,11 @@ export default function HomePage() {
 
       {tab === "rooms" && (
         <div className="mt-6 rounded-2xl border bg-card p-4">
-          {/* Optional: also show QuickPromptsBar here if you want it visible per-room */}
-          {/* <QuickPromptsBar homeId={home.id} rooms={home.rooms ?? []} trackables={trackablesLite} onCreated={() => { refetchTrackablesLite(); }} /> */}
-          <RoomsPanel homeId={home.id} tasksByRoom={tasksByRoom} onAddTrackable={(roomId) => { setPrefillRoomId(roomId); setTrackableOpen(true); }} />
+          <RoomsPanel
+            homeId={home.id}
+            tasksByRoom={tasksByRoom}
+            onAddTrackable={(roomId) => { setPrefillRoomId(roomId); setTrackableOpen(true); }}
+          />
         </div>
       )}
 
@@ -554,9 +564,14 @@ export default function HomePage() {
       {/* Add Trackable Modal */}
       <TrackableModal
         isOpen={trackableOpen}
-        onClose={() => { setTrackableOpen(false); setPrefillRoomId(undefined); }}
+        onClose={() => { setTrackableOpen(false); setPrefillRoomId(undefined); setTrackableDraft(null); }}
         onSave={() => { /* optionally refresh trackables/rooms if needed */ }}
-        initialData={prefillRoomId ? { userDefinedName: "", roomId: prefillRoomId, homeId: home.id } : { userDefinedName: "", homeId: home.id }}
+        initialData={{
+          userDefinedName: "",
+          homeId: home.id,
+          ...(prefillRoomId ? { roomId: prefillRoomId } : {}),
+          ...(trackableDraft ?? {}),
+        }}
       />
     </div>
   );

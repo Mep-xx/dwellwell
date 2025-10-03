@@ -1,4 +1,3 @@
-// dwellwell-client/src/pages/Room.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { api } from "@/utils/api";
@@ -156,13 +155,12 @@ export default function RoomPage() {
     let cancelled = false;
 
     async function ensureDetailExists(id: string) {
-      // If there is no RoomDetail row yet, create one so Prisma defaults apply.
       if (!room?.detail) {
         try {
           const { data: updated } = await api.put(`/rooms/${id}`, { details: {} });
           if (!cancelled) setRoom(updated);
-        } catch (e) {
-          // Non-fatal; leave as-is
+        } catch {
+          /* ignore */
         }
       }
     }
@@ -182,7 +180,7 @@ export default function RoomPage() {
             const { data } = await api.get(`/rooms/${roomId}`, { params: { includeDetails: true } });
             base = data ?? null;
             if (!cancelled) setRoom(base);
-          } catch (err: any) {
+          } catch {
             if (!cancelled) {
               toast({
                 title: "We couldn’t open this room.",
@@ -204,7 +202,6 @@ export default function RoomPage() {
           } catch {
             /* ignore */
           }
-          // tasks list is loaded by the dedicated effect above
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -278,18 +275,23 @@ export default function RoomPage() {
           <source
             type="image/webp"
             srcSet={[
-              `${(visual.image1x ?? "/images/room-fallback.jpg").replace(".jpg", ".webp")} 1x`,
-              visual.image2x ? `${visual.image2x.replace(".jpg", ".webp")} 2x` : undefined,
-            ].filter(Boolean).join(", ")}
+              `${visual.imageWebp1x} 1x`,
+              visual.imageWebp2x ? `${visual.imageWebp2x} 2x` : undefined,
+            ]
+              .filter(Boolean)
+              .join(", ")}
             sizes="100vw"
           />
           <img
-            src={visual.image1x ?? "/images/room-fallback.jpg"}
-            srcSet={visual.image2x ? `${visual.image2x} 2x` : undefined}
+            src={visual.imageWebp1x ?? "/room-banners/default.webp"}
+            srcSet={visual.imageWebp2x ? `${visual.imageWebp2x} 2x` : undefined}
             alt={`${visual.label} photo`}
             className="h-48 w-full object-cover md:h-64"
             loading="eager"
             fetchPriority="high"
+            onError={(e) => {
+              (e.currentTarget as HTMLImageElement).src = "/room-banners/default.webp";
+            }}
           />
         </picture>
 
