@@ -24,7 +24,7 @@ function v(label: string, Icon: FC<any>, accent: string, slug: string): RoomVisu
     label,
     Icon,
     accent,
-    imageWebp1x: `${BASE}/${slug}.webp`
+    imageWebp1x: `${BASE}/${slug}.webp`,
   };
 }
 
