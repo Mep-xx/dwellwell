@@ -1,5 +1,3 @@
-//dwellwell-client/src/hooks/useTasksApi.ts
-// dwellwell-client/src/hooks/useTasksApi.ts
 import { useCallback } from "react";
 
 export type TaskListItem = {
@@ -48,7 +46,6 @@ export type TaskDetail = {
     imageUrl?: string | null;
     icon?: string | null;
 
-    // These may exist in some list endpoints; keep them optional to avoid TS errors
     pausedAt?: string | null;
     archivedAt?: string | null;
   };
@@ -88,7 +85,6 @@ function ok(res: Response) {
   return res;
 }
 
-// Attach token automatically for every call
 async function fetchJson(input: RequestInfo | URL, init: RequestInit = {}) {
   const token = (() => {
     try { return localStorage.getItem("dwellwell-token"); } catch { return null; }
@@ -108,6 +104,8 @@ async function fetchJson(input: RequestInfo | URL, init: RequestInit = {}) {
     credentials: "include",
   }).then(ok);
 
+  // Some endpoints may return empty 204
+  if (res.status === 204) return null;
   return res.json();
 }
 
@@ -141,10 +139,27 @@ export function useTasksApi() {
     return fetchJson(`/api/tasks/${encodeURIComponent(taskId)}/complete`, { method: "POST" });
   }, []);
 
+  const uncomplete = useCallback(async (taskId: string) => {
+    return fetchJson(`/api/tasks/${encodeURIComponent(taskId)}/uncomplete`, { method: "POST" });
+  }, []);
+
   const snooze = useCallback(async (taskId: string, days: number) => {
     return fetchJson(`/api/tasks/${encodeURIComponent(taskId)}/snooze`, {
       method: "POST",
       body: JSON.stringify({ days }),
+    });
+  }, []);
+
+  // NEW: Skip the current occurrence (server should set status -> SKIPPED or move fwd)
+  const skip = useCallback(async (taskId: string) => {
+    return fetchJson(`/api/tasks/${encodeURIComponent(taskId)}/skip`, { method: "POST" });
+  }, []);
+
+  // NEW: Generic patch (used earlier for “defer” -> change dueDate, etc.)
+  const updateTask = useCallback(async (taskId: string, patch: Partial<TaskListItem>) => {
+    return fetchJson(`/api/tasks/${encodeURIComponent(taskId)}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
     });
   }, []);
 
@@ -170,16 +185,14 @@ export function useTasksApi() {
     });
   }, []);
 
-  const uncomplete = useCallback(async (taskId: string) => {
-    return fetchJson(`/api/tasks/${encodeURIComponent(taskId)}/uncomplete`, { method: "POST" });
-  }, []);
-
   return {
     listTasks,
     getDetail,
     complete,
     uncomplete,
     snooze,
+    skip,         // ← added
+    updateTask,   // ← added
     pause,
     resume,
     archive,

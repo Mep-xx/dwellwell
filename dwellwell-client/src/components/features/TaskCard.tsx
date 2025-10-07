@@ -1,5 +1,4 @@
-// dwellwell-client/src/components/features/TaskCard.tsx
-import { useEffect, useMemo, useRef, useState, MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, MouseEvent as ReactMouseEvent } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   CalendarDays, CheckCircle2, Clock4, ChevronDown, ChevronUp,
@@ -16,10 +15,9 @@ type Props = {
 };
 
 export default function TaskCard({ t, onOpenDrawer, density = "cozy" }: Props) {
-  const pref = useTaskDetailPref(); // "drawer" | "card"
-  const { getDetail, complete, uncomplete, snooze } = useTasksApi();
+  const pref = useTaskDetailPref();
+  const { getDetail, complete, uncomplete, snooze, skip } = useTasksApi();
 
-  // local status so we can persist UI without a list refetch
   const [status, setStatus] = useState<TaskListItem["status"]>(t.status);
   const [completedAt, setCompletedAt] = useState<string | null>(t.completedAt ?? null);
 
@@ -28,16 +26,13 @@ export default function TaskCard({ t, onOpenDrawer, density = "cozy" }: Props) {
   const [detail, setDetail] = useState<TaskDetail | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
-  // feel-good completion overlay (contained to the card)
   const [celebrate, setCelebrate] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  // collapse if switching to drawer
   useEffect(() => {
     if (pref === "drawer" && expanded) setExpanded(false);
   }, [pref, expanded]);
 
-  // load details when expanded (card mode)
   useEffect(() => {
     if (!expanded || pref !== "card") return;
     let cancelled = false;
@@ -56,7 +51,6 @@ export default function TaskCard({ t, onOpenDrawer, density = "cozy" }: Props) {
   }, [expanded, pref, t.id, getDetail]);
 
   const steps = detail?.content?.steps ?? [];
-
   const due = useMemo(
     () => (t.dueDate ? new Date(t.dueDate).toLocaleDateString() : undefined),
     [t.dueDate]
@@ -69,9 +63,9 @@ export default function TaskCard({ t, onOpenDrawer, density = "cozy" }: Props) {
     if (pref === "drawer") onOpenDrawer?.(t.id);
     else setExpanded((v) => !v);
   }
-  function stop(e: MouseEvent) { e.stopPropagation(); }
+  function stop(e: ReactMouseEvent) { e.stopPropagation(); }
 
-  async function handleComplete(e: MouseEvent) {
+  async function handleComplete(e: ReactMouseEvent) {
     stop(e);
     if (busy || isCompleted) return;
     setBusy(true);
@@ -88,7 +82,7 @@ export default function TaskCard({ t, onOpenDrawer, density = "cozy" }: Props) {
     }
   }
 
-  async function handleUndo(e: MouseEvent) {
+  async function handleUndo(e: ReactMouseEvent) {
     stop(e);
     if (busy || !isCompleted) return;
     setBusy(true);
@@ -101,12 +95,19 @@ export default function TaskCard({ t, onOpenDrawer, density = "cozy" }: Props) {
     }
   }
 
-  async function handleDefer(e: MouseEvent) {
+  async function handleSkip(e: ReactMouseEvent) {
     stop(e);
-    await snooze(t.id, 30); // TEMP until dedicated defer endpoint
+    if (busy) return;
+    setBusy(true);
+    try {
+      await skip(t.id); // server should mark this occurrence as skipped / move forward
+      setStatus("SKIPPED");
+      setExpanded(false);
+    } finally {
+      setBusy(false);
+    }
   }
 
-  // Only show the thumbnail box if (a) there’s an image available OR (b) this is tied to a trackable.
   const showThumb = Boolean(detail?.task?.imageUrl || detail?.template?.imageUrl || t.trackableId);
 
   return (
@@ -117,7 +118,6 @@ export default function TaskCard({ t, onOpenDrawer, density = "cozy" }: Props) {
       exit={{ opacity: 0, scale: 0.98 }}
       className={`relative self-start rounded-xl border border-token bg-card text-body ${density === "compact" ? "p-3" : "p-4"} shadow transition-all hover:shadow-lg hover:-translate-y-0.5 ${cardDim}`}
     >
-      {/* celebration overlay */}
       <AnimatePresence>
         {celebrate && (
           <motion.div
@@ -130,7 +130,6 @@ export default function TaskCard({ t, onOpenDrawer, density = "cozy" }: Props) {
         )}
       </AnimatePresence>
 
-      {/* Header (no icon duplicated up here) */}
       <button type="button" className="w-full text-left" onClick={onHeaderClick} aria-label={`Open ${t.title}`}>
         <div className="flex items-start">
           <h3 className={`${density === "compact" ? "text-base" : "text-lg"} font-semibold leading-tight truncate pr-3`}>
@@ -166,16 +165,11 @@ export default function TaskCard({ t, onOpenDrawer, density = "cozy" }: Props) {
 
       <div className={`h-[2px] bg-surface-alt rounded ${density === "compact" ? "mt-2" : "mt-3"}`} />
 
-      {/* Thumb + actions */}
       <div className="mt-3 flex items-center gap-3">
         {showThumb && (
           <div className={`shrink-0 ${density === "compact" ? "w-12 h-12" : "w-14 h-14"} rounded-xl bg-surface-alt flex items-center justify-center overflow-hidden border border-token`}>
             {detail?.task?.imageUrl || detail?.template?.imageUrl ? (
-              <img
-                src={(detail?.task?.imageUrl || detail?.template?.imageUrl) as string}
-                alt=""
-                className="w-full h-full object-cover"
-              />
+              <img src={(detail?.task?.imageUrl || detail?.template?.imageUrl) as string} alt="" className="w-full h-full object-cover" />
             ) : (
               <span className="text-xl">{t.icon || "🧰"}</span>
             )}
@@ -183,7 +177,6 @@ export default function TaskCard({ t, onOpenDrawer, density = "cozy" }: Props) {
         )}
 
         <div className="flex-1">
-          {/* Actions with icons */}
           {!isCompleted ? (
             <div className="flex flex-wrap items-center gap-2">
               <Button size="sm" onClick={handleComplete} className={`h-8 ${density === "compact" ? "px-2" : "px-3"}`} title="Mark Complete" disabled={busy}>
@@ -193,9 +186,9 @@ export default function TaskCard({ t, onOpenDrawer, density = "cozy" }: Props) {
 
               <SnoozeMenu onSnooze={(d) => snooze(t.id, d)} triggerClassName="h-8 px-3" />
 
-              <Button size="sm" variant="outline" onClick={handleDefer} className={`h-8 ${density === "compact" ? "px-2" : "px-3"}`} title="Defer to next occurrence">
+              <Button size="sm" variant="outline" onClick={handleSkip} className={`h-8 ${density === "compact" ? "px-2" : "px-3"}`} title="Skip this occurrence">
                 <CornerDownRight className="h-4 w-4 mr-1 -ml-0.5" />
-                Defer
+                Skip
               </Button>
 
               <Button
@@ -231,13 +224,11 @@ export default function TaskCard({ t, onOpenDrawer, density = "cozy" }: Props) {
         </div>
       </div>
 
-      {/* Expand toggle (chip style) */}
       {pref === "card" && !isCompleted && density === "cozy" && (
         <div className="mt-3">
           <button
             onClick={(e) => { e.stopPropagation(); setExpanded((prev) => !prev); }}
-            className="px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-[rgb(var(--primary))] rounded-full
-                       flex items-center gap-2 text-sm font-medium transition-colors"
+            className="px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-[rgb(var(--primary))] rounded-full flex items-center gap-2 text-sm font-medium transition-colors"
             title={expanded ? "Hide Details" : "Show Details"}
           >
             {expanded ? "Hide Details" : "Show Details"}
@@ -246,7 +237,6 @@ export default function TaskCard({ t, onOpenDrawer, density = "cozy" }: Props) {
         </div>
       )}
 
-      {/* Expandable details */}
       <AnimatePresence initial={false}>
         {pref === "card" && expanded && !isCompleted && (
           <motion.div
@@ -265,11 +255,7 @@ export default function TaskCard({ t, onOpenDrawer, density = "cozy" }: Props) {
                 </div>
               )}
 
-              {err && (
-                <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded p-2">
-                  {err}
-                </div>
-              )}
+              {err && <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded p-2">{err}</div>}
 
               {!loading && !err && detail && (
                 <>
@@ -304,7 +290,7 @@ export default function TaskCard({ t, onOpenDrawer, density = "cozy" }: Props) {
   );
 }
 
-/* ------ helpers ------ */
+/* helpers */
 
 function statusLabel(s: TaskListItem["status"], completedAt?: string | null) {
   if (s === "COMPLETED") {
@@ -314,14 +300,13 @@ function statusLabel(s: TaskListItem["status"], completedAt?: string | null) {
   if (s === "SKIPPED") return "Skipped";
   return "Pending";
 }
-
 function statusPill(s: TaskListItem["status"]) {
   if (s === "COMPLETED") return "bg-emerald-100 text-emerald-700";
   if (s === "SKIPPED") return "bg-slate-200 text-slate-700";
   return "bg-surface-alt text-gray-700";
 }
 
-/* ------ Snooze dropdown ------ */
+/* Snooze dropdown */
 
 function SnoozeMenu({
   onSnooze,
@@ -334,14 +319,15 @@ function SnoozeMenu({
   const btnRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
-    function onDoc(e: MouseEvent) {
+    // Use DOM MouseEvent, not React's
+    const onDoc = (e: globalThis.MouseEvent) => {
       if (!open) return;
       const target = e.target as Node;
       if (btnRef.current && !btnRef.current.contains(target)) {
         const menu = document.getElementById("task-snooze-pop");
         if (menu && !menu.contains(target)) setOpen(false);
       }
-    }
+    };
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
   }, [open]);
