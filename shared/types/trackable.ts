@@ -22,7 +22,8 @@ export type Trackable = {
   userDefinedName: string;
   brand: string;
   model: string;
-  type: string;
+  type: string;             
+  kind?: string | null;     
   category: string;
   serialNumber?: string | null;
   imageUrl?: string;

@@ -34,8 +34,10 @@ export const TYPE_BY_CATEGORY: Record<string, { value: string; label: string }[]
     { value: "water-softener", label: "Water Softener" },
     { value: "dehumidifier", label: "Dehumidifier" },
     { value: "air-purifier", label: "Air Purifier" },
+    { value: "garbage-disposal", label: "Garbage Disposal" },
+    { value: "range-hood", label: "Range Hood" },
   ],
-  hvac: [                                                    
+  hvac: [
     { value: "furnace", label: "Furnace" },
     { value: "boiler", label: "Boiler" },
     { value: "central-ac", label: "Central A/C" },
@@ -73,6 +75,7 @@ export const TYPE_BY_CATEGORY: Record<string, { value: string; label: string }[]
     { value: "boiler", label: "Boiler" },
     { value: "space-heater", label: "Space Heater" },
     { value: "radiant-heat", label: "Radiant Heat" },
+    { value: "fireplace", label: "Fireplace" },         // ⬅ added
   ],
   cooling: [
     { value: "central-ac", label: "Central A/C" },
@@ -98,6 +101,7 @@ export const TYPE_BY_CATEGORY: Record<string, { value: string; label: string }[]
     { value: "outlets-switches", label: "Outlets / Switches" },
     { value: "doorbell", label: "Doorbell" },
     { value: "thermostat", label: "Thermostat" },
+    { value: "ceiling-fan", label: "Ceiling Fan" },      // ⬅ added
   ],
   outdoor: [
     { value: "lawn-mower", label: "Lawn Mower" },
@@ -172,7 +176,7 @@ export const TYPE_BY_CATEGORY: Record<string, { value: string; label: string }[]
     { value: "bed", label: "Bed" },
     { value: "shelving", label: "Shelving" },
   ],
-  water: [                                                    
+  water: [
     { value: "water-heater", label: "Water Heater" },
     { value: "water-softener", label: "Water Softener" },
     { value: "main-shutoff", label: "Main Shutoff Valve" },
