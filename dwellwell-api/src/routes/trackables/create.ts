@@ -1,3 +1,4 @@
+// dwellwell-api/src/routes/trackables/create.ts
 import { Request, Response } from "express";
 import { asyncHandler } from "../../middleware/asyncHandler";
 import { prisma } from "../../db/prisma";
@@ -9,7 +10,7 @@ export default asyncHandler(async (req: Request, res: Response) => {
   const {
     homeId,
     roomId,
-    applianceCatalogId,
+    applianceCatalogId,   // may be undefined/null
     userDefinedName,
     purchaseDate,
     serialNumber,
@@ -38,9 +39,28 @@ export default asyncHandler(async (req: Request, res: Response) => {
     }
   }
 
+  // If client provided a catalog id, validate it
   if (applianceCatalogId) {
     const exists = await prisma.applianceCatalog.findUnique({ where: { id: applianceCatalogId } });
     if (!exists) return res.status(400).json({ error: "CATALOG_ID_INVALID" });
+  }
+
+  // —— Server-side safety net:
+  // If no catalog id was provided BUT brand+model were, try to link to an existing catalog row.
+  let effectiveCatalogId: string | null =
+    applianceCatalogId === undefined ? null : applianceCatalogId; // preserve explicit null
+  if (
+    effectiveCatalogId == null &&            // only when not explicitly set
+    typeof brand === "string" &&
+    typeof model === "string" &&
+    brand.trim() &&
+    model.trim()
+  ) {
+    const cat = await prisma.applianceCatalog.findUnique({
+      where: { brand_model: { brand: brand.trim(), model: model.trim() } },
+      select: { id: true },
+    });
+    if (cat) effectiveCatalogId = cat.id;
   }
 
   const data: any = {
@@ -50,7 +70,14 @@ export default asyncHandler(async (req: Request, res: Response) => {
 
   if (homeId !== undefined) data.homeId = homeId;
   if (roomId !== undefined) data.roomId = roomId;
-  if (applianceCatalogId !== undefined) data.applianceCatalogId = applianceCatalogId;
+
+  // Use our effectiveCatalogId (auto-linked when possible)
+  if (applianceCatalogId !== undefined) {
+    // respect explicit null from caller
+    data.applianceCatalogId = effectiveCatalogId;
+  } else if (effectiveCatalogId) {
+    data.applianceCatalogId = effectiveCatalogId;
+  }
 
   if (serialNumber !== undefined) data.serialNumber = String(serialNumber || "").trim() || null;
   if (notes !== undefined) data.notes = String(notes || "").trim() || null;
@@ -68,12 +95,12 @@ export default asyncHandler(async (req: Request, res: Response) => {
     data.purchaseDate = d;
   }
 
+  // Recent duplicate guard
   const tenSecondsAgo = new Date(Date.now() - 10_000);
   const dup = await prisma.trackable.findFirst({
     where: {
       ownerUserId: userId,
       userDefinedName: userDefinedName.trim(),
-      // optional tighten: brand/model/type/category match when provided
       ...(brand ? { brand: String(brand).trim() } : {}),
       ...(model ? { model: String(model).trim() } : {}),
       createdAt: { gt: tenSecondsAgo },
@@ -87,13 +114,22 @@ export default asyncHandler(async (req: Request, res: Response) => {
   const created = await prisma.trackable.create({ data });
 
   try {
-    await seedTasksForTrackable({ prisma, userId, trackableId: created.id, applianceCatalogId: created.applianceCatalogId ?? null });
-  } catch (e) { console.error("[seed catalog]", e); }
+    await seedTasksForTrackable({
+      prisma,
+      userId,
+      trackableId: created.id,
+      applianceCatalogId: created.applianceCatalogId ?? null,
+    });
+  } catch (e) {
+    console.error("[seed catalog]", e);
+  }
 
   try {
     const { generateTasksForTrackable } = await import("../../services/taskgen");
     await generateTasksForTrackable(created.id);
-  } catch (e) { console.error("[taskgen rules]", e); }
+  } catch (e) {
+    console.error("[taskgen rules]", e);
+  }
 
   res.status(201).json(created);
 });

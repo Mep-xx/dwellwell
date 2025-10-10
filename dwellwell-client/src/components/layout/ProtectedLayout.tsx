@@ -1,7 +1,7 @@
-//dwellwell-client/src/components/layout/ProtectedLayout.tsx
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { useMemo } from 'react';
-import { useAuth } from '@/context/AuthContext';
+// dwellwell-client/src/components/layout/ProtectedLayout.tsx
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { useMemo } from "react";
+import { useAuth } from "@/context/AuthContext";
 import GlobalTaskDrawer from "@/components/features/GlobalTaskDrawer";
 
 export default function ProtectedLayout() {
@@ -10,21 +10,30 @@ export default function ProtectedLayout() {
 
   // prevent flash after logout
   const hasLocalToken = useMemo(() => {
-    try { return !!localStorage.getItem('dwellwell-token'); } catch { return false; }
+    try {
+      return !!localStorage.getItem("dwellwell-token");
+    } catch {
+      return false;
+    }
   }, []);
   const isAuthed = !!user && hasLocalToken;
 
   // Active vs. idle styles use **theme tokens** (no raw Tailwind grays)
   const navLinkClasses = (isActive: boolean) =>
-    `block py-2 rounded-r-md transition-colors pl-4 ${isActive
-      ? 'bg-primary-soft text-primary font-semibold border-l-4 border-primary'
-      : 'text-muted hover:text-body'
+    `block py-2 rounded-r-md transition-colors pl-4 ${
+      isActive
+        ? "bg-primary-soft text-primary font-semibold border-l-4 border-primary"
+        : "text-muted hover:text-body"
     }`;
 
   const handleLogout = () => {
-    try { localStorage.removeItem('dwellwell-token'); } catch { /* no-op */ }
+    try {
+      localStorage.removeItem("dwellwell-token");
+    } catch {
+      /* no-op */
+    }
     logout();
-    navigate('/login', { replace: true });
+    navigate("/login", { replace: true });
   };
 
   return (
@@ -54,26 +63,30 @@ export default function ProtectedLayout() {
             </NavLink> */}
 
             {/* Admin section */}
-            {user?.role === 'admin' && (
+            {user?.role === "admin" && (
               <div className="mt-4 pt-4 border-t border-token space-y-2">
                 <p className="text-xs uppercase text-muted">Admin</p>
+
                 <NavLink to="/admin/AdminDashboard" className={({ isActive }) => navLinkClasses(isActive)}>
                   📊 Admin Dashboard
                 </NavLink>
-                <NavLink to="/admin/AdminTaskTemplates" className={({ isActive }) => navLinkClasses(isActive)}>
-                  🗂 Task Templates
-                </NavLink>
-                <NavLink to="/admin/AdminUsers" className={({ isActive }) => navLinkClasses(isActive)}>
-                  👥 Users
+                <NavLink to="/admin/AdminApplianceCatalog" className={({ isActive }) => navLinkClasses(isActive)}>
+                  🧰 Appliance Catalog
                 </NavLink>
                 <NavLink to="/admin/AdminHomes" className={({ isActive }) => navLinkClasses(isActive)}>
                   🏘 Homes
+                </NavLink>
+                <NavLink to="/admin/AdminTaskTemplates" className={({ isActive }) => navLinkClasses(isActive)}>
+                  🗂 Task Templates
                 </NavLink>
                 <NavLink to="/admin/AdminTrackables" className={({ isActive }) => navLinkClasses(isActive)}>
                   📚 Trackables
                 </NavLink>
                 <NavLink to="/admin/AdminTaskGenIssues" className={({ isActive }) => navLinkClasses(isActive)}>
                   ⚠️ Task Gen Issues
+                </NavLink>
+                <NavLink to="/admin/AdminUsers" className={({ isActive }) => navLinkClasses(isActive)}>
+                  👥 Users
                 </NavLink>
               </div>
             )}
@@ -104,7 +117,7 @@ export default function ProtectedLayout() {
       )}
 
       {/* Main content */}
-      <main className={`${isAuthed ? 'ml-64' : 'ml-0'} flex-1 flex flex-col min-h-screen`}>
+      <main className={`${isAuthed ? "ml-64" : "ml-0"} flex-1 flex flex-col min-h-screen`}>
         <section className="flex-1 p-6 overflow-y-auto">
           <Outlet />
         </section>
@@ -113,6 +126,7 @@ export default function ProtectedLayout() {
           © {new Date().getFullYear()} DwellWell. All rights reserved.
         </footer>
       </main>
+
       <GlobalTaskDrawer />
     </div>
   );

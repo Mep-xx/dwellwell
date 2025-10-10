@@ -25,7 +25,7 @@ import HomesRedesign from '@/pages/HomesRedesign';
 
 // NEW
 import Tasks from '@/pages/Tasks';
-import TaskRunnerPage from '@/pages/TaskRunner'; // swapped in here
+import TaskRunnerPage from '@/pages/TaskRunner';
 
 // community
 import CommunityHome from '@/pages/community/CommunityHome';
@@ -40,6 +40,7 @@ import AdminHomes from '@/pages/admin/AdminHomes';
 import AdminUsers from '@/pages/admin/AdminUsers';
 import AdminTrackables from '@/pages/admin/AdminTrackables';
 import AdminTaskGenIssues from '@/pages/admin/AdminTaskGenIssues';
+import AdminApplianceCatalog from '@/pages/admin/AdminApplianceCatalog';
 
 function RequireGuest() {
   const { user, loading } = useAuth();
@@ -94,6 +95,7 @@ export default function AppRoutes() {
         <Route path="/admin/AdminHomes" element={<AdminHomes />} />
         <Route path="/admin/AdminTrackables" element={<AdminTrackables />} />
         <Route path="/admin/AdminTaskGenIssues" element={<AdminTaskGenIssues />} />
+        <Route path="/admin/AdminApplianceCatalog" element={<AdminApplianceCatalog />} />
 
         {/* Community */}
         <Route path="/community" element={<CommunityHome />} />

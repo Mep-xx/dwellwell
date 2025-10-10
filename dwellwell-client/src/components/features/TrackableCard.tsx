@@ -1,3 +1,4 @@
+// dwellwell-client/src/components/features/TrackableCard.tsx
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { api } from "@/utils/api";
@@ -60,58 +61,126 @@ export default function TrackableCard({ data, onEdited, onRemoved, onOpenEdit }:
 
   const statusPill = useMemo(() => {
     switch (status) {
-      case "IN_USE": return "bg-green-100 text-green-700";
-      case "PAUSED": return "bg-amber-100 text-amber-700";
-      case "RETIRED": return "bg-surface-alt text-gray-700";
-      default: return "bg-surface-alt text-gray-700";
+      case "IN_USE":
+        return "bg-green-100 text-green-700";
+      case "PAUSED":
+        return "bg-amber-100 text-amber-700";
+      case "RETIRED":
+        return "bg-surface-alt text-gray-700";
+      default:
+        return "bg-surface-alt text-gray-700";
     }
   }, [status]);
 
   // --- fetch once per card (even in StrictMode / repeated renders)
   const hasFetchedRef = useRef(false);
+
+  const normalizeTaskList = (raw: any): Task[] => {
+    if (Array.isArray(raw)) return raw as Task[];
+    if (Array.isArray(raw?.items)) return raw.items as Task[];
+    if (Array.isArray(raw?.tasks)) return raw.tasks as Task[];
+    return [];
+  };
+
   const fetchTasks = useCallback(async () => {
     if (hasFetchedRef.current) return;
     hasFetchedRef.current = true;
+
     setLoadingTasks(true);
     setError(null);
     try {
-      const res = await api.get("/tasks", { params: { trackableId: data.id, status: "active" } });
-      setTasks(Array.isArray(res.data) ? res.data : []);
+      // Be permissive: don't pass a custom "active" status unless your API uses it.
+      // Ask server to exclude completed/archived and cap page size if supported.
+      const baseParams: Record<string, any> = {
+        trackableId: data.id,
+        includeCompleted: 0,
+        includeArchived: 0,
+        limit: 200,
+      };
+
+      let res = await api.get("/tasks", { params: baseParams });
+      let list = normalizeTaskList(res.data);
+
+      // If the API *does* require a status to mean “open”, try a few common knobs.
+      if ((!list || list.length === 0) && (data.counts?.active ?? 0) > 0) {
+        const attempts = [
+          { ...baseParams, status: "PENDING" },
+          { ...baseParams, status: "OPEN" },
+          { ...baseParams, state: "ACTIVE" },
+          { ...baseParams, status: "active" },
+        ];
+        for (const p of attempts) {
+          try {
+            const r2 = await api.get("/tasks", { params: p });
+            list = normalizeTaskList(r2.data);
+            if (list.length) break;
+          } catch {
+            // ignore and try the next shape
+          }
+        }
+      }
+
+      setTasks(list);
     } catch (e) {
       console.error(e);
       setError("Failed to load tasks");
     } finally {
       setLoadingTasks(false);
     }
-  }, [data.id]);
+  }, [data.id, data.counts?.active]);
 
   // fetch on first expand only
   useEffect(() => {
     if (expanded && !hasFetchedRef.current) fetchTasks();
   }, [expanded, fetchTasks]);
 
-  // Lifecycle
+  // Lifecycle actions
   const pause = async () => {
-    try { await api.post(`/trackables/${data.id}/pause`); onEdited?.({ id: data.id, status: "PAUSED" }); toast({ title: "Paused", description: "Notifications paused." }); }
-    catch { toast({ title: "Could not pause", variant: "destructive" }); }
+    try {
+      await api.post(`/trackables/${data.id}/pause`);
+      onEdited?.({ id: data.id, status: "PAUSED" });
+      toast({ title: "Paused", description: "Notifications paused." });
+    } catch {
+      toast({ title: "Could not pause", variant: "destructive" });
+    }
   };
   const resume = async () => {
-    try { await api.post(`/trackables/${data.id}/resume`, { mode: "forward" }); onEdited?.({ id: data.id, status: "IN_USE" }); toast({ title: "Resumed", description: "Scheduling resumed forward-only." }); }
-    catch { toast({ title: "Could not resume", variant: "destructive" }); }
+    try {
+      await api.post(`/trackables/${data.id}/resume`, { mode: "forward" });
+    onEdited?.({ id: data.id, status: "IN_USE" });
+      toast({ title: "Resumed", description: "Scheduling resumed forward-only." });
+    } catch {
+      toast({ title: "Could not resume", variant: "destructive" });
+    }
   };
   const retire = async () => {
     if (!confirm("Retire this item? Tasks will be archived (revivable later).")) return;
-    try { await api.post(`/trackables/${data.id}/retire`, { reason: "BROKEN" }); onEdited?.({ id: data.id, status: "RETIRED" }); toast({ title: "Retired", description: "Item retired; tasks archived." }); }
-    catch { toast({ title: "Could not retire", variant: "destructive" }); }
+    try {
+      await api.post(`/trackables/${data.id}/retire`, { reason: "BROKEN" });
+      onEdited?.({ id: data.id, status: "RETIRED" });
+      toast({ title: "Retired", description: "Item retired; tasks archived." });
+    } catch {
+      toast({ title: "Could not retire", variant: "destructive" });
+    }
   };
   const revive = async () => {
-    try { await api.post(`/trackables/${data.id}/revive`, { mode: "forward" }); onEdited?.({ id: data.id, status: "IN_USE" }); toast({ title: "Tracking again", description: "Tasks reactivated." }); }
-    catch { toast({ title: "Could not revive", variant: "destructive" }); }
+    try {
+      await api.post(`/trackables/${data.id}/revive`, { mode: "forward" });
+      onEdited?.({ id: data.id, status: "IN_USE" });
+      toast({ title: "Tracking again", description: "Tasks reactivated." });
+    } catch {
+      toast({ title: "Could not revive", variant: "destructive" });
+    }
   };
   const remove = async () => {
     if (!confirm("Delete permanently? Consider retiring instead to keep history.")) return;
-    try { await api.delete(`/trackables/${data.id}`); onRemoved?.(data.id); toast({ title: "Trackable deleted", variant: "destructive" }); }
-    catch { toast({ title: "Delete failed", variant: "destructive" }); }
+    try {
+      await api.delete(`/trackables/${data.id}`);
+      onRemoved?.(data.id);
+      toast({ title: "Trackable deleted", variant: "destructive" });
+    } catch {
+      toast({ title: "Delete failed", variant: "destructive" });
+    }
   };
 
   const icon = data.type ? TRACKABLE_TYPE_ICONS[data.type] : undefined;
@@ -171,20 +240,40 @@ export default function TrackableCard({ data, onEdited, onRemoved, onOpenEdit }:
           className="shrink-0 w-16 h-16 rounded-xl bg-surface-alt flex items-center justify-center overflow-hidden border border-token"
           title={data.userDefinedName}
         >
-          {data.imageUrl
-            ? <img src={data.imageUrl} alt={data.userDefinedName} className="w-full h-full object-contain" />
-            : <span className="text-2xl">{icon ?? "🧰"}</span>}
+          {data.imageUrl ? (
+            <img src={data.imageUrl} alt={data.userDefinedName} className="w-full h-full object-contain" />
+          ) : (
+            <span className="text-2xl">{icon ?? "🧰"}</span>
+          )}
         </div>
 
         <div className="flex-1">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted">
-            <button onClick={() => onOpenEdit?.(data.id)} className="hover:text-body">Edit</button>
-            {status === "IN_USE" && <button onClick={pause} className="hover:text-body">Pause</button>}
-            {status === "PAUSED" && <button onClick={resume} className="hover:text-body">Resume</button>}
-            {status !== "RETIRED"
-              ? <button onClick={retire} className="hover:text-body">Retire</button>
-              : <button onClick={revive} className="hover:text-body">Revive</button>}
-            <button onClick={remove} className="hover:text-body">Delete</button>
+            <button onClick={() => onOpenEdit?.(data.id)} className="hover:text-body">
+              Edit
+            </button>
+            {status === "IN_USE" && (
+              <button onClick={pause} className="hover:text-body">
+                Pause
+              </button>
+            )}
+            {status === "PAUSED" && (
+              <button onClick={resume} className="hover:text-body">
+                Resume
+              </button>
+            )}
+            {status !== "RETIRED" ? (
+              <button onClick={retire} className="hover:text-body">
+                Retire
+              </button>
+            ) : (
+              <button onClick={revive} className="hover:text-body">
+                Revive
+              </button>
+            )}
+            <button onClick={remove} className="hover:text-body">
+              Delete
+            </button>
           </div>
 
           <p className="mt-1 text-sm text-muted truncate">
@@ -222,13 +311,15 @@ export default function TrackableCard({ data, onEdited, onRemoved, onOpenEdit }:
           >
             <div className="mt-4 rounded-xl border border-token bg-surface-alt p-3">
               <div className="mb-2 flex items-center justify-between">
-                <div className="text-sm font-semibold">
-                  Tasks {loadingTasks ? "" : `(${tasks.length})`}
-                </div>
+                <div className="text-sm font-semibold">Tasks {loadingTasks ? "" : `(${tasks.length})`}</div>
                 <div className="flex items-center gap-2">
                   <button
                     className="text-xs text-muted hover:text-body underline"
-                    onClick={(e) => { e.stopPropagation(); hasFetchedRef.current = false; fetchTasks(); }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      hasFetchedRef.current = false;
+                      fetchTasks();
+                    }}
                   >
                     Refresh
                   </button>
@@ -244,18 +335,30 @@ export default function TrackableCard({ data, onEdited, onRemoved, onOpenEdit }:
               )}
 
               {error && (
-                <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded p-2">
-                  {error}
-                </div>
+                <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded p-2">{error}</div>
               )}
 
               {!loadingTasks && !error && tasks.length === 0 && (
-                <div className="text-sm text-muted">No active tasks for this item.</div>
+                <div className="text-sm text-muted">
+                  No active tasks for this item.
+                  {(counts.active ?? 0) > 0 && (
+                    <span className="ml-1 italic opacity-80">
+                      (Tip: API may be paginated or using a different status filter.)
+                    </span>
+                  )}
+                </div>
               )}
 
               <div className="divide-y divide-[rgb(var(--border)/1)]">
                 {tasks.map((t) => (
-                  <TrackableTaskRow key={t.id} task={t} onChanged={() => { hasFetchedRef.current = false; fetchTasks(); }} />
+                  <TrackableTaskRow
+                    key={t.id}
+                    task={t}
+                    onChanged={() => {
+                      hasFetchedRef.current = false;
+                      fetchTasks();
+                    }}
+                  />
                 ))}
               </div>
             </div>

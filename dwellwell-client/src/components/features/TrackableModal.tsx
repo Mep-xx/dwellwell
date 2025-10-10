@@ -1,4 +1,4 @@
-//dwellwell-client/src/components/features/TrackableModal.tsx
+// dwellwell-client/src/components/features/TrackableModal.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/utils/api";
 import { sanitize } from "@/utils/sanitize";
@@ -25,6 +25,10 @@ export type CreateTrackableDTO = {
   applianceCatalogId?: string;
   roomId?: string | null;
   homeId?: string | null;
+
+  // NEW (stored inside notes for now; see submit()):
+  productUrl?: string | null;
+  manualUrl?: string | null;
 };
 
 type Props = {
@@ -65,7 +69,7 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
   const isEditing = Boolean(initialData?.id);
   const [advancedOpen, setAdvancedOpen] = useState(false);
 
-  // NEW: homes + rooms
+  // homes + rooms
   const [homes, setHomes] = useState<HomeLite[]>([]);
   const [homesLoading, setHomesLoading] = useState(false);
 
@@ -81,11 +85,13 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
     serialNumber: "",
     imageUrl: "",
     notes: "",
+    productUrl: "",
+    manualUrl: "",
   });
 
   const [suggestions, setSuggestions] = useState<ApplianceLookup[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [phase, setPhase] = useState<'idle' | 'catalog' | 'ai' | 'done'>('idle');
+  const [phase, setPhase] = useState<'idle' | 'catalog' | 'ai' | 'saving' | 'seeding' | 'done'>('idle');
   const [submitting, setSubmitting] = useState(false);
 
   // taxonomy
@@ -120,6 +126,8 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
         applianceCatalogId: initialData.applianceCatalogId,
         roomId: initialData.roomId ?? undefined,
         homeId: initialData.homeId ?? undefined,
+        productUrl: initialData.productUrl ?? "",
+        manualUrl: initialData.manualUrl ?? "",
       });
     } else if (isOpen) {
       setForm({
@@ -131,6 +139,8 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
         serialNumber: "",
         imageUrl: "",
         notes: "",
+        productUrl: "",
+        manualUrl: "",
       });
       setAdvancedOpen(false);
       setSuggestions([]);
@@ -189,7 +199,7 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
     };
   }, []);
 
-  // ******** NEW: Load homes when modal opens ********
+  // Load homes when modal opens
   useEffect(() => {
     if (!isOpen) return;
     let cancelled = false;
@@ -220,7 +230,7 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
     return () => { cancelled = true; };
   }, [isOpen, initialData?.homeId]);
 
-  // ******** Load rooms whenever selected home changes ********
+  // Load rooms whenever selected home changes
   useEffect(() => {
     if (!isOpen) return;
     const hid = form.homeId;
@@ -331,11 +341,20 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
     e.preventDefault();
     if (submitting) return;
     setSubmitting(true);
+    setPhase("saving");
+
     const name = form.userDefinedName?.trim();
     if (!name) {
       setSubmitting(false);
+      setPhase("idle");
       return;
     }
+
+    // Merge product/manual URLs into notes for persistence (until dedicated fields/endpoints exist)
+    const addlLines: string[] = [];
+    if (form.productUrl?.trim()) addlLines.push(`Product: ${form.productUrl.trim()}`);
+    if (form.manualUrl?.trim()) addlLines.push(`Manual: ${form.manualUrl.trim()}`);
+    const mergedNotes = [form.notes?.trim() || "", ...addlLines].filter(Boolean).join("\n");
 
     const cleaned: CreateTrackableDTO = {
       ...(isEditing ? { id: form.id } : {}),
@@ -343,13 +362,15 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
       brand: sanitize(form.brand ?? ""),
       model: sanitize(form.model ?? ""),
       serialNumber: sanitize(form.serialNumber ?? ""),
-      notes: sanitize(form.notes ?? ""),
+      notes: sanitize(mergedNotes),
       type: form.type,
       category: form.category,
       imageUrl: form.imageUrl,
       roomId: form.roomId ?? undefined,
       homeId: form.homeId ?? undefined,
       applianceCatalogId: form.applianceCatalogId,
+      productUrl: form.productUrl?.trim() || undefined,
+      manualUrl: form.manualUrl?.trim() || undefined,
     };
 
     try {
@@ -379,7 +400,7 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
             imageUrl: cleaned.imageUrl || undefined,
             notes: cleaned.notes || undefined,
           });
-          applianceCatalogId = fo.data?.id;
+          applianceCatalogId = fo.data?.catalog?.id;
         }
 
         // Create
@@ -398,10 +419,18 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
         });
       }
 
-      onSave(cleaned);
-      onClose();
+      // Show visible “seeding” feedback. Task generation happens server-side.
+      setPhase("seeding");
+
+      // Let the banner show briefly, then close.
+      setTimeout(() => {
+        setPhase("done");
+        onSave(cleaned);
+        onClose();
+      }, 900);
     } catch (err) {
       console.error("Save failed", err);
+      setPhase("idle");
     } finally {
       setSubmitting(false);
     }
@@ -430,6 +459,8 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
         <div className="min-h-[22px] mb-2 text-xs text-muted">
           {phase === "catalog" && <span>Searching catalog…</span>}
           {phase === "ai" && <span>No catalog match — querying AI…</span>}
+          {phase === "saving" && <span>Saving…</span>}
+          {phase === "seeding" && <span>Setting up maintenance and generating tasks…</span>}
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -598,6 +629,27 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
                     onChange={(e) => onField("notes", e.target.value)}
                     placeholder="Anything you want to remember…"
                     rows={3}
+                    className="w-full border border-token bg-card text-body rounded px-3 py-2"
+                  />
+                </Section>
+
+                {/* NEW: simple resource helpers (persisted inside notes for now) */}
+                <Section title="Product Page URL">
+                  <input
+                    name="productUrl"
+                    value={form.productUrl ?? ""}
+                    onChange={(e) => onField("productUrl", e.target.value)}
+                    placeholder="https://manufacturer.com/your-product"
+                    className="w-full border border-token bg-card text-body rounded px-3 py-2"
+                  />
+                </Section>
+
+                <Section title="Manual (PDF) URL">
+                  <input
+                    name="manualUrl"
+                    value={form.manualUrl ?? ""}
+                    onChange={(e) => onField("manualUrl", e.target.value)}
+                    placeholder="https://manufacturer.com/manual.pdf"
                     className="w-full border border-token bg-card text-body rounded px-3 py-2"
                   />
                 </Section>
