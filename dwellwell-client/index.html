@@ -1,13 +1,42 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>DwellWell.io</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.png" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DwellWell.io</title>
+
+  <script>
+    (function () {
+      try {
+        var KEY = "dwellwell.theme.v2";              // ← matches STORAGE_KEY
+        var FAMILIES = ["default", "calm", "bold", "forest", "solar"];
+
+        var saved = JSON.parse(localStorage.getItem(KEY) || "null") || { mode: "system", style: "default" };
+        var systemDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+        var isDark = saved.mode === "dark" || (saved.mode === "system" && systemDark);
+
+        var html = document.documentElement;
+
+        // Tailwind dark class
+        html.classList.toggle("dark", isDark);
+
+        // theme-* family classes (same as applyTheme)
+        for (var i = 0; i < FAMILIES.length; i++) html.classList.remove("theme-" + FAMILIES[i]);
+        if (saved.style && saved.style !== "default") html.classList.add("theme-" + saved.style);
+
+        // optional: useful attributes
+        html.setAttribute("data-theme-mode", saved.mode === "system" ? (isDark ? "dark" : "light") : saved.mode);
+        html.setAttribute("data-theme-family", saved.style || "default");
+      } catch (e) { /* no-op */ }
+    })();
+  </script>
+</head>
+
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+
 </html>

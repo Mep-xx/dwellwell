@@ -1,5 +1,4 @@
 // dwellwell-client/src/pages/Settings.tsx
-// dwellwell-client/src/pages/Settings.tsx
 import * as React from "react";
 import { useEffect, useRef, useState } from "react";
 
@@ -78,10 +77,24 @@ export default function SettingsPage() {
         setLocal(normalized);
         setNotifLocal(data.notificationPrefs);
 
-        setTheme({
-          mode: toCtxMode(normalized.theme),
-          style: theme.style ?? "default",
-        });
+        // ----- IMPORTANT: don't clobber a user-chosen theme restored from localStorage -----
+        // If there is NO saved v2 or the current local mode is "system", let the server pick.
+        const saved = (() => {
+          try {
+            return JSON.parse(localStorage.getItem("dwellwell.theme.v2") || "null");
+          } catch {
+            return null;
+          }
+        })();
+
+        const serverMode = toCtxMode(normalized.theme);
+
+        if (!saved || theme.mode === "system") {
+          setTheme({
+            mode: serverMode,
+            style: theme.style ?? "default",
+          });
+        }
         setFamily(theme.style ?? "default");
       } catch (e: any) {
         setErr(e?.message || "Failed to load settings");
@@ -89,7 +102,9 @@ export default function SettingsPage() {
         setIsLoading(false);
       }
     })();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -152,7 +167,6 @@ export default function SettingsPage() {
     return <div className="p-6">Loading settings…</div>;
   }
   const s = local;
-  const activePill = "bg-primary-soft text-primary border-primary";
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 p-6">
@@ -181,7 +195,9 @@ export default function SettingsPage() {
                     const choice = THEME_CHOICES.find((c) => c.id === id);
                     if (!choice) return;
                     setFamily(choice.style);
+                    // Persist to server
                     await instantSave({ theme: toServerMode(choice.mode) });
+                    // Reflect locally
                     setTheme({ mode: choice.mode, style: choice.style });
                   }}
                 />
@@ -199,12 +215,16 @@ export default function SettingsPage() {
         <CardContent className="space-y-6">
           <section className="space-y-2">
             <div className="text-sm font-medium">Task interaction style</div>
-            <p className="text-xs text-muted">Choose how task details open when you click a card.</p>
+            <p className="text-xs text-muted">
+              Choose how task details open when you click a card.
+            </p>
             <div className="flex gap-2">
               <Button
                 size="sm"
                 variant="secondary"
-                className={`rd-md ${s.taskDetailView === "drawer" ? "bg-primary-soft text-primary border-primary" : ""}`}
+                className={`rd-md ${
+                  s.taskDetailView === "drawer" ? "bg-primary-soft text-primary border-primary" : ""
+                }`}
                 onClick={async () => {
                   const updated = await updateSettings({ taskDetailView: "drawer" });
                   setTaskDetailPref("drawer");
@@ -217,7 +237,9 @@ export default function SettingsPage() {
               <Button
                 size="sm"
                 variant="secondary"
-                className={`rd-md ${s.taskDetailView === "card" ? "bg-primary-soft text-primary border-primary" : ""}`}
+                className={`rd-md ${
+                  s.taskDetailView === "card" ? "bg-primary-soft text-primary border-primary" : ""
+                }`}
                 onClick={async () => {
                   const updated = await updateSettings({ taskDetailView: "card" });
                   setTaskDetailPref("card");
@@ -374,14 +396,14 @@ function NotificationsMatrix({
       const idx = prev.findIndex(
         (p) => p.event === np.event && p.channel === np.channel && !p.homeId && !p.trackableId
       );
-      if (idx >= 0) {
-        const copy = [...prev];
-        copy[idx] = np;
-        return copy;
-      }
-      return [...prev, np];
-    });
-  }
+        if (idx >= 0) {
+          const copy = [...prev];
+          copy[idx] = np;
+          return copy;
+        }
+        return [...prev, np];
+      });
+    }
 
   const channelEnabled = (c: NotificationChannel) => (emailOnly ? c === "EMAIL" : true);
 

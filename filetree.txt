@@ -15,6 +15,8 @@ C:.
 ¦   ¦   ¦           +---717184b7b35ea05dfa71a3236b7af656013e1e49
 ¦   ¦   ¦           ¦   +---windows
 ¦   ¦   ¦           +---85179d7826409ee107a6ba334b5e305ae3fba9fb
+¦   ¦   ¦           ¦   +---windows
+¦   ¦   ¦           +---c0aafc03b8ef6cdced8654b9a817999e02457d6a
 ¦   ¦   ¦               +---windows
 ¦   ¦   +---.prisma
 ¦   ¦   ¦   +---client
@@ -106,7 +108,7 @@ C:.
 ¦   ¦   ¦   ¦   ¦   +---.cache
 ¦   ¦   ¦   ¦   ¦       +---prisma
 ¦   ¦   ¦   ¦   ¦           +---master
-¦   ¦   ¦   ¦   ¦               +---85179d7826409ee107a6ba334b5e305ae3fba9fb
+¦   ¦   ¦   ¦   ¦               +---c0aafc03b8ef6cdced8654b9a817999e02457d6a
 ¦   ¦   ¦   ¦   ¦                   +---windows
 ¦   ¦   ¦   ¦   +---scripts
 ¦   ¦   ¦   +---engines-version
@@ -3193,6 +3195,13 @@ C:.
 ¦   ¦   ¦       +---debug
 ¦   ¦   ¦       ¦   +---src
 ¦   ¦   ¦       +---ms
+¦   ¦   +---i
+¦   ¦   ¦   +---.github
+¦   ¦   ¦   ¦   +---workflows
+¦   ¦   ¦   +---lib
+¦   ¦   ¦   +---test
+¦   ¦   ¦       +---inflector
+¦   ¦   ¦       +---utils
 ¦   ¦   +---iconv-lite
 ¦   ¦   ¦   +---encodings
 ¦   ¦   ¦   ¦   +---tables
@@ -3322,6 +3331,558 @@ C:.
 ¦   ¦   ¦   +---lib
 ¦   ¦   +---normalize-path
 ¦   ¦   +---normalize-url
+¦   ¦   +---npm
+¦   ¦   ¦   +---bin
+¦   ¦   ¦   ¦   +---node-gyp-bin
+¦   ¦   ¦   +---docs
+¦   ¦   ¦   ¦   +---content
+¦   ¦   ¦   ¦   ¦   +---commands
+¦   ¦   ¦   ¦   ¦   +---configuring-npm
+¦   ¦   ¦   ¦   ¦   +---using-npm
+¦   ¦   ¦   ¦   +---lib
+¦   ¦   ¦   ¦   +---output
+¦   ¦   ¦   ¦       +---commands
+¦   ¦   ¦   ¦       +---configuring-npm
+¦   ¦   ¦   ¦       +---using-npm
+¦   ¦   ¦   +---lib
+¦   ¦   ¦   ¦   +---cli
+¦   ¦   ¦   ¦   +---commands
+¦   ¦   ¦   ¦   +---utils
+¦   ¦   ¦   +---man
+¦   ¦   ¦   ¦   +---man1
+¦   ¦   ¦   ¦   +---man5
+¦   ¦   ¦   ¦   +---man7
+¦   ¦   ¦   +---node_modules
+¦   ¦   ¦       +---.bin
+¦   ¦   ¦       +---@isaacs
+¦   ¦   ¦       ¦   +---balanced-match
+¦   ¦   ¦       ¦   ¦   +---dist
+¦   ¦   ¦       ¦   ¦       +---commonjs
+¦   ¦   ¦       ¦   ¦       +---esm
+¦   ¦   ¦       ¦   +---brace-expansion
+¦   ¦   ¦       ¦   ¦   +---dist
+¦   ¦   ¦       ¦   ¦       +---commonjs
+¦   ¦   ¦       ¦   ¦       +---esm
+¦   ¦   ¦       ¦   +---cliui
+¦   ¦   ¦       ¦   ¦   +---build
+¦   ¦   ¦       ¦   ¦   ¦   +---lib
+¦   ¦   ¦       ¦   ¦   +---node_modules
+¦   ¦   ¦       ¦   ¦       +---ansi-regex
+¦   ¦   ¦       ¦   ¦       +---emoji-regex
+¦   ¦   ¦       ¦   ¦       ¦   +---es2015
+¦   ¦   ¦       ¦   ¦       +---string-width
+¦   ¦   ¦       ¦   ¦       +---strip-ansi
+¦   ¦   ¦       ¦   +---fs-minipass
+¦   ¦   ¦       ¦   ¦   +---dist
+¦   ¦   ¦       ¦   ¦       +---commonjs
+¦   ¦   ¦       ¦   ¦       +---esm
+¦   ¦   ¦       ¦   +---string-locale-compare
+¦   ¦   ¦       +---@npmcli
+¦   ¦   ¦       ¦   +---agent
+¦   ¦   ¦       ¦   ¦   +---lib
+¦   ¦   ¦       ¦   +---arborist
+¦   ¦   ¦       ¦   ¦   +---bin
+¦   ¦   ¦       ¦   ¦   ¦   +---lib
+¦   ¦   ¦       ¦   ¦   +---lib
+¦   ¦   ¦       ¦   ¦       +---arborist
+¦   ¦   ¦       ¦   +---config
+¦   ¦   ¦       ¦   ¦   +---lib
+¦   ¦   ¦       ¦   ¦       +---definitions
+¦   ¦   ¦       ¦   +---fs
+¦   ¦   ¦       ¦   ¦   +---lib
+¦   ¦   ¦       ¦   ¦       +---common
+¦   ¦   ¦       ¦   ¦       +---cp
+¦   ¦   ¦       ¦   +---git
+¦   ¦   ¦       ¦   ¦   +---lib
+¦   ¦   ¦       ¦   +---installed-package-contents
+¦   ¦   ¦       ¦   ¦   +---bin
+¦   ¦   ¦       ¦   ¦   +---lib
+¦   ¦   ¦       ¦   +---map-workspaces
+¦   ¦   ¦       ¦   ¦   +---lib
+¦   ¦   ¦       ¦   +---metavuln-calculator
+¦   ¦   ¦       ¦   ¦   +---lib
+¦   ¦   ¦       ¦   +---name-from-folder
+¦   ¦   ¦       ¦   ¦   +---lib
+¦   ¦   ¦       ¦   +---node-gyp
+¦   ¦   ¦       ¦   ¦   +---lib
+¦   ¦   ¦       ¦   +---package-json
+¦   ¦   ¦       ¦   ¦   +---lib
+¦   ¦   ¦       ¦   +---promise-spawn
+¦   ¦   ¦       ¦   ¦   +---lib
+¦   ¦   ¦       ¦   +---query
+¦   ¦   ¦       ¦   ¦   +---lib
+¦   ¦   ¦       ¦   +---redact
+¦   ¦   ¦       ¦   ¦   +---lib
+¦   ¦   ¦       ¦   +---run-script
+¦   ¦   ¦       ¦       +---lib
+¦   ¦   ¦       ¦           +---node-gyp-bin
+¦   ¦   ¦       +---@pkgjs
+¦   ¦   ¦       ¦   +---parseargs
+¦   ¦   ¦       ¦       +---examples
+¦   ¦   ¦       ¦       +---internal
+¦   ¦   ¦       +---@sigstore
+¦   ¦   ¦       ¦   +---bundle
+¦   ¦   ¦       ¦   ¦   +---dist
+¦   ¦   ¦       ¦   +---core
+¦   ¦   ¦       ¦   ¦   +---dist
+¦   ¦   ¦       ¦   ¦       +---asn1
+¦   ¦   ¦       ¦   ¦       +---rfc3161
+¦   ¦   ¦       ¦   ¦       +---x509
+¦   ¦   ¦       ¦   +---protobuf-specs
+¦   ¦   ¦       ¦   ¦   +---dist
+¦   ¦   ¦       ¦   ¦       +---rekor
+¦   ¦   ¦       ¦   ¦       ¦   +---v2
+¦   ¦   ¦       ¦   ¦       +---__generated__
+¦   ¦   ¦       ¦   ¦           +---google
+¦   ¦   ¦       ¦   ¦           ¦   +---api
+¦   ¦   ¦       ¦   ¦           ¦   +---protobuf
+¦   ¦   ¦       ¦   ¦           +---rekor
+¦   ¦   ¦       ¦   ¦               +---v2
+¦   ¦   ¦       ¦   +---sign
+¦   ¦   ¦       ¦   ¦   +---dist
+¦   ¦   ¦       ¦   ¦       +---bundler
+¦   ¦   ¦       ¦   ¦       +---external
+¦   ¦   ¦       ¦   ¦       +---identity
+¦   ¦   ¦       ¦   ¦       +---signer
+¦   ¦   ¦       ¦   ¦       ¦   +---fulcio
+¦   ¦   ¦       ¦   ¦       +---types
+¦   ¦   ¦       ¦   ¦       +---util
+¦   ¦   ¦       ¦   ¦       +---witness
+¦   ¦   ¦       ¦   ¦           +---tlog
+¦   ¦   ¦       ¦   ¦           +---tsa
+¦   ¦   ¦       ¦   +---tuf
+¦   ¦   ¦       ¦   ¦   +---dist
+¦   ¦   ¦       ¦   +---verify
+¦   ¦   ¦       ¦       +---dist
+¦   ¦   ¦       ¦           +---bundle
+¦   ¦   ¦       ¦           +---key
+¦   ¦   ¦       ¦           +---timestamp
+¦   ¦   ¦       ¦           +---tlog
+¦   ¦   ¦       ¦           +---trust
+¦   ¦   ¦       +---@tufjs
+¦   ¦   ¦       ¦   +---canonical-json
+¦   ¦   ¦       ¦   ¦   +---lib
+¦   ¦   ¦       ¦   +---models
+¦   ¦   ¦       ¦       +---dist
+¦   ¦   ¦       ¦       ¦   +---utils
+¦   ¦   ¦       ¦       +---node_modules
+¦   ¦   ¦       ¦           +---minimatch
+¦   ¦   ¦       ¦               +---dist
+¦   ¦   ¦       ¦                   +---commonjs
+¦   ¦   ¦       ¦                   +---esm
+¦   ¦   ¦       +---abbrev
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       +---agent-base
+¦   ¦   ¦       ¦   +---dist
+¦   ¦   ¦       +---ansi-regex
+¦   ¦   ¦       +---ansi-styles
+¦   ¦   ¦       +---aproba
+¦   ¦   ¦       +---archy
+¦   ¦   ¦       ¦   +---examples
+¦   ¦   ¦       ¦   +---test
+¦   ¦   ¦       +---balanced-match
+¦   ¦   ¦       +---bin-links
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       +---binary-extensions
+¦   ¦   ¦       +---brace-expansion
+¦   ¦   ¦       +---cacache
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       ¦       +---content
+¦   ¦   ¦       ¦       +---util
+¦   ¦   ¦       +---chalk
+¦   ¦   ¦       ¦   +---source
+¦   ¦   ¦       ¦       +---vendor
+¦   ¦   ¦       ¦           +---ansi-styles
+¦   ¦   ¦       ¦           +---supports-color
+¦   ¦   ¦       +---chownr
+¦   ¦   ¦       ¦   +---dist
+¦   ¦   ¦       ¦       +---commonjs
+¦   ¦   ¦       ¦       +---esm
+¦   ¦   ¦       +---ci-info
+¦   ¦   ¦       +---cidr-regex
+¦   ¦   ¦       ¦   +---dist
+¦   ¦   ¦       +---cli-columns
+¦   ¦   ¦       +---cmd-shim
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       +---color-convert
+¦   ¦   ¦       +---color-name
+¦   ¦   ¦       +---common-ancestor-path
+¦   ¦   ¦       +---cross-spawn
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       ¦   ¦   +---util
+¦   ¦   ¦       ¦   +---node_modules
+¦   ¦   ¦       ¦       +---.bin
+¦   ¦   ¦       ¦       +---isexe
+¦   ¦   ¦       ¦       ¦   +---test
+¦   ¦   ¦       ¦       +---which
+¦   ¦   ¦       ¦           +---bin
+¦   ¦   ¦       +---cssesc
+¦   ¦   ¦       ¦   +---bin
+¦   ¦   ¦       ¦   +---man
+¦   ¦   ¦       +---debug
+¦   ¦   ¦       ¦   +---src
+¦   ¦   ¦       +---diff
+¦   ¦   ¦       ¦   +---dist
+¦   ¦   ¦       ¦   +---libcjs
+¦   ¦   ¦       ¦   ¦   +---convert
+¦   ¦   ¦       ¦   ¦   +---diff
+¦   ¦   ¦       ¦   ¦   +---patch
+¦   ¦   ¦       ¦   ¦   +---util
+¦   ¦   ¦       ¦   +---libesm
+¦   ¦   ¦       ¦       +---convert
+¦   ¦   ¦       ¦       +---diff
+¦   ¦   ¦       ¦       +---patch
+¦   ¦   ¦       ¦       +---util
+¦   ¦   ¦       +---eastasianwidth
+¦   ¦   ¦       +---emoji-regex
+¦   ¦   ¦       ¦   +---es2015
+¦   ¦   ¦       +---encoding
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       ¦   +---test
+¦   ¦   ¦       +---env-paths
+¦   ¦   ¦       +---err-code
+¦   ¦   ¦       ¦   +---test
+¦   ¦   ¦       +---exponential-backoff
+¦   ¦   ¦       ¦   +---dist
+¦   ¦   ¦       ¦       +---delay
+¦   ¦   ¦       ¦       ¦   +---always
+¦   ¦   ¦       ¦       ¦   +---skip-first
+¦   ¦   ¦       ¦       +---jitter
+¦   ¦   ¦       ¦           +---full
+¦   ¦   ¦       ¦           +---no
+¦   ¦   ¦       +---fastest-levenshtein
+¦   ¦   ¦       ¦   +---esm
+¦   ¦   ¦       +---foreground-child
+¦   ¦   ¦       ¦   +---dist
+¦   ¦   ¦       ¦       +---commonjs
+¦   ¦   ¦       ¦       +---esm
+¦   ¦   ¦       +---fs-minipass
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       +---glob
+¦   ¦   ¦       ¦   +---dist
+¦   ¦   ¦       ¦       +---commonjs
+¦   ¦   ¦       ¦       +---esm
+¦   ¦   ¦       +---graceful-fs
+¦   ¦   ¦       +---hosted-git-info
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       +---http-cache-semantics
+¦   ¦   ¦       +---http-proxy-agent
+¦   ¦   ¦       ¦   +---dist
+¦   ¦   ¦       +---https-proxy-agent
+¦   ¦   ¦       ¦   +---dist
+¦   ¦   ¦       +---iconv-lite
+¦   ¦   ¦       ¦   +---encodings
+¦   ¦   ¦       ¦   ¦   +---tables
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       +---ignore-walk
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       +---imurmurhash
+¦   ¦   ¦       +---ini
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       +---init-package-json
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       +---ip-address
+¦   ¦   ¦       ¦   +---dist
+¦   ¦   ¦       ¦       +---v4
+¦   ¦   ¦       ¦       +---v6
+¦   ¦   ¦       +---ip-regex
+¦   ¦   ¦       +---is-cidr
+¦   ¦   ¦       ¦   +---dist
+¦   ¦   ¦       +---is-fullwidth-code-point
+¦   ¦   ¦       +---isexe
+¦   ¦   ¦       ¦   +---dist
+¦   ¦   ¦       ¦       +---cjs
+¦   ¦   ¦       ¦       +---mjs
+¦   ¦   ¦       +---jackspeak
+¦   ¦   ¦       ¦   +---dist
+¦   ¦   ¦       ¦       +---commonjs
+¦   ¦   ¦       ¦       +---esm
+¦   ¦   ¦       +---json-parse-even-better-errors
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       +---json-stringify-nice
+¦   ¦   ¦       +---jsonparse
+¦   ¦   ¦       ¦   +---examples
+¦   ¦   ¦       ¦   +---samplejson
+¦   ¦   ¦       ¦   +---test
+¦   ¦   ¦       +---just-diff
+¦   ¦   ¦       +---just-diff-apply
+¦   ¦   ¦       +---libnpmaccess
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       +---libnpmdiff
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       +---libnpmexec
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       +---libnpmfund
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       +---libnpmorg
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       +---libnpmpack
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       +---libnpmpublish
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       +---libnpmsearch
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       +---libnpmteam
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       +---libnpmversion
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       +---lru-cache
+¦   ¦   ¦       ¦   +---dist
+¦   ¦   ¦       ¦       +---commonjs
+¦   ¦   ¦       ¦       +---esm
+¦   ¦   ¦       +---make-fetch-happen
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       ¦       +---cache
+¦   ¦   ¦       +---minimatch
+¦   ¦   ¦       ¦   +---dist
+¦   ¦   ¦       ¦       +---commonjs
+¦   ¦   ¦       ¦       +---esm
+¦   ¦   ¦       +---minipass
+¦   ¦   ¦       ¦   +---dist
+¦   ¦   ¦       ¦       +---commonjs
+¦   ¦   ¦       ¦       +---esm
+¦   ¦   ¦       +---minipass-collect
+¦   ¦   ¦       +---minipass-fetch
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       +---minipass-flush
+¦   ¦   ¦       ¦   +---node_modules
+¦   ¦   ¦       ¦       +---minipass
+¦   ¦   ¦       +---minipass-pipeline
+¦   ¦   ¦       ¦   +---node_modules
+¦   ¦   ¦       ¦       +---minipass
+¦   ¦   ¦       +---minipass-sized
+¦   ¦   ¦       ¦   +---node_modules
+¦   ¦   ¦       ¦   ¦   +---minipass
+¦   ¦   ¦       ¦   +---test
+¦   ¦   ¦       +---minizlib
+¦   ¦   ¦       ¦   +---dist
+¦   ¦   ¦       ¦       +---commonjs
+¦   ¦   ¦       ¦       +---esm
+¦   ¦   ¦       +---ms
+¦   ¦   ¦       +---mute-stream
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       +---negotiator
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       +---node-gyp
+¦   ¦   ¦       ¦   +---bin
+¦   ¦   ¦       ¦   +---gyp
+¦   ¦   ¦       ¦   ¦   +---data
+¦   ¦   ¦       ¦   ¦   ¦   +---ninja
+¦   ¦   ¦       ¦   ¦   ¦   +---win
+¦   ¦   ¦       ¦   ¦   +---docs
+¦   ¦   ¦       ¦   ¦   +---pylib
+¦   ¦   ¦       ¦   ¦       +---gyp
+¦   ¦   ¦       ¦   ¦       ¦   +---generator
+¦   ¦   ¦       ¦   ¦       +---packaging
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       ¦   +---node_modules
+¦   ¦   ¦       ¦   ¦   +---.bin
+¦   ¦   ¦       ¦   ¦   +---@npmcli
+¦   ¦   ¦       ¦   ¦   ¦   +---agent
+¦   ¦   ¦       ¦   ¦   ¦       +---lib
+¦   ¦   ¦       ¦   ¦   +---cacache
+¦   ¦   ¦       ¦   ¦   ¦   +---lib
+¦   ¦   ¦       ¦   ¦   ¦       +---content
+¦   ¦   ¦       ¦   ¦   ¦       +---util
+¦   ¦   ¦       ¦   ¦   +---glob
+¦   ¦   ¦       ¦   ¦   ¦   +---dist
+¦   ¦   ¦       ¦   ¦   ¦       +---commonjs
+¦   ¦   ¦       ¦   ¦   ¦       +---esm
+¦   ¦   ¦       ¦   ¦   +---jackspeak
+¦   ¦   ¦       ¦   ¦   ¦   +---dist
+¦   ¦   ¦       ¦   ¦   ¦       +---commonjs
+¦   ¦   ¦       ¦   ¦   ¦       +---esm
+¦   ¦   ¦       ¦   ¦   +---lru-cache
+¦   ¦   ¦       ¦   ¦   ¦   +---dist
+¦   ¦   ¦       ¦   ¦   ¦       +---commonjs
+¦   ¦   ¦       ¦   ¦   ¦       +---esm
+¦   ¦   ¦       ¦   ¦   +---make-fetch-happen
+¦   ¦   ¦       ¦   ¦   ¦   +---lib
+¦   ¦   ¦       ¦   ¦   ¦       +---cache
+¦   ¦   ¦       ¦   ¦   +---minimatch
+¦   ¦   ¦       ¦   ¦   ¦   +---dist
+¦   ¦   ¦       ¦   ¦   ¦       +---commonjs
+¦   ¦   ¦       ¦   ¦   ¦       +---esm
+¦   ¦   ¦       ¦   ¦   +---path-scurry
+¦   ¦   ¦       ¦   ¦       +---dist
+¦   ¦   ¦       ¦   ¦           +---commonjs
+¦   ¦   ¦       ¦   ¦           +---esm
+¦   ¦   ¦       ¦   +---src
+¦   ¦   ¦       +---nopt
+¦   ¦   ¦       ¦   +---bin
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       +---npm-audit-report
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       ¦       +---reporters
+¦   ¦   ¦       +---npm-bundled
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       +---npm-install-checks
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       +---npm-normalize-package-bin
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       +---npm-package-arg
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       +---npm-packlist
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       +---npm-pick-manifest
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       +---npm-profile
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       +---npm-registry-fetch
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       +---npm-user-validate
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       +---p-map
+¦   ¦   ¦       +---package-json-from-dist
+¦   ¦   ¦       ¦   +---dist
+¦   ¦   ¦       ¦       +---commonjs
+¦   ¦   ¦       ¦       +---esm
+¦   ¦   ¦       +---pacote
+¦   ¦   ¦       ¦   +---bin
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       ¦       +---util
+¦   ¦   ¦       +---parse-conflict-json
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       +---path-key
+¦   ¦   ¦       +---path-scurry
+¦   ¦   ¦       ¦   +---dist
+¦   ¦   ¦       ¦       +---commonjs
+¦   ¦   ¦       ¦       +---esm
+¦   ¦   ¦       +---postcss-selector-parser
+¦   ¦   ¦       ¦   +---dist
+¦   ¦   ¦       ¦       +---selectors
+¦   ¦   ¦       ¦       +---util
+¦   ¦   ¦       +---proc-log
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       +---proggy
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       +---promise-all-reject-late
+¦   ¦   ¦       ¦   +---test
+¦   ¦   ¦       +---promise-call-limit
+¦   ¦   ¦       ¦   +---dist
+¦   ¦   ¦       ¦       +---commonjs
+¦   ¦   ¦       ¦       +---esm
+¦   ¦   ¦       +---promise-retry
+¦   ¦   ¦       ¦   +---test
+¦   ¦   ¦       +---promzard
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       +---qrcode-terminal
+¦   ¦   ¦       ¦   +---bin
+¦   ¦   ¦       ¦   +---example
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       ¦   +---test
+¦   ¦   ¦       ¦   +---vendor
+¦   ¦   ¦       ¦       +---QRCode
+¦   ¦   ¦       +---read
+¦   ¦   ¦       ¦   +---dist
+¦   ¦   ¦       ¦       +---commonjs
+¦   ¦   ¦       ¦       +---esm
+¦   ¦   ¦       +---read-cmd-shim
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       +---retry
+¦   ¦   ¦       ¦   +---example
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       ¦   +---test
+¦   ¦   ¦       ¦       +---integration
+¦   ¦   ¦       +---safer-buffer
+¦   ¦   ¦       +---semver
+¦   ¦   ¦       ¦   +---bin
+¦   ¦   ¦       ¦   +---classes
+¦   ¦   ¦       ¦   +---functions
+¦   ¦   ¦       ¦   +---internal
+¦   ¦   ¦       ¦   +---ranges
+¦   ¦   ¦       +---shebang-command
+¦   ¦   ¦       +---shebang-regex
+¦   ¦   ¦       +---signal-exit
+¦   ¦   ¦       ¦   +---dist
+¦   ¦   ¦       ¦       +---cjs
+¦   ¦   ¦       ¦       +---mjs
+¦   ¦   ¦       +---sigstore
+¦   ¦   ¦       ¦   +---dist
+¦   ¦   ¦       +---smart-buffer
+¦   ¦   ¦       ¦   +---build
+¦   ¦   ¦       ¦   +---docs
+¦   ¦   ¦       +---socks
+¦   ¦   ¦       ¦   +---build
+¦   ¦   ¦       ¦   ¦   +---client
+¦   ¦   ¦       ¦   ¦   +---common
+¦   ¦   ¦       ¦   +---docs
+¦   ¦   ¦       ¦       +---examples
+¦   ¦   ¦       ¦           +---javascript
+¦   ¦   ¦       ¦           +---typescript
+¦   ¦   ¦       +---socks-proxy-agent
+¦   ¦   ¦       ¦   +---dist
+¦   ¦   ¦       +---spdx-correct
+¦   ¦   ¦       ¦   +---node_modules
+¦   ¦   ¦       ¦       +---spdx-expression-parse
+¦   ¦   ¦       +---spdx-exceptions
+¦   ¦   ¦       +---spdx-expression-parse
+¦   ¦   ¦       +---spdx-license-ids
+¦   ¦   ¦       +---ssri
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       +---string-width
+¦   ¦   ¦       +---string-width-cjs
+¦   ¦   ¦       +---strip-ansi
+¦   ¦   ¦       +---strip-ansi-cjs
+¦   ¦   ¦       +---supports-color
+¦   ¦   ¦       +---tar
+¦   ¦   ¦       ¦   +---dist
+¦   ¦   ¦       ¦   ¦   +---commonjs
+¦   ¦   ¦       ¦   ¦   +---esm
+¦   ¦   ¦       ¦   +---node_modules
+¦   ¦   ¦       ¦       +---yallist
+¦   ¦   ¦       ¦           +---dist
+¦   ¦   ¦       ¦               +---commonjs
+¦   ¦   ¦       ¦               +---esm
+¦   ¦   ¦       +---text-table
+¦   ¦   ¦       ¦   +---example
+¦   ¦   ¦       ¦   +---test
+¦   ¦   ¦       +---tiny-relative-date
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       ¦   +---src
+¦   ¦   ¦       ¦   +---translations
+¦   ¦   ¦       +---tinyglobby
+¦   ¦   ¦       ¦   +---dist
+¦   ¦   ¦       ¦   +---node_modules
+¦   ¦   ¦       ¦       +---fdir
+¦   ¦   ¦       ¦       ¦   +---dist
+¦   ¦   ¦       ¦       +---picomatch
+¦   ¦   ¦       ¦           +---lib
+¦   ¦   ¦       +---treeverse
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       +---tuf-js
+¦   ¦   ¦       ¦   +---dist
+¦   ¦   ¦       ¦       +---utils
+¦   ¦   ¦       +---unique-filename
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       +---unique-slug
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       +---util-deprecate
+¦   ¦   ¦       +---validate-npm-package-license
+¦   ¦   ¦       ¦   +---node_modules
+¦   ¦   ¦       ¦       +---spdx-expression-parse
+¦   ¦   ¦       +---validate-npm-package-name
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       +---walk-up-path
+¦   ¦   ¦       ¦   +---dist
+¦   ¦   ¦       ¦       +---commonjs
+¦   ¦   ¦       ¦       +---esm
+¦   ¦   ¦       +---which
+¦   ¦   ¦       ¦   +---bin
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       +---wrap-ansi
+¦   ¦   ¦       ¦   +---node_modules
+¦   ¦   ¦       ¦       +---ansi-regex
+¦   ¦   ¦       ¦       +---emoji-regex
+¦   ¦   ¦       ¦       ¦   +---es2015
+¦   ¦   ¦       ¦       +---string-width
+¦   ¦   ¦       ¦       +---strip-ansi
+¦   ¦   ¦       +---wrap-ansi-cjs
+¦   ¦   ¦       ¦   +---node_modules
+¦   ¦   ¦       ¦       +---ansi-styles
+¦   ¦   ¦       +---write-file-atomic
+¦   ¦   ¦       ¦   +---lib
+¦   ¦   ¦       +---yallist
 ¦   ¦   +---npmlog
 ¦   ¦   +---nypm
 ¦   ¦   ¦   +---dist
@@ -3799,6 +4360,7 @@ C:.
 ¦   ¦       +---20250923224202_settings_and_notif_prefs
 ¦   ¦       +---20250930020610_generic_trackables_and_kind_mapping
 ¦   ¦       +---20251001194249_add_task_detail_view_to_user_settings
+¦   ¦       +---20251010142911_setnull_trackable_locations_and_home_fields
 ¦   +---scripts
 ¦   +---src
 ¦   ¦   +---config
@@ -3845,6 +4407,7 @@ C:.
 ¦       ¦   +---cmg18k93u000dqt2servdgcxa
 ¦       ¦   +---cmg5xvnhg0001qta4j2o2e7al
 ¦       ¦   +---cmgg2tkso0001qtwojgt0xozi
+¦       ¦   +---cmgjru5aq0001qtpkbhozfzbn
 ¦       +---images
 ¦       +---tmp
 ¦       +---trackables
@@ -5694,6 +6257,7 @@ C:.
 ¦   ¦   +---Manuals
 ¦   ¦   +---room-banners
 ¦   ¦   +---templates
+¦   ¦   +---trackables
 ¦   +---src
 ¦       +---components
 ¦       ¦   +---features

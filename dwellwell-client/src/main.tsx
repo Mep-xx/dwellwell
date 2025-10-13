@@ -10,8 +10,6 @@ import { ThemeProvider } from "./context/ThemeContext";
 import ThemeBridge from "./components/ThemeBridge";
 import { restoreTheme } from "./theme/applyTheme";
 
-restoreTheme();
-
 const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 if (!clientId) console.error("VITE_GOOGLE_CLIENT_ID is not set");
 
