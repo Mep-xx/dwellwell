@@ -1,4 +1,4 @@
-//dwellwell-client/src/components/ui/use-toast.ts
+// dwellwell-client/src/components/ui/use-toast.ts
 import { create } from "zustand";
 
 type Variant = "default" | "success" | "info" | "warning" | "destructive";
@@ -23,29 +23,19 @@ export const useToastStore = create<ToastStore>((set) => ({
       (globalThis.crypto?.randomUUID?.() ??
         Math.random().toString(36).slice(2)) as string;
     const newToast = { id, ...toast };
-    set((state) => ({
-      toasts: [...state.toasts, newToast],
-    }));
-
-    // Auto-remove after 4s
+    set((state) => ({ toasts: [...state.toasts, newToast] }));
     setTimeout(() => {
-      set((state) => ({
-        toasts: state.toasts.filter((t) => t.id !== id),
-      }));
+      set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) }));
     }, 4000);
   },
   removeToast: (id) =>
-    set((state) => ({
-      toasts: state.toasts.filter((t) => t.id !== id),
-    })),
+    set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) })),
 }));
 
 export const useToast = () => {
   const { addToast } = useToastStore();
-  return {
-    toast: addToast,
-  };
+  return { toast: addToast };
 };
 
-// Convenience export, safe on both server and client
-export const toast = (t: Omit<Toast, "id">) => useToastStore.getState().addToast(t);
+export const toast = (t: Omit<Toast, "id">) =>
+  useToastStore.getState().addToast(t);

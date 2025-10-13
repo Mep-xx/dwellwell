@@ -1,11 +1,11 @@
-// dwellwell-client/src/components/features/TrackableCard.tsx
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { api } from "@/utils/api";
 import { useToast } from "@/components/ui/use-toast";
 import type { Task } from "@shared/types/task";
 import TrackableTaskRow from "./TrackableTaskRow";
-import { TRACKABLE_TYPE_ICONS } from "@shared/icons/trackables";
+import { TRACKABLE_TYPE_ICONS, TRACKABLE_TYPE_IMAGES } from "@shared/icons/trackables";
+import { getTypeLabel } from "@shared/constants/trackables";
 import { ChevronDown, ChevronUp } from "lucide-react";
 
 /** Summary shape returned by /trackables (with rollups). */
@@ -37,11 +37,10 @@ type Props = {
   onOpenEdit?: (trackableId: string) => void;
 };
 
-// Friendly labels for enum-y statuses
-const STATUS_LABELS: Record<"IN_USE" | "PAUSED" | "RETIRED", string> = {
-  IN_USE: "In Use",
-  PAUSED: "Paused",
-  RETIRED: "Retired",
+const STATUS_DOT: Record<"IN_USE" | "PAUSED" | "RETIRED", string> = {
+  IN_USE: "bg-emerald-500",
+  PAUSED: "bg-amber-500",
+  RETIRED: "bg-slate-400",
 };
 
 const SAFE_COUNTS = { overdue: 0, dueSoon: 0, active: 0 };
@@ -54,7 +53,6 @@ export default function TrackableCard({ data, onEdited, onRemoved, onOpenEdit }:
   const [tasks, setTasks] = useState<Task[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  // Defensive shims
   const counts = data?.counts ?? SAFE_COUNTS;
   const status = (data?.status ?? "IN_USE") as "IN_USE" | "PAUSED" | "RETIRED";
   const nextDue = data?.nextDueDate ?? null;
@@ -72,7 +70,6 @@ export default function TrackableCard({ data, onEdited, onRemoved, onOpenEdit }:
     }
   }, [status]);
 
-  // --- fetch once per card (even in StrictMode / repeated renders)
   const hasFetchedRef = useRef(false);
 
   const normalizeTaskList = (raw: any): Task[] => {
@@ -89,8 +86,6 @@ export default function TrackableCard({ data, onEdited, onRemoved, onOpenEdit }:
     setLoadingTasks(true);
     setError(null);
     try {
-      // Be permissive: don't pass a custom "active" status unless your API uses it.
-      // Ask server to exclude completed/archived and cap page size if supported.
       const baseParams: Record<string, any> = {
         trackableId: data.id,
         includeCompleted: 0,
@@ -101,7 +96,6 @@ export default function TrackableCard({ data, onEdited, onRemoved, onOpenEdit }:
       let res = await api.get("/tasks", { params: baseParams });
       let list = normalizeTaskList(res.data);
 
-      // If the API *does* require a status to mean “open”, try a few common knobs.
       if ((!list || list.length === 0) && (data.counts?.active ?? 0) > 0) {
         const attempts = [
           { ...baseParams, status: "PENDING" },
@@ -114,9 +108,7 @@ export default function TrackableCard({ data, onEdited, onRemoved, onOpenEdit }:
             const r2 = await api.get("/tasks", { params: p });
             list = normalizeTaskList(r2.data);
             if (list.length) break;
-          } catch {
-            // ignore and try the next shape
-          }
+          } catch { }
         }
       }
 
@@ -129,12 +121,58 @@ export default function TrackableCard({ data, onEdited, onRemoved, onOpenEdit }:
     }
   }, [data.id, data.counts?.active]);
 
-  // fetch on first expand only
+  const typeChip = useMemo(() => {
+    if (!data.type) return null;
+    const pretty = getTypeLabel(data.type) ?? data.type;
+
+    const name = (data.userDefinedName || "").toLowerCase();
+    const brand = (data.brand || "").toLowerCase();
+    const model = (data.model || "").toLowerCase();
+    const combined = `${data.brand || ""} ${data.model || ""}`.trim().toLowerCase();
+
+    const likelyGeneric =
+      (!!model && (name === model || name.includes(model))) ||
+      (!!brand && !!model && name === combined) ||
+      name.length <= 12; // short names like "Dishwasher", "TV", "Fridge"
+
+    return likelyGeneric ? pretty : null;
+  }, [data.userDefinedName, data.brand, data.model, data.type]);
+
   useEffect(() => {
     if (expanded && !hasFetchedRef.current) fetchTasks();
   }, [expanded, fetchTasks]);
 
-  // Lifecycle actions
+  // One-time post-create hydration so counts/nextDue/image/type are correct without page refresh
+  useEffect(() => {
+    const needs = !data?.counts || typeof data?.nextDueDate === "undefined" || data?.nextDueDate === null;
+    if (!needs) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await api.get(`/trackables/${data.id}`);
+        const d = r?.data ?? {};
+        if (!cancelled) {
+          onEdited?.({
+            id: data.id,
+            counts: d.counts ?? data.counts,
+            nextDueDate: d.nextDueDate ?? data.nextDueDate,
+            imageUrl: d.imageUrl ?? data.imageUrl,
+            type: d.type ?? data.type,
+            brand: d.brand ?? data.brand,
+            model: d.model ?? data.model,
+            status: d.status ?? data.status,
+          });
+        }
+      } catch {
+        // Ignore — card will still function; tasks load on expand.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.id]);
+
   const pause = async () => {
     try {
       await api.post(`/trackables/${data.id}/pause`);
@@ -147,7 +185,7 @@ export default function TrackableCard({ data, onEdited, onRemoved, onOpenEdit }:
   const resume = async () => {
     try {
       await api.post(`/trackables/${data.id}/resume`, { mode: "forward" });
-    onEdited?.({ id: data.id, status: "IN_USE" });
+      onEdited?.({ id: data.id, status: "IN_USE" });
       toast({ title: "Resumed", description: "Scheduling resumed forward-only." });
     } catch {
       toast({ title: "Could not resume", variant: "destructive" });
@@ -183,8 +221,15 @@ export default function TrackableCard({ data, onEdited, onRemoved, onOpenEdit }:
     }
   };
 
+  // Icon + image fallbacks
   const icon = data.type ? TRACKABLE_TYPE_ICONS[data.type] : undefined;
-  const liveCount = tasks.length || counts.active;
+  const placeholderSrc = (data.type && TRACKABLE_TYPE_IMAGES[data.type]) || undefined;
+  const thumbSrc = data.imageUrl || placeholderSrc;
+
+  // Keep “Active” count responsive to fetched tasks
+  const liveCount = (data?.counts?.active ?? 0) || tasks.length;
+
+  const prettyType = getTypeLabel(data.type) ?? (data.type || "—");
 
   return (
     <motion.div
@@ -194,20 +239,18 @@ export default function TrackableCard({ data, onEdited, onRemoved, onOpenEdit }:
       exit={{ opacity: 0, scale: 0.97 }}
       className="self-start rounded-xl border border-token bg-card text-body p-4 shadow transition-all hover:shadow-lg hover:-translate-y-0.5"
     >
-      {/* Header: Title left, status & next-due right */}
+      {/* Header */}
       <div className="flex items-start">
-        <h3 className="text-lg font-semibold leading-tight truncate pr-3">
+        <h3 className="text-lg font-semibold leading-tight pr-3 whitespace-normal break-words">
           {data.userDefinedName}
         </h3>
-        <div className="ml-auto flex items-center gap-2">
-          {nextDue ? (
-            <span className="text-xs px-2 py-0.5 rounded border border-token text-body bg-surface-alt/60">
-              Next due: {fmt(nextDue)}
+        <div className="ml-auto inline-flex items-center gap-2 text-xs">
+          {typeChip && (
+            <span className="px-2 py-0.5 rounded-full bg-surface-alt text-muted whitespace-nowrap">
+              {typeChip}
             </span>
-          ) : null}
-          <span className={`text-xs px-2 py-0.5 rounded-full ${statusPill}`}>
-            {STATUS_LABELS[status]}
-          </span>
+          )}
+          <span className={`h-2 w-2 rounded-full ${STATUS_DOT[status]}`} aria-hidden />
         </div>
       </div>
 
@@ -240,8 +283,13 @@ export default function TrackableCard({ data, onEdited, onRemoved, onOpenEdit }:
           className="shrink-0 w-16 h-16 rounded-xl bg-surface-alt flex items-center justify-center overflow-hidden border border-token"
           title={data.userDefinedName}
         >
-          {data.imageUrl ? (
-            <img src={data.imageUrl} alt={data.userDefinedName} className="w-full h-full object-contain" />
+          {thumbSrc ? (
+            <img
+              src={thumbSrc}
+              alt={data.userDefinedName}
+              className="w-full h-full object-contain"
+              loading="lazy"
+            />
           ) : (
             <span className="text-2xl">{icon ?? "🧰"}</span>
           )}
@@ -275,14 +323,10 @@ export default function TrackableCard({ data, onEdited, onRemoved, onOpenEdit }:
               Delete
             </button>
           </div>
-
-          <p className="mt-1 text-sm text-muted truncate">
-            {(data.type || "—")} • {data.brand || ""} {data.model || ""}
-          </p>
         </div>
       </div>
 
-      {/* Expand / Collapse Button — HomeCard style */}
+      {/* Expand / Collapse Button */}
       <div className="mt-3">
         <button
           onClick={(e) => {
@@ -293,7 +337,7 @@ export default function TrackableCard({ data, onEdited, onRemoved, onOpenEdit }:
                      flex items-center gap-2 text-sm font-medium transition-colors"
           title={expanded ? "Hide Tasks" : "Show Tasks"}
         >
-          {expanded ? "Hide Tasks" : `Show Tasks (${liveCount})`}
+          {expanded ? "Hide Tasks" : `Show Tasks (${(data?.counts?.active ?? 0) || tasks.length})`}
           {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </button>
       </div>
@@ -311,18 +355,8 @@ export default function TrackableCard({ data, onEdited, onRemoved, onOpenEdit }:
           >
             <div className="mt-4 rounded-xl border border-token bg-surface-alt p-3">
               <div className="mb-2 flex items-center justify-between">
-                <div className="text-sm font-semibold">Tasks {loadingTasks ? "" : `(${tasks.length})`}</div>
-                <div className="flex items-center gap-2">
-                  <button
-                    className="text-xs text-muted hover:text-body underline"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      hasFetchedRef.current = false;
-                      fetchTasks();
-                    }}
-                  >
-                    Refresh
-                  </button>
+                <div className="text-sm font-semibold">
+                  Tasks {loadingTasks ? "" : `(${tasks.length})`}
                 </div>
               </div>
 
@@ -335,18 +369,13 @@ export default function TrackableCard({ data, onEdited, onRemoved, onOpenEdit }:
               )}
 
               {error && (
-                <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded p-2">{error}</div>
+                <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded p-2">
+                  {error}
+                </div>
               )}
 
               {!loadingTasks && !error && tasks.length === 0 && (
-                <div className="text-sm text-muted">
-                  No active tasks for this item.
-                  {(counts.active ?? 0) > 0 && (
-                    <span className="ml-1 italic opacity-80">
-                      (Tip: API may be paginated or using a different status filter.)
-                    </span>
-                  )}
-                </div>
+                <div className="text-sm text-muted">No active tasks for this item.</div>
               )}
 
               <div className="divide-y divide-[rgb(var(--border)/1)]">

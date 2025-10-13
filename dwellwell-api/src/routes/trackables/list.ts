@@ -1,4 +1,3 @@
-// dwellwell-api/src/routes/trackables/list.ts
 import { Request, Response } from "express";
 import { asyncHandler } from "../../middleware/asyncHandler";
 import { prisma } from "../../db/prisma";
@@ -23,15 +22,13 @@ export default asyncHandler(async (req: Request, res: Response) => {
   if (homeId) where.homeId = homeId;
 
   // Scope handling
-  // - scope=home => only trackables that are home-level (roomId IS NULL) for this home
-  // - roomId=...  => explicit room filter
-  // - roomId=null => same as scope=home (home-level)
   if (scope === "home") {
     where.roomId = null;
   } else if (roomIdFilter !== undefined) {
     where.roomId = roomIdFilter; // either a concrete id or null
   }
 
+  // Pull trackables
   const rows = await prisma.trackable.findMany({
     where,
     orderBy: { createdAt: "desc" },
@@ -42,11 +39,90 @@ export default asyncHandler(async (req: Request, res: Response) => {
     },
   });
 
+  const trackableIds = rows.map((r) => r.id);
+  if (trackableIds.length === 0) {
+    return res.json([]);
+  }
+
+  // Use user's lead time if present; fallback = 7 days
+  const settings = await prisma.userSettings.findUnique({
+    where: { userId },
+    select: { defaultDaysBeforeDue: true },
+  });
+  const leadDays = settings?.defaultDaysBeforeDue ?? 7;
+
+  const now = new Date();
+  const soon = new Date(now.getTime() + leadDays * 24 * 60 * 60 * 1000);
+
+  // Aggregate counts & dates with groupBy
+  const whereBase = {
+    userId,
+    trackableId: { in: trackableIds },
+    archivedAt: null as any,
+    // leave pausedAt alone; if you want paused tasks excluded, add pausedAt: null
+    isTracking: true,
+  };
+
+  // Active = all pending, not archived
+  const activeCounts = await prisma.userTask.groupBy({
+    by: ["trackableId"],
+    where: { ...whereBase, status: "PENDING" },
+    _count: { _all: true },
+  });
+
+  const overdueCounts = await prisma.userTask.groupBy({
+    by: ["trackableId"],
+    where: { ...whereBase, status: "PENDING", dueDate: { lt: now } },
+    _count: { _all: true },
+  });
+
+  const dueSoonCounts = await prisma.userTask.groupBy({
+    by: ["trackableId"],
+    where: {
+      ...whereBase,
+      status: "PENDING",
+      dueDate: { gte: now, lte: soon },
+    },
+    _count: { _all: true },
+  });
+
+  const nextDue = await prisma.userTask.groupBy({
+    by: ["trackableId"],
+    where: { ...whereBase, status: "PENDING" },
+    _min: { dueDate: true },
+  });
+
+  const lastCompleted = await prisma.userTask.groupBy({
+    by: ["trackableId"],
+    where: { ...whereBase, status: "COMPLETED", completedDate: { not: null } },
+    _max: { completedDate: true },
+  });
+
+  // Maps for quick lookup
+  const mapCount = (arr: { trackableId: string; _count: { _all: number } }[]) =>
+    new Map(arr.map((r) => [r.trackableId, r._count._all]));
+  const mapMinDate = (arr: { trackableId: string; _min: { dueDate: Date | null } }[]) =>
+    new Map(arr.map((r) => [r.trackableId, r._min.dueDate?.toISOString() ?? null]));
+  const mapMaxDate = (arr: { trackableId: string; _max: { completedDate: Date | null } }[]) =>
+    new Map(arr.map((r) => [r.trackableId, r._max.completedDate?.toISOString() ?? null]));
+
+  const activeMap = mapCount(activeCounts);
+  const overdueMap = mapCount(overdueCounts);
+  const dueSoonMap = mapCount(dueSoonCounts);
+  const nextDueMap = mapMinDate(nextDue);
+  const lastCompletedMap = mapMaxDate(lastCompleted);
+
   const trackables = await Promise.all(
     rows.map(async (t) => {
       const type = t.kind ?? t.applianceCatalog?.type ?? null;
       const category = t.category ?? t.applianceCatalog?.category ?? "general";
       const display = await getTrackableDisplay(t.id);
+
+      const counts = {
+        overdue: overdueMap.get(t.id) ?? 0,
+        dueSoon: dueSoonMap.get(t.id) ?? 0,
+        active: activeMap.get(t.id) ?? 0,
+      };
 
       return {
         id: t.id,
@@ -54,7 +130,7 @@ export default asyncHandler(async (req: Request, res: Response) => {
         // Names
         userDefinedName: t.userDefinedName ?? "",
         displayName: display.composedItemName,
-        name: display.composedItemName, // ← for callers expecting `name`
+        name: display.composedItemName, // legacy/caller compatibility
 
         // Prefer per-item overrides, fallback to catalog
         brand: t.brand ?? t.applianceCatalog?.brand ?? null,
@@ -75,12 +151,12 @@ export default asyncHandler(async (req: Request, res: Response) => {
 
         status: t.status,
 
-        // Optional snapshot/aggregates (if you add them in the future)
-        nextDueDate: (t as any).nextDueDate ?? null,
-        counts: (t as any).counts ?? { overdue: 0, dueSoon: 0, active: 0 },
+        // Aggregates
+        nextDueDate: nextDueMap.get(t.id) ?? null,
+        counts,
 
         createdAt: t.createdAt.toISOString(),
-        lastCompletedAt: (t as any).lastCompletedAt ?? null,
+        lastCompletedAt: lastCompletedMap.get(t.id) ?? null,
       };
     })
   );

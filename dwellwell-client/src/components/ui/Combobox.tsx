@@ -94,7 +94,7 @@ export default function Combobox({
         className="w-full cursor-pointer rounded border border-token bg-card px-3 py-2 text-left"
       >
         <div className="flex items-center justify-between">
-          <span className={selected ? "" : "text-muted-foreground"}>
+          <span className={selected ? "" : "text-muted"}>
             {selected ? selected.label : "Select a type…"}
           </span>
 

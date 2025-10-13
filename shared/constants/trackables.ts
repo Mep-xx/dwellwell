@@ -1,5 +1,8 @@
 // shared/constants/trackables.ts
 
+// ---------------------------------------------------------------------------
+// Categories (labels shown to users)
+// ---------------------------------------------------------------------------
 export const CATEGORY_OPTIONS = [
   { value: "appliance", label: "Appliance" },
   { value: "hvac", label: "HVAC" },
@@ -22,10 +25,15 @@ export const CATEGORY_OPTIONS = [
   { value: "furniture", label: "Furniture" },
 ] as const;
 
+export type CategoryValue = typeof CATEGORY_OPTIONS[number]["value"];
+
+// ---------------------------------------------------------------------------
+// Types per category (values are the canonical keys sent to/returned from API)
+// ---------------------------------------------------------------------------
 export const TYPE_BY_CATEGORY: Record<string, { value: string; label: string }[]> = {
   appliance: [
     { value: "dishwasher", label: "Dishwasher" },
-    { value: "refrigerator", label: "Refrigerator" },
+    { value: "refrigerator", label: "Refrigerator" },          
     { value: "range-oven", label: "Range / Oven" },
     { value: "microwave", label: "Microwave" },
     { value: "washer", label: "Washer" },
@@ -75,7 +83,7 @@ export const TYPE_BY_CATEGORY: Record<string, { value: string; label: string }[]
     { value: "boiler", label: "Boiler" },
     { value: "space-heater", label: "Space Heater" },
     { value: "radiant-heat", label: "Radiant Heat" },
-    { value: "fireplace", label: "Fireplace" },         // ⬅ added
+    { value: "fireplace", label: "Fireplace" },
   ],
   cooling: [
     { value: "central-ac", label: "Central A/C" },
@@ -101,7 +109,7 @@ export const TYPE_BY_CATEGORY: Record<string, { value: string; label: string }[]
     { value: "outlets-switches", label: "Outlets / Switches" },
     { value: "doorbell", label: "Doorbell" },
     { value: "thermostat", label: "Thermostat" },
-    { value: "ceiling-fan", label: "Ceiling Fan" },      // ⬅ added
+    { value: "ceiling-fan", label: "Ceiling Fan" },
   ],
   outdoor: [
     { value: "lawn-mower", label: "Lawn Mower" },
@@ -189,4 +197,55 @@ export const TYPE_BY_CATEGORY: Record<string, { value: string; label: string }[]
 
 export function getTypeOptions(category: string | null | undefined) {
   return TYPE_BY_CATEGORY[String(category || "general")] ?? [];
+}
+
+// ---------------------------------------------------------------------------
+// Helpers: pretty labels + robust normalization of AI/free-text input
+// ---------------------------------------------------------------------------
+const ALL_TYPES: { value: string; label: string }[] = Object.values(TYPE_BY_CATEGORY).flat();
+const TYPE_LABEL_BY_VALUE = new Map(ALL_TYPES.map((t) => [t.value, t.label]));
+
+export function getTypeLabel(value?: string | null) {
+  if (!value) return undefined;
+  return TYPE_LABEL_BY_VALUE.get(value) ?? capitalizeWords(value.replace(/[-_]/g, " "));
+}
+
+const CANONICAL_CATEGORY = new Set(CATEGORY_OPTIONS.map((c) => c.value));
+
+export function normalizeCategory(input?: string | null): CategoryValue | "general" {
+  if (!input) return "general";
+  const s = input.toLowerCase();
+  // a few common aliases from AI
+  if (s === "hvac") return "hvac";
+  if (s === "water" || s.includes("plumb")) return "water";
+  if (CANONICAL_CATEGORY.has(s as CategoryValue)) return s as CategoryValue;
+  return "general";
+}
+
+/** Normalize type to one of the canonical keys we use. Corrects common misspellings. */
+export function normalizeType(input?: string | null): string {
+  if (!input) return "";
+  let s = input.toLowerCase().trim();
+
+  // Fix the big one you saw:
+  if (s.includes("refridg")) s = "refrigerator";
+
+  // Try direct match on canonical values.
+  if (ALL_TYPES.some((t) => t.value === s)) return s;
+
+  // Try match on labels.
+  const byLabel = ALL_TYPES.find((t) => t.label.toLowerCase() === s);
+  if (byLabel) return byLabel.value;
+
+  // Try loose match (remove punctuation / spaces)
+  const norm = (x: string) => x.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const sN = norm(s);
+  const loose = ALL_TYPES.find((t) => norm(t.label) === sN || norm(t.value) === sN);
+  if (loose) return loose.value;
+
+  return s; // fall back to user input; UI will still pretty-print it
+}
+
+function capitalizeWords(s: string) {
+  return s.replace(/\b\w+/g, (w) => w[0].toUpperCase() + w.slice(1));
 }

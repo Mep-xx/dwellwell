@@ -1,0 +1,72 @@
+generic
+electronics
+tool
+dishwasher
+washer
+dryer
+refrigerator
+freezer
+range
+microwave
+toilet
+bathroom faucet
+shower
+bathtub
+cabinet
+radiator
+ceiling fan
+outlet
+gfci
+light fixture
+lawn mower
+tile floor
+window
+exterior door
+garage opener
+water heater 
+workbench
+
+
+
+
+
+
+
+garage
+sprinkler controller
+bbq grill
+deck
+fence
+gutter
+fire extinguisher
+first aid
+radon detector
+leak sensor
+water heater
+disposal
+range hood
+kitchen faucet
+bath fan
+furnace
+boiler
+heat pump
+thermostat
+central ac
+mini split
+window ac
+swamp cooler
+air purifier
+humidifier
+dehumidifier
+panel
+smoke co detector
+doorbell
+shutoff valve
+water softener
+sump pump
+water filter
+backflow
+hardwood floor
+carpet
+garage door
+electronics

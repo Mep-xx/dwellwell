@@ -6,12 +6,9 @@ import type { TrackableCategory } from "@shared/types/trackable";
 import type { Room } from "@shared/types/room";
 import Combobox from "@/components/ui/Combobox";
 import { ChevronDown, ChevronUp, X } from "lucide-react";
-import {
-  CATEGORY_OPTIONS,
-  TYPE_BY_CATEGORY,
-} from "@shared/constants/trackables";
+import { CATEGORY_OPTIONS, TYPE_BY_CATEGORY } from "@shared/constants/trackables";
+import { normalizeType, normalizeCategory, getTypeLabel, } from "@shared/constants/trackables";
 
-/** Public DTO */
 export type CreateTrackableDTO = {
   id?: string;
   userDefinedName: string;
@@ -25,8 +22,6 @@ export type CreateTrackableDTO = {
   applianceCatalogId?: string;
   roomId?: string | null;
   homeId?: string | null;
-
-  // NEW (stored inside notes for now; see submit()):
   productUrl?: string | null;
   manualUrl?: string | null;
 };
@@ -45,7 +40,7 @@ type ApplianceLookup = {
   category: string;
   notes?: string;
   imageUrl?: string;
-  matchedCatalogId?: string | null; // optional from AI endpoint
+  matchedCatalogId?: string | null;
 };
 
 type HomeLite = {
@@ -65,17 +60,22 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
+/** tiny helper to show transient “activity” */
+function Activity({ text }: { text: string }) {
+  return (
+    <div className="mb-4 rounded-lg border border-token bg-surface-alt px-4 py-3 text-sm">
+      <span className="inline-flex items-center gap-2">
+        <span className="h-2 w-2 rounded-full bg-[rgb(var(--primary))] animate-pulse" />
+        {text}
+      </span>
+    </div>
+  );
+}
+
 export default function TrackableModal({ isOpen, onClose, onSave, initialData }: Props) {
   const isEditing = Boolean(initialData?.id);
-  const [advancedOpen, setAdvancedOpen] = useState(false);
 
-  // homes + rooms
-  const [homes, setHomes] = useState<HomeLite[]>([]);
-  const [homesLoading, setHomesLoading] = useState(false);
-
-  const [rooms, setRooms] = useState<Room[]>([]);
-  const [roomsLoading, setRoomsLoading] = useState(false);
-
+  // form
   const [form, setForm] = useState<CreateTrackableDTO>({
     userDefinedName: "",
     brand: "",
@@ -89,12 +89,25 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
     manualUrl: "",
   });
 
+  // lists
+  const [homes, setHomes] = useState<HomeLite[]>([]);
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [homesLoading, setHomesLoading] = useState(false);
+  const [roomsLoading, setRoomsLoading] = useState(false);
+
+  // lookups
   const [suggestions, setSuggestions] = useState<ApplianceLookup[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [phase, setPhase] = useState<'idle' | 'catalog' | 'ai' | 'saving' | 'seeding' | 'done'>('idle');
+
+  // activity/status
+  const [activity, setActivity] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // taxonomy
+  // celebration
+  const [celebrate, setCelebrate] = useState<{ name: string; tasks?: number } | null>(null);
+
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+
   const typeOptions = useMemo(
     () => TYPE_BY_CATEGORY[String(form.category || "general")] ?? [],
     [form.category]
@@ -106,13 +119,19 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
     }
   }, [typeOptions, form.type]);
 
-  const onField = (name: keyof CreateTrackableDTO, value: any) => {
+  const onField = (name: keyof CreateTrackableDTO, value: any) =>
     setForm((prev) => ({ ...prev, [name]: value }));
-  };
 
-  // hydrate on open / edit (fields)
+  // hydrate + reset
   useEffect(() => {
-    if (initialData && initialData.id) {
+    if (!isOpen) return;
+    setCelebrate(null);
+    setActivity(null);
+    setAdvancedOpen(false);
+    setSuggestions([]);
+    setShowSuggestions(false);
+
+    if (initialData?.id) {
       setForm({
         id: initialData.id,
         userDefinedName: initialData.userDefinedName ?? "",
@@ -129,7 +148,7 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
         productUrl: initialData.productUrl ?? "",
         manualUrl: initialData.manualUrl ?? "",
       });
-    } else if (isOpen) {
+    } else {
       setForm({
         userDefinedName: "",
         brand: "",
@@ -142,68 +161,13 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
         productUrl: "",
         manualUrl: "",
       });
-      setAdvancedOpen(false);
-      setSuggestions([]);
-      setShowSuggestions(false);
-      setPhase("idle");
     }
   }, [isOpen, initialData]);
 
-  // —— Debounced lookup (catalog fast; AI slower) ——
-  const catalogTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const aiTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastQueryRef = useRef<string>("");
-  const inputRef = useRef<HTMLInputElement | null>(null);
-  const dropdownRef = useRef<HTMLUListElement | null>(null);
-
-  const closeSuggestions = () => {
-    setShowSuggestions(false);
-    setSuggestions([]);
-    setPhase("idle");
-  };
-
-  // Clear timers on unmount or when modal closes
-  useEffect(() => {
-    if (!isOpen) {
-      if (catalogTimer.current) clearTimeout(catalogTimer.current);
-      if (aiTimer.current) clearTimeout(aiTimer.current);
-      closeSuggestions();
-    }
-    return () => {
-      if (catalogTimer.current) clearTimeout(catalogTimer.current);
-      if (aiTimer.current) clearTimeout(aiTimer.current);
-    };
-  }, [isOpen]);
-
-  // click-outside & ESC
-  useEffect(() => {
-    const onDocMouseDown = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(target) &&
-        inputRef.current &&
-        !inputRef.current.contains(target)
-      ) {
-        closeSuggestions();
-      }
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeSuggestions();
-    };
-    document.addEventListener("mousedown", onDocMouseDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDocMouseDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, []);
-
-  // Load homes when modal opens
+  // load homes
   useEffect(() => {
     if (!isOpen) return;
     let cancelled = false;
-
     (async () => {
       setHomesLoading(true);
       try {
@@ -211,26 +175,18 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
         if (cancelled) return;
         const list: HomeLite[] = Array.isArray(res.data) ? res.data : [];
         setHomes(list);
-
-        // Default selection
         const preferred =
           (initialData?.homeId && list.find(h => h.id === initialData.homeId)) ||
-          list[0] ||
-          null;
-
-        setForm(prev => ({
-          ...prev,
-          homeId: prev.homeId ?? preferred?.id ?? prev.homeId,
-        }));
+          list[0] || null;
+        setForm(prev => ({ ...prev, homeId: prev.homeId ?? preferred?.id ?? prev.homeId }));
       } finally {
         if (!cancelled) setHomesLoading(false);
       }
     })();
-
     return () => { cancelled = true; };
   }, [isOpen, initialData?.homeId]);
 
-  // Load rooms whenever selected home changes
+  // load rooms for selected home
   useEffect(() => {
     if (!isOpen) return;
     const hid = form.homeId;
@@ -250,7 +206,6 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
         if (cancelled) return;
         const list: Room[] = Array.isArray(res.data) ? res.data : [];
         setRooms(list);
-
         if (form.roomId && !list.some(r => r.id === form.roomId)) {
           setForm(prev => ({ ...prev, roomId: undefined }));
         }
@@ -262,15 +217,40 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
     return () => { cancelled = true; };
   }, [isOpen, form.homeId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // when opening for a specific room, ensure it sticks
+  // name → lookup (catalog then AI, with live activity)
+  const catalogTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const aiTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastQueryRef = useRef<string>("");
+
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const dropdownRef = useRef<HTMLUListElement | null>(null);
+
+  const closeSuggestions = () => {
+    setShowSuggestions(false);
+    setSuggestions([]);
+    setActivity(null);
+    if (catalogTimer.current) clearTimeout(catalogTimer.current);
+    if (aiTimer.current) clearTimeout(aiTimer.current);
+  };
+
   useEffect(() => {
-    if (!isOpen) return;
-    if (initialData?.roomId) {
-      setForm((prev) => ({ ...prev, roomId: initialData.roomId, homeId: initialData.homeId ?? prev.homeId }));
-    } else if (initialData?.homeId) {
-      setForm((prev) => ({ ...prev, homeId: initialData.homeId, roomId: prev.roomId ?? undefined }));
-    }
-  }, [isOpen, initialData?.roomId, initialData?.homeId]);
+    const onDocMouseDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(t) &&
+        inputRef.current &&
+        !inputRef.current.contains(t)
+      ) closeSuggestions();
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") closeSuggestions(); };
+    document.addEventListener("mousedown", onDocMouseDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDocMouseDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, []);
 
   const handleNameChange = (val: string) => {
     onField("userDefinedName", val);
@@ -286,10 +266,10 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
       return;
     }
 
-    // 1) Catalog pass after ~420ms calm period
+    // Catalog after short debounce
     catalogTimer.current = setTimeout(async () => {
       try {
-        setPhase("catalog");
+        setActivity("Looking through catalog…");
         const res = await api.get("/lookup/appliances", { params: { q } });
         if (lastQueryRef.current !== q) return;
         const cat: ApplianceLookup[] = Array.isArray(res.data) ? res.data : [];
@@ -297,39 +277,44 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
         setSuggestions(cat);
         setShowSuggestions(cat.length > 0);
 
-        // 2) AI pass if catalog empty, after ~1200ms
         if (cat.length === 0) {
+          // AI after a pause
           aiTimer.current = setTimeout(async () => {
             try {
               if (lastQueryRef.current !== q) return;
-              setPhase("ai");
+              setActivity("Querying AI…");
+              // NOTE: if your API exposes a different route, change here:
+              // e.g. "/lookup/appliances/ai"
               const aiRes = await api.get("/ai/lookup-appliance", { params: { q } });
               if (lastQueryRef.current !== q) return;
               const ai = Array.isArray(aiRes.data) ? aiRes.data : [];
               setSuggestions(ai);
               setShowSuggestions(ai.length > 0);
-              setPhase("done");
             } catch {
-              setPhase("done");
+              // AI may not be available — just hide the activity and leave suggestions empty.
+            } finally {
+              setActivity(null);
             }
-          }, 1200);
+          }, 800);
         } else {
-          setPhase("done");
+          setActivity(null);
         }
       } catch {
-        setPhase("done");
+        setActivity(null);
       }
-    }, 420);
+    }, 350);
   };
 
   const applySuggestion = (s: ApplianceLookup) => {
+    const normType = normalizeType(s.type);
+    const normCat = normalizeCategory(s.category);
     setForm((prev) => ({
       ...prev,
       userDefinedName: `${s.brand} ${s.model}`.trim(),
       brand: s.brand ?? "",
       model: s.model ?? "",
-      type: s.type ?? prev.type,
-      category: (s.category as TrackableCategory) ?? prev.category,
+      type: normType || prev.type,
+      category: (normCat as TrackableCategory) ?? prev.category,
       notes: s.notes || prev.notes,
       imageUrl: s.imageUrl || prev.imageUrl,
       applianceCatalogId: s.matchedCatalogId ?? prev.applianceCatalogId,
@@ -340,21 +325,21 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (submitting) return;
+
+    const name = (form.userDefinedName || "").trim();
+    if (!name) return;
+
     setSubmitting(true);
-    setPhase("saving");
 
-    const name = form.userDefinedName?.trim();
-    if (!name) {
-      setSubmitting(false);
-      setPhase("idle");
-      return;
-    }
+    // fold product/manual urls into notes until API has first-class fields
+    const addl: string[] = [];
+    if (form.productUrl?.trim()) addl.push(`Product: ${form.productUrl.trim()}`);
+    if (form.manualUrl?.trim()) addl.push(`Manual: ${form.manualUrl.trim()}`);
+    const mergedNotes = [form.notes?.trim() || "", ...addl].filter(Boolean).join("\n");
 
-    // Merge product/manual URLs into notes for persistence (until dedicated fields/endpoints exist)
-    const addlLines: string[] = [];
-    if (form.productUrl?.trim()) addlLines.push(`Product: ${form.productUrl.trim()}`);
-    if (form.manualUrl?.trim()) addlLines.push(`Manual: ${form.manualUrl.trim()}`);
-    const mergedNotes = [form.notes?.trim() || "", ...addlLines].filter(Boolean).join("\n");
+    // ✅ normalize category/type just before save
+    const normCat = normalizeCategory(String(form.category || "general"));
+    const normType = normalizeType(form.type || "");
 
     const cleaned: CreateTrackableDTO = {
       ...(isEditing ? { id: form.id } : {}),
@@ -363,23 +348,23 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
       model: sanitize(form.model ?? ""),
       serialNumber: sanitize(form.serialNumber ?? ""),
       notes: sanitize(mergedNotes),
-      type: form.type,
-      category: form.category,
+      type: normType || undefined,
+      category: normCat,
       imageUrl: form.imageUrl,
       roomId: form.roomId ?? undefined,
       homeId: form.homeId ?? undefined,
       applianceCatalogId: form.applianceCatalogId,
-      productUrl: form.productUrl?.trim() || undefined,
-      manualUrl: form.manualUrl?.trim() || undefined,
     };
+
+    let trackableId: string | undefined;
 
     try {
       if (isEditing && cleaned.id) {
-        await api.put(`/trackables/${cleaned.id}`, {
+        const r = await api.put(`/trackables/${cleaned.id}`, {
           userDefinedName: cleaned.userDefinedName,
           brand: cleaned.brand || null,
           model: cleaned.model || null,
-          kind: cleaned.type || null,        // UI "type" → DB "kind"
+          kind: cleaned.type || null,
           category: cleaned.category || null,
           serialNumber: cleaned.serialNumber || null,
           notes: cleaned.notes || null,
@@ -388,49 +373,72 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
           homeId: cleaned.homeId ?? null,
           applianceCatalogId: cleaned.applianceCatalogId ?? null,
         });
+        trackableId = r.data?.id || cleaned.id;
       } else {
-        // If brand+model present, try to link/create catalog entry
+        // Try to link/create catalog
         let applianceCatalogId = cleaned.applianceCatalogId;
         if (!applianceCatalogId && (cleaned.brand?.trim() || "") && (cleaned.model?.trim() || "")) {
-          const fo = await api.post("/catalog/find-or-create", {
-            brand: cleaned.brand!.trim(),
-            model: cleaned.model!.trim(),
-            type: cleaned.type || undefined,
-            category: cleaned.category || undefined,
-            imageUrl: cleaned.imageUrl || undefined,
-            notes: cleaned.notes || undefined,
-          });
-          applianceCatalogId = fo.data?.catalog?.id;
+          try {
+            const fo = await api.post("/catalog/find-or-create", {
+              brand: cleaned.brand!.trim(),
+              model: cleaned.model!.trim(),
+              type: cleaned.type || undefined,
+              category: cleaned.category || undefined,
+              imageUrl: cleaned.imageUrl || undefined,
+              notes: cleaned.notes || undefined,
+            });
+            applianceCatalogId = fo.data?.catalog?.id;
+          } catch {/* ignore catalog errors */ }
         }
 
-        // Create
-        await api.post("/trackables", {
+        const res = await api.post("/trackables", {
           userDefinedName: cleaned.userDefinedName,
           homeId: cleaned.homeId ?? undefined,
           roomId: cleaned.roomId ?? undefined,
           applianceCatalogId,
           brand: cleaned.brand || undefined,
           model: cleaned.model || undefined,
-          type: cleaned.type || undefined,        // backend maps to kind
+          type: cleaned.type || undefined,
           category: cleaned.category || undefined,
           serialNumber: cleaned.serialNumber || undefined,
           notes: cleaned.notes || undefined,
           imageUrl: cleaned.imageUrl || undefined,
         });
+        trackableId = res.data?.id;
       }
 
-      // Show visible “seeding” feedback. Task generation happens server-side.
-      setPhase("seeding");
+      // “Generating tasks…”
+      setActivity("Generating tasks…");
 
-      // Let the banner show briefly, then close.
-      setTimeout(() => {
-        setPhase("done");
-        onSave(cleaned);
-        onClose();
-      }, 900);
+      // We don’t know your exact seeding route; two safe ways:
+      //   1) If the backend auto-seeds, simply wait a breath then count tasks.
+      //   2) If you expose an explicit seed endpoint, call it here.
+      await new Promise((r) => setTimeout(r, 600));
+
+      // Count tasks for the celebration message (best-effort)
+      let count: number | undefined = undefined;
+      if (trackableId) {
+        try {
+          const tl = await api.get("/tasks", {
+            params: { trackableId, includeCompleted: 0, includeArchived: 0, limit: 500 },
+          });
+          const list = Array.isArray(tl.data)
+            ? tl.data
+            : Array.isArray(tl.data?.items)
+              ? tl.data.items
+              : Array.isArray(tl.data?.tasks)
+                ? tl.data.tasks
+                : [];
+          count = list.length;
+        } catch {/* ignore */ }
+      }
+
+      setActivity(null);
+      setCelebrate({ name, tasks: count });
+      onSave(cleaned);
     } catch (err) {
       console.error("Save failed", err);
-      setPhase("idle");
+      setActivity(null);
     } finally {
       setSubmitting(false);
     }
@@ -441,27 +449,49 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
   const homeLabel = (h: HomeLite) =>
     h.nickname?.trim() || `${h.address}, ${h.city}, ${h.state}`;
 
+  // Celebration screen replaces the form after success
+  if (celebrate) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+        <div className="bg-card text-body rounded-xl w-full max-w-md p-6 shadow-lg relative border border-token text-center">
+          <button onClick={onClose} className="absolute top-3 right-3 text-muted hover:text-body" aria-label="Close">
+            <X className="h-5 w-5" />
+          </button>
+          <div className="text-5xl mb-2">🎉</div>
+          <h2 className="text-xl font-semibold">Trackable added</h2>
+          <p className="mt-1">
+            <span className="font-medium">{celebrate.name}</span> is now being tracked.
+          </p>
+          {typeof celebrate.tasks === "number" && (
+            <p className="mt-1 text-muted">
+              We added <span className="font-semibold text-body">{celebrate.tasks}</span> maintenance task{celebrate.tasks === 1 ? "" : "s"} to keep it in great shape.
+            </p>
+          )}
+          <div className="mt-4">
+            <button
+              className="px-4 py-2 bg-primary text-on-primary rounded hover:opacity-90"
+              onClick={onClose}
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div className="bg-card text-body rounded-xl w-full max-w-xl p-6 shadow-lg relative border border-token">
-        <button
-          onClick={onClose}
-          className="absolute top-3 right-3 text-muted hover:text-body"
-          aria-label="Close"
-        >
+        <button onClick={onClose} className="absolute top-3 right-3 text-muted hover:text-body" aria-label="Close">
           <X className="h-5 w-5" />
         </button>
 
-        <h2 className="text-xl font-semibold mb-2">
+        <h2 className="text-xl font-semibold mb-3">
           {isEditing ? "Edit Trackable" : "Add New Trackable"}
         </h2>
 
-        <div className="min-h-[22px] mb-2 text-xs text-muted">
-          {phase === "catalog" && <span>Searching catalog…</span>}
-          {phase === "ai" && <span>No catalog match — querying AI…</span>}
-          {phase === "saving" && <span>Saving…</span>}
-          {phase === "seeding" && <span>Setting up maintenance and generating tasks…</span>}
-        </div>
+        {activity ? <Activity text={activity} /> : null}
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <Section title="Name">
@@ -472,7 +502,7 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
                 autoComplete="off"
                 value={form.userDefinedName}
                 onChange={(e) => handleNameChange(e.target.value)}
-                onBlur={() => setTimeout(closeSuggestions, 100)} // let click land
+                onBlur={() => setTimeout(closeSuggestions, 100)}
                 placeholder="e.g., Bosch SilencePlus Dishwasher, Samsung Crystal UHD U8000F TV"
                 className="w-full border border-token bg-card text-body rounded px-3 py-2"
                 required
@@ -490,7 +520,9 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
                       className="p-2 hover:bg-surface-alt cursor-pointer text-sm"
                     >
                       <span className="font-medium">{s.brand}</span> {s.model}
-                      {s.type ? <span className="text-muted"> • {s.type}</span> : null}
+                      {s.type ? (
+                        <span className="text-muted"> • {getTypeLabel(normalizeType(s.type))}</span>
+                      ) : null}
                     </li>
                   ))}
                 </ul>
@@ -500,7 +532,6 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
 
           <Section title="Location">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {/* Home select now lists ALL homes */}
               <select
                 value={form.homeId ?? ""}
                 onChange={(e) => {
@@ -512,9 +543,7 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
               >
                 <option value="">{homesLoading ? "Loading homes…" : "No home"}</option>
                 {homes.map((h) => (
-                  <option key={h.id} value={h.id}>
-                    {homeLabel(h)}
-                  </option>
+                  <option key={h.id} value={h.id}>{homeLabel(h)}</option>
                 ))}
               </select>
 
@@ -525,11 +554,7 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
                 disabled={!form.homeId || roomsLoading}
               >
                 <option value="">
-                  {!form.homeId
-                    ? "Select a home first"
-                    : roomsLoading
-                      ? "Loading rooms…"
-                      : "(No room)"}
+                  {!form.homeId ? "Select a home first" : roomsLoading ? "Loading rooms…" : "(No room)"}
                 </option>
                 {rooms.map((r) => (
                   <option key={r.id} value={r.id}>{r.name}</option>
@@ -633,7 +658,6 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
                   />
                 </Section>
 
-                {/* NEW: simple resource helpers (persisted inside notes for now) */}
                 <Section title="Product Page URL">
                   <input
                     name="productUrl"
@@ -662,6 +686,7 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
               type="button"
               onClick={onClose}
               className="px-4 py-2 border border-token rounded text-muted hover:bg-surface-alt"
+              disabled={submitting}
             >
               Cancel
             </button>

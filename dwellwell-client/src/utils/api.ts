@@ -1,11 +1,10 @@
 // dwellwell-client/src/utils/api.ts
-import axios, { AxiosError, AxiosRequestConfig } from 'axios';
-import { apiLogout } from '@/utils/logoutHelper';
+import axios, { AxiosError, AxiosRequestConfig } from "axios";
 
 // Use the Vite dev proxy when in dev; use env var in prod if provided.
 const baseURL = import.meta.env.DEV
-  ? '/api'
-  : (import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api');
+  ? "/api"
+  : (import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : "/api");
 
 export const api = axios.create({
   baseURL,
@@ -15,20 +14,16 @@ export const api = axios.create({
 // ----------------------------------------------------------------------------
 // Token helpers
 // ----------------------------------------------------------------------------
-const ACCESS_TOKEN_KEY = 'dwellwell-token';
-const USER_KEY = 'dwellwell-user';
+const ACCESS_TOKEN_KEY = "dwellwell-token";
 
 export function getToken() {
   try { return localStorage.getItem(ACCESS_TOKEN_KEY); } catch { return null; }
 }
 export function setToken(token: string) {
-  try { localStorage.setItem(ACCESS_TOKEN_KEY, token); } catch { }
+  try { localStorage.setItem(ACCESS_TOKEN_KEY, token); } catch {}
 }
 export function clearToken() {
-  try {
-    localStorage.removeItem(ACCESS_TOKEN_KEY);
-    // do NOT clear user here; AuthContext handles it on logout so UI updates correctly
-  } catch { }
+  try { localStorage.removeItem(ACCESS_TOKEN_KEY); } catch {}
 }
 
 // ----------------------------------------------------------------------------
@@ -37,24 +32,21 @@ export function clearToken() {
 if (import.meta.env.DEV) {
   api.interceptors.request.use((cfg) => {
     try {
-      console.debug('API →', (cfg.method || 'GET').toUpperCase(), cfg.url, cfg.data ?? '');
-    } catch { }
+      console.debug("API →", (cfg.method || "GET").toUpperCase(), cfg.url, cfg.data ?? "");
+    } catch {}
     return cfg;
   });
   api.interceptors.response.use(
     (r) => {
-      try { console.debug('API ←', r.status, r.config?.url); } catch { }
+      try { console.debug("API ←", r.status, r.config?.url); } catch {}
       return r;
     },
     (e) => {
-      // Ignore React StrictMode duplicate-effect cancellations
-      if ((e as any)?.code === 'ERR_CANCELED') {
-        return Promise.reject(e);
-      }
-      const status = e?.response?.status ?? 'NO_RESPONSE';
+      if ((e as any)?.code === "ERR_CANCELED") return Promise.reject(e);
+      const status = e?.response?.status ?? "NO_RESPONSE";
       const url = e?.config?.url;
       const body = e?.response?.data ?? e?.message;
-      try { console.warn('API ←', status, url, body); } catch { }
+      try { console.warn("API ←", status, url, body); } catch {}
       return Promise.reject(e);
     }
   );
@@ -73,20 +65,23 @@ api.interceptors.request.use((config) => {
 });
 
 // ----------------------------------------------------------------------------
-// Cross-tab refresh coordination
+// Cross-tab refresh coordination (guard for older browsers)
 // ----------------------------------------------------------------------------
-const bc = new BroadcastChannel('dwellwell-auth');
+const bc = (typeof BroadcastChannel !== "undefined")
+  ? new BroadcastChannel("dwellwell-auth")
+  : null;
 
-bc.onmessage = (ev) => {
-  if (ev?.data?.type === 'NEW_ACCESS_TOKEN') {
-    const t = ev.data.token as string | null;
+bc?.addEventListener?.("message", (ev: MessageEvent) => {
+  const data: any = ev?.data;
+  if (data?.type === "NEW_ACCESS_TOKEN") {
+    const t = data.token as string | null;
     if (t) setToken(t);
-  } else if (ev?.data?.type === 'LOGOUT') {
+  } else if (data?.type === "LOGOUT") {
     clearToken();
-    const params = new URLSearchParams({ reason: 'expired' });
+    const params = new URLSearchParams({ reason: "expired" });
     window.location.replace(`/login?${params.toString()}`);
   }
-};
+});
 
 let isRefreshing = false;
 let pendingQueue: Array<(token: string | null) => void> = [];
@@ -106,11 +101,11 @@ async function refreshAccess(): Promise<string | null> {
     const t = resp.data?.accessToken || null;
     if (t) {
       setToken(t);
-      bc.postMessage({ type: 'NEW_ACCESS_TOKEN', token: t });
+      bc?.postMessage?.({ type: "NEW_ACCESS_TOKEN", token: t });
     }
     return t;
   } catch {
-    bc.postMessage({ type: 'LOGOUT' });
+    bc?.postMessage?.({ type: "LOGOUT" });
     return null;
   }
 }
@@ -122,22 +117,18 @@ api.interceptors.response.use(
   (r) => r,
   async (error: AxiosError) => {
     const original = error.config as AxiosRequestConfig & { _retry?: boolean };
-
-    // Never try to auto-refresh if the request that failed is /auth/refresh
-    const url = (original?.url || '').toString();
-    if (url.includes('/auth/refresh')) {
-      return Promise.reject(error);
-    }
+    const url = (original?.url || "").toString();
+    if (url.includes("/auth/refresh")) return Promise.reject(error);
 
     const status = error.response?.status;
     const code = (error.response?.data as any)?.error;
     const isAuthErr = status === 401;
-    const eligible = isAuthErr && (code === 'TOKEN_EXPIRED' || code === 'UNAUTHORIZED');
+    const eligible = isAuthErr && (code === "TOKEN_EXPIRED" || code === "UNAUTHORIZED");
 
     if (!eligible || original?._retry) {
       if (status === 401) {
         clearToken();
-        const params = new URLSearchParams({ reason: 'expired' });
+        const params = new URLSearchParams({ reason: "expired" });
         window.location.replace(`/login?${params.toString()}`);
       }
       return Promise.reject(error);
@@ -163,7 +154,7 @@ api.interceptors.response.use(
 
     if (!newToken) {
       clearToken();
-      const params = new URLSearchParams({ reason: 'expired' });
+      const params = new URLSearchParams({ reason: "expired" });
       window.location.replace(`/login?${params.toString()}`);
       return Promise.reject(error);
     }
