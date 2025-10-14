@@ -11,6 +11,7 @@ const router = Router();
  */
 router.get('/', async (req, res) => {
   const q = (req.query.q as string) || '';
+  const detail = req.query.detail === '1';
   const take = Math.min(Number(req.query.take ?? 50), 200);
   const skip = Math.max(Number(req.query.skip ?? 0), 0);
 
@@ -18,19 +19,39 @@ router.get('/', async (req, res) => {
     ? { email: { contains: q, mode: 'insensitive' as const } }
     : {};
 
+  if (!detail) {
+    const [items, total] = await Promise.all([
+      prisma.user.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take, skip,
+        select: { id: true, email: true, role: true, createdAt: true },
+      }),
+      prisma.user.count({ where }),
+    ]);
+    return res.json({ items, total, take, skip });
+  }
+
   const [items, total] = await Promise.all([
     prisma.user.findMany({
       where,
       orderBy: { createdAt: 'desc' },
-      take,
-      skip,
-      select: { id: true, email: true, role: true, createdAt: true },
+      take, skip,
+      select: {
+        id: true, email: true, role: true, createdAt: true,
+        defaultHomeId: true,
+        defaultHome: { select: { id: true, address: true, city: true, state: true } },
+        profile: { select: { firstName: true, lastName: true } },
+        billingAccount: { select: { plan: true, status: true, trialEndsAt: true } },
+        _count: { select: { homes: true, userTasks: true } },
+      },
     }),
     prisma.user.count({ where }),
   ]);
 
   res.json({ items, total, take, skip });
 });
+
 
 /**
  * POST /api/admin/users

@@ -219,25 +219,8 @@ export default function Dashboard() {
 
         {/* Quick actions */}
         <div className="ml-auto flex items-center gap-2">
-          <Button size="sm" variant="outline" onClick={() => navigate("/app/rooms?new=1")}>
-            + Room
-          </Button>
           <Button size="sm" variant="outline" onClick={() => navigate("/app/trackables?new=1")}>
             + Trackable
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => navigate("/app/tasks/new")}>
-            + Custom Task
-          </Button>
-
-          {/* Skip currently-open task (drawer) */}
-          <Button
-            size="sm"
-            className="ml-2"
-            disabled={!selectedTaskId}
-            onClick={handleSkipSelected}
-            title={selectedTaskId ? "Skip selected task" : "Open a task to enable skip"}
-          >
-            Skip…
           </Button>
         </div>
       </div>

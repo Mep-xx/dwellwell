@@ -1,4 +1,4 @@
-// dwellwell-client/src/pages/admin/AdminTaskTemplates.tsx
+//dwellwell-client/src/pages/admin/AdminTaskTemplates.tsx
 import { useEffect, useMemo, useState } from "react";
 import { api } from "@/utils/api";
 import { TaskTemplate as SharedTaskTemplate } from "@shared/types/task";
@@ -108,7 +108,10 @@ export default function AdminTaskTemplates() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
-          <Button onClick={handleCreate}>+ New Template</Button>
+          {/* keep it on one line */}
+          <Button size="sm" className="whitespace-nowrap" onClick={handleCreate}>
+            + New Template
+          </Button>
         </div>
       </div>
 

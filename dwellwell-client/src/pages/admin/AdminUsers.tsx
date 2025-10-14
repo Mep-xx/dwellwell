@@ -15,14 +15,21 @@ type Profile = {
   diySkill?: "none" | "beginner" | "intermediate" | "pro" | null;
 };
 
+type Billing = { plan: string; status: string; trialEndsAt?: string | Date | null };
+
 type AdminUser = {
   id: string;
   email: string;
   role?: "user" | "admin" | string;
   createdAt?: string | Date | null;
+
   defaultHomeId?: string | null;
   defaultHome?: { id: string; address: string; city: string; state: string } | null;
+
   profile?: Profile | null;
+  billingAccount?: Billing | null;
+
+  _count?: { homes: number; userTasks: number };
 };
 
 type AdminUsersResponse = {
@@ -43,11 +50,11 @@ export default function AdminUsers() {
   async function fetchUsers() {
     try {
       setLoading(true);
-      const params = query.trim() ? { params: { q: query.trim() } } : undefined;
-      const res = await api.get<AdminUsersResponse | AdminUser[]>("/admin/users", params);
-      const data = res.data as any;
-      const items: AdminUser[] = Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : [];
-      const t: number = Array.isArray(data) ? items.length : Number(data?.total ?? items.length);
+      const params = { params: { ...(query.trim() ? { q: query.trim() } : {}), detail: 1 } };
+      const res = await api.get<AdminUsersResponse>("/admin/users", params);
+      const data = res.data;
+      const items: AdminUser[] = Array.isArray(data?.items) ? data.items : [];
+      const t: number = Number(data?.total ?? items.length);
       setUsers(items);
       setTotal(t);
     } catch (e: any) {
@@ -119,22 +126,24 @@ export default function AdminUsers() {
             <thead className="bg-muted/40">
               <tr>
                 <th className="text-left p-2">Email</th>
-                <th className="text-left p-2">Name</th>
+                <th className="text-left p-2">Name / Default Home</th>
                 <th className="text-left p-2">Role</th>
+                <th className="text-left p-2">Billing</th>
                 <th className="text-left p-2">Created</th>
+                <th className="text-right p-2">Counts</th>
                 <th className="text-right p-2">Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td className="p-3" colSpan={5}>
+                  <td className="p-3" colSpan={7}>
                     Loading…
                   </td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td className="p-6 text-center text-muted-foreground" colSpan={5}>
+                  <td className="p-6 text-center text-muted-foreground" colSpan={7}>
                     No users found.
                   </td>
                 </tr>
@@ -142,14 +151,32 @@ export default function AdminUsers() {
                 filtered.map((u) => {
                   const name =
                     [u.profile?.firstName ?? "", u.profile?.lastName ?? ""].join(" ").trim() || "—";
+                  const defaultHome = u.defaultHome
+                    ? `${u.defaultHome.address}, ${u.defaultHome.city}, ${u.defaultHome.state}`
+                    : "—";
+                  const billing =
+                    u.billingAccount
+                      ? `${u.billingAccount.plan} • ${u.billingAccount.status}${
+                          u.billingAccount.trialEndsAt
+                            ? ` (trial ends ${new Date(u.billingAccount.trialEndsAt).toLocaleDateString()})`
+                            : ""
+                        }`
+                      : "—";
+                  const counts = `${u._count?.homes ?? 0} homes • ${u._count?.userTasks ?? 0} tasks`;
+
                   return (
                     <tr key={u.id} className="border-t">
                       <td className="p-2">{u.email}</td>
-                      <td className="p-2">{name}</td>
+                      <td className="p-2">
+                        <div>{name}</div>
+                        <div className="text-xs text-muted-foreground">{defaultHome}</div>
+                      </td>
                       <td className="p-2 capitalize">{u.role ?? "user"}</td>
+                      <td className="p-2 text-xs">{billing}</td>
                       <td className="p-2 text-xs">
                         {u.createdAt ? new Date(u.createdAt).toLocaleString() : "—"}
                       </td>
+                      <td className="p-2 text-right text-xs text-muted-foreground">{counts}</td>
                       <td className="p-2">
                         <div className="flex justify-end gap-3">
                           <button

@@ -7,9 +7,11 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-/* =========================
-   Enums
-   ========================= */
+/**
+ * =========================
+ * Enums
+ * =========================
+ */
 
 enum Units {
   imperial
@@ -106,6 +108,8 @@ enum TemplateState {
 enum UserTaskSourceType {
   room
   trackable
+  home
+  manual
 }
 
 enum TaskStatus {
@@ -131,7 +135,9 @@ enum TrackableResourceType {
   video
 }
 
-/* ---------- Settings enums ---------- */
+/**
+ * ---------- Settings enums ----------
+ */
 enum ThemeMode {
   LIGHT
   DARK
@@ -165,12 +171,14 @@ enum NotificationFrequency {
   WEEKLY_DIGEST
 }
 
-/* ---------- Generic/detail provenance ---------- */
+/**
+ * ---------- Generic/detail provenance ----------
+ */
 enum DetailLevel {
-  generic     // quick-added, no brand/model
-  basic       // brand OR a few details
-  detailed    // brand + model (maybe serial missing)
-  verified    // full details incl. serial/warranty
+  generic // quick-added, no brand/model
+  basic // brand OR a few details
+  detailed // brand + model (maybe serial missing)
+  verified // full details incl. serial/warranty
 }
 
 enum TrackableSource {
@@ -181,9 +189,11 @@ enum TrackableSource {
   catalog_match
 }
 
-/* =========================
-   Identity & Accounts
-   ========================= */
+/**
+ * =========================
+ * Identity & Accounts
+ * =========================
+ */
 
 model User {
   id                String       @id @default(uuid())
@@ -199,15 +209,15 @@ model User {
   role     String  @default("user")
 
   // Primary relations
-  homes            Home[]              @relation("UserHome")
-  trackablesOwned  Trackable[]         @relation("UserOwnsTrackables")
-  userTasks        UserTask[]
-  loginActivities  LoginActivity[]
-  billingAccount   BillingAccount?
-  aiQueries        AIQueryHistory[]
-  dismissedTasks   DismissedUserTask[]
-  refreshSessions  RefreshSession[]
-  lifecycleEvents  LifecycleEvent[]
+  homes           Home[]              @relation("UserHome")
+  trackablesOwned Trackable[]         @relation("UserOwnsTrackables")
+  userTasks       UserTask[]
+  loginActivities LoginActivity[]
+  billingAccount  BillingAccount?
+  aiQueries       AIQueryHistory[]
+  dismissedTasks  DismissedUserTask[]
+  refreshSessions RefreshSession[]
+  lifecycleEvents LifecycleEvent[]
 
   // Default home
   defaultHomeId String? @map("defaultHomeId")
@@ -266,7 +276,6 @@ model CommunicationPreferences {
   updatedAt DateTime @updatedAt
 }
 
-
 model LoginActivity {
   id        String   @id @default(uuid())
   userId    String
@@ -294,9 +303,11 @@ model RefreshSession {
   @@index([userId, expiresAt])
 }
 
-/* =========================
-   Homes, Rooms, Details
-   ========================= */
+/**
+ * =========================
+ * Homes, Rooms, Details
+ * =========================
+ */
 
 model Home {
   id     String @id @default(cuid())
@@ -342,8 +353,8 @@ model Home {
   updatedAt DateTime @updatedAt
 
   // Composition
-  rooms    Room[]    @relation("HomeRooms")
-  vehicles Vehicle[] @relation("HomeVehicles")
+  rooms       Room[]       @relation("HomeRooms")
+  vehicles    Vehicle[]    @relation("HomeVehicles")
   lawnProfile LawnProfile?
 
   // Trackables (current pointers)
@@ -353,10 +364,12 @@ model Home {
   trackableAssignments TrackableAssignment[]
 
   // Users who default here
-  usersDefaultingHere User[]  @relation("UserDefaultHome")
+  usersDefaultingHere User[] @relation("UserDefaultHome")
 
   // Tasks scoped to home
-  UserTask UserTask[]
+  userTasks UserTask[]
+
+  notificationPreferences NotificationPreference[] @relation("HomeNotificationPreferences")
 }
 
 model Room {
@@ -399,14 +412,14 @@ model RoomDetail {
   hasExteriorDoor Boolean?    @default(false)
 
   // HVAC & lighting
-  heatBaseboardHydronic Boolean?     @default(false)
-  heatBaseboardElectric Boolean?     @default(false)
-  heatRadiator          Boolean?     @default(false)
-  hvacSupplyVents       Int?         @default(0)
-  hvacReturnVents       Int?         @default(0)
-  hasCeilingFan         Boolean?     @default(false)
+  heatBaseboardHydronic Boolean?        @default(false)
+  heatBaseboardElectric Boolean?        @default(false)
+  heatRadiator          Boolean?        @default(false)
+  hvacSupplyVents       Int?            @default(0)
+  hvacReturnVents       Int?            @default(0)
+  hasCeilingFan         Boolean?        @default(false)
   ceilingFixture        CeilingFixture?
-  recessedLightCount    Int?         @default(0)
+  recessedLightCount    Int?            @default(0)
 
   // Electrical
   approxOutletCount Int?     @default(0)
@@ -468,9 +481,11 @@ model Vehicle {
   @@map("Vehicle")
 }
 
-/* =========================
-   Catalog & Trackables
-   ========================= */
+/**
+ * =========================
+ * Catalog & Trackables
+ * =========================
+ */
 
 model ApplianceCatalog {
   id        String   @id @default(uuid())
@@ -523,19 +538,21 @@ model Trackable {
 
   // Supersession chain
   supersedesId String?
-  supersedes   Trackable?  @relation("TrackableSupersession", fields: [supersedesId], references: [id])
+  supersedes   Trackable?  @relation("TrackableSupersession", fields: [supersedesId], references: [id], onDelete: SetNull)
   supersededBy Trackable[] @relation("TrackableSupersession")
 
   // History & resources
-  assignments        TrackableAssignment[]
-  TrackableResource  TrackableResource[]
+  assignments TrackableAssignment[]
+  resources   TrackableResource[]
+
+  notificationPreferences NotificationPreference[] @relation("TrackableNotificationPreferences")
 
   // Tasks
   tasks UserTask[] @relation("TrackableTasks")
 
   // Provenance
-  isGeneric   Boolean        @default(true)
-  detailLevel DetailLevel    @default(generic)
+  isGeneric   Boolean         @default(true)
+  detailLevel DetailLevel     @default(generic)
   source      TrackableSource @default(user_manual_entry)
 
   createdAt DateTime @default(now())
@@ -583,9 +600,11 @@ model TrackableResource {
   @@index([trackableId])
 }
 
-/* =========================
-   Tasks & Templates
-   ========================= */
+/**
+ * =========================
+ * Tasks & Templates
+ * =========================
+ */
 
 model TaskTemplate {
   id                 String          @id @default(uuid())
@@ -616,9 +635,9 @@ model TaskTemplate {
 
   createdAt DateTime @default(now())
 
-  userTasks                    UserTask[]
-  ApplianceTaskTemplate        ApplianceTaskTemplate[]
-  TrackableKindTaskTemplate    TrackableKindTaskTemplate[]
+  userTasks                 UserTask[]
+  ApplianceTaskTemplate     ApplianceTaskTemplate[]
+  TrackableKindTaskTemplate TrackableKindTaskTemplate[]
 }
 
 model ApplianceTaskTemplate {
@@ -635,7 +654,7 @@ model ApplianceTaskTemplate {
 
 model TrackableKindTaskTemplate {
   id             String       @id @default(uuid())
-  kind           String       // e.g., "dishwasher", "water-heater"
+  kind           String // e.g., "dishwasher", "water-heater"
   category       String?
   taskTemplateId String
   taskTemplate   TaskTemplate @relation(fields: [taskTemplateId], references: [id], onDelete: Cascade)
@@ -683,12 +702,12 @@ model UserTask {
   recurrenceInterval String   @default("")
   taskType           TaskType @default(GENERAL)
 
-  dedupeKey String @unique
+  dedupeKey String?
 
   steps           Json?
   equipmentNeeded Json?
   resources       Json?
-  stepProgress    Json? // { [stepId]: { checked: boolean, note?: string } }
+  stepProgress    Json?
 
   imageUrl String?
   icon     String?
@@ -697,14 +716,15 @@ model UserTask {
 
   // relations
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  home         Home?         @relation(fields: [homeId], references: [id], onDelete: SetNull)
-  room         Room?         @relation("RoomTasks", fields: [roomId], references: [id], onDelete: SetNull)
-  trackable    Trackable?    @relation("TrackableTasks", fields: [trackableId], references: [id], onDelete: SetNull)
+  home         Home?         @relation(fields: [homeId], references: [id], onDelete: Cascade)
+  room         Room?         @relation("RoomTasks", fields: [roomId], references: [id], onDelete: Cascade)
+  trackable    Trackable?    @relation("TrackableTasks", fields: [trackableId], references: [id], onDelete: Cascade)
   taskTemplate TaskTemplate? @relation(fields: [taskTemplateId], references: [id])
-  dismissals   DismissedUserTask[]
 
-  snapshots TaskSnapshotHistory[]
+  dismissals DismissedUserTask[]
+  snapshots  TaskSnapshotHistory[]
 
+  @@unique([userId, dedupeKey])
   @@index([userId, status, dueDate], name: "idx_usertask_user_status_due")
   @@index([roomId], name: "idx_usertask_room")
   @@index([trackableId], name: "idx_usertask_trackable")
@@ -742,9 +762,11 @@ model DismissedUserTask {
   @@unique([userId, userTaskId])
 }
 
-/* =========================
-   Billing / Misc
-   ========================= */
+/**
+ * =========================
+ * Billing / Misc
+ * =========================
+ */
 
 model BillingAccount {
   id               String    @id @default(uuid())
@@ -777,9 +799,11 @@ model WhatsNew {
   published   Boolean  @default(true)
 }
 
-/* =========================
-   Lifecycle & Rules
-   ========================= */
+/**
+ * =========================
+ * Lifecycle & Rules
+ * =========================
+ */
 
 model LifecycleEvent {
   id        String   @id @default(cuid())
@@ -795,7 +819,9 @@ model LifecycleEvent {
   @@index([userId, entity, action, createdAt])
 }
 
-/* ----- Task Generation Issues (Admin) ----- */
+/**
+ * ----- Task Generation Issues (Admin) -----
+ */
 
 enum TaskGenIssueStatus {
   open
@@ -831,7 +857,9 @@ model TaskGenerationIssue {
   @@index([code, status])
 }
 
-/* ----- DB-backed TaskGen Rules ----- */
+/**
+ * ----- DB-backed TaskGen Rules -----
+ */
 
 enum RuleScope {
   home
@@ -915,9 +943,11 @@ model TaskGenRuleCondition {
   @@index([ruleId, idx])
 }
 
-/* =========================
-   Community & Gamification
-   ========================= */
+/**
+ * =========================
+ * Community & Gamification
+ * =========================
+ */
 
 model ForumCategory {
   id          String        @id @default(uuid())
@@ -931,28 +961,28 @@ model ForumCategory {
 }
 
 model ForumThread {
-  id             String        @id @default(uuid())
+  id             String             @id @default(uuid())
   categoryId     String
-  category       ForumCategory @relation(fields: [categoryId], references: [id])
+  category       ForumCategory      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   authorId       String
-  author         User          @relation(fields: [authorId], references: [id])
+  author         User               @relation(fields: [authorId], references: [id], onDelete: Cascade)
   title          String
-  type           ThreadType    @default(discussion)
+  type           ThreadType         @default(discussion)
   trackableId    String?
   taskTemplateId String?
-  status         ThreadStatus  @default(open)
-  pinned         Boolean       @default(false)
-  locked         Boolean       @default(false)
-  score          Int           @default(0)
+  status         ThreadStatus       @default(open)
+  pinned         Boolean            @default(false)
+  locked         Boolean            @default(false)
+  score          Int                @default(0)
   posts          ForumPost[]
   tags           ForumTagOnThread[]
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
 
   // fast counts
-  commentCount   Int      @default(0)
-  lastPostAt     DateTime?
-  ForumVote      ForumVote[]
+  commentCount Int         @default(0)
+  lastPostAt   DateTime?
+  ForumVote    ForumVote[]
 }
 
 enum ThreadType {
@@ -971,16 +1001,16 @@ enum ThreadStatus {
 }
 
 model ForumPost {
-  id        String       @id @default(uuid())
+  id        String          @id @default(uuid())
   threadId  String
-  thread    ForumThread  @relation(fields: [threadId], references: [id])
+  thread    ForumThread     @relation(fields: [threadId], references: [id], onDelete: Cascade)
   authorId  String
-  author    User         @relation(fields: [authorId], references: [id])
+  author    User            @relation(fields: [authorId], references: [id], onDelete: Cascade)
   body      String
-  score     Int          @default(0)
-  isAnswer  Boolean      @default(false)
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  score     Int             @default(0)
+  isAnswer  Boolean         @default(false)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
   edits     ForumPostEdit[]
   ForumVote ForumVote[]
 }
@@ -988,11 +1018,11 @@ model ForumPost {
 model ForumVote {
   id        String       @id @default(uuid())
   userId    String
-  user      User         @relation(fields: [userId], references: [id])
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   postId    String?
-  post      ForumPost?   @relation(fields: [postId], references: [id])
+  post      ForumPost?   @relation(fields: [postId], references: [id], onDelete: Cascade)
   threadId  String?
-  thread    ForumThread? @relation(fields: [threadId], references: [id])
+  thread    ForumThread? @relation(fields: [threadId], references: [id], onDelete: Cascade)
   value     Int
   createdAt DateTime     @default(now())
 
@@ -1014,8 +1044,8 @@ model ForumTag {
 model ForumTagOnThread {
   threadId String
   tagId    String
-  thread   ForumThread @relation(fields: [threadId], references: [id])
-  tag      ForumTag    @relation(fields: [tagId], references: [id])
+  thread   ForumThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  tag      ForumTag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
 
   @@id([threadId, tagId])
 }
@@ -1023,9 +1053,9 @@ model ForumTagOnThread {
 model ForumPostEdit {
   id        String    @id @default(uuid())
   postId    String
-  post      ForumPost @relation(fields: [postId], references: [id])
+  post      ForumPost @relation(fields: [postId], references: [id], onDelete: Cascade)
   editorId  String
-  editor    User      @relation(fields: [editorId], references: [id])
+  editor    User      @relation(fields: [editorId], references: [id], onDelete: Cascade)
   prevBody  String
   newBody   String
   createdAt DateTime  @default(now())
@@ -1034,7 +1064,7 @@ model ForumPostEdit {
 model ReputationSnapshot {
   id        String   @id @default(uuid())
   userId    String   @unique
-  user      User     @relation(fields: [userId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   totalXP   Int      @default(0)
   level     Int      @default(1)
   updatedAt DateTime @updatedAt
@@ -1052,9 +1082,11 @@ model GamificationEvent {
   @@unique([userId, kind, refType, refId])
 }
 
-/* =========================
-   Settings & Notifications
-   ========================= */
+/**
+ * =========================
+ * Settings & Notifications
+ * =========================
+ */
 
 enum TaskDetailView {
   drawer
@@ -1076,36 +1108,39 @@ model UserSettings {
   retainDeletedTrackableStats Boolean                @default(true)
 
   // Task defaults
-  defaultDaysBeforeDue  Int           @default(2)
-  autoAssignRoomTasks   Boolean       @default(true)
-  allowTaskDisable      Boolean       @default(true)
-  allowTaskDelete       Boolean       @default(true)
-  taskDetailView        TaskDetailView @default(drawer)
+  defaultDaysBeforeDue Int            @default(2)
+  autoAssignRoomTasks  Boolean        @default(true)
+  allowTaskDisable     Boolean        @default(true)
+  allowTaskDelete      Boolean        @default(true)
+  taskDetailView       TaskDetailView @default(drawer)
 
   // Integrations
   googleCalendarEnabled Boolean @default(false)
-  icalFeedToken         String?  @unique
+  icalFeedToken         String? @unique
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model NotificationPreference {
-  id          String                @id @default(cuid())
-  userId      String
-  user        User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  event       NotificationEvent
-  channel     NotificationChannel
-  enabled     Boolean               @default(true)
-  frequency   NotificationFrequency @default(IMMEDIATE)
+  event     NotificationEvent
+  channel   NotificationChannel
+  enabled   Boolean               @default(true)
+  frequency NotificationFrequency @default(IMMEDIATE)
 
   // Optional scoping
   homeId      String?
   trackableId String?
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  home      Home?      @relation("HomeNotificationPreferences", fields: [homeId], references: [id], onDelete: SetNull)
+  trackable Trackable? @relation("TrackableNotificationPreferences", fields: [trackableId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([userId, event, channel, homeId, trackableId])
   @@index([userId, event, channel])

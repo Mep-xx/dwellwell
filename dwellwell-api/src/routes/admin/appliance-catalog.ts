@@ -8,6 +8,35 @@ import { Prisma } from "@prisma/client";
 const router = Router();
 router.use(requireAuth, requireAdmin);
 
+router.get("/:id", async (req: Request, res: Response) => {
+  const id = String(req.params.id);
+  const c = await prisma.applianceCatalog.findUnique({
+    where: { id },
+    include: {
+      applianceTaskTemplates: { include: { taskTemplate: true } },
+      trackables: { select: { id: true } },
+    },
+  });
+  if (!c) return res.status(404).json({ error: "NOT_FOUND" });
+
+  return res.json({
+    id: c.id,
+    brand: c.brand,
+    model: c.model,
+    type: c.type,
+    category: c.category,
+    notes: c.notes,
+    imageUrl: c.imageUrl,
+    createdAt: c.createdAt,
+    linkedTemplates: c.applianceTaskTemplates.map(l => ({
+      id: l.taskTemplate.id,
+      title: l.taskTemplate.title,
+      recurrenceInterval: l.taskTemplate.recurrenceInterval,
+    })),
+    trackablesCount: c.trackables.length,
+  });
+});
+
 // GET list (simple filters)
 router.get("/", async (req: Request, res: Response) => {
   const q = String(req.query.q ?? "").trim().toLowerCase();
@@ -59,6 +88,25 @@ router.get("/", async (req: Request, res: Response) => {
       createdAt: c.createdAt,
     }))
   );
+});
+
+router.delete("/:id", async (req: Request, res: Response) => {
+  const id = String(req.params.id);
+
+  const count = await prisma.trackable.count({ where: { applianceCatalogId: id } });
+  if (count > 0) {
+    return res.status(409).json({
+      error: "IN_USE",
+      message: "Catalog item is referenced by existing trackables.",
+      trackablesCount: count,
+    });
+  }
+
+  // belt & suspenders: unlink join rows (CASCADE may already handle this)
+  await prisma.applianceTaskTemplate.deleteMany({ where: { applianceCatalogId: id } });
+
+  await prisma.applianceCatalog.delete({ where: { id } });
+  return res.json({ ok: true });
 });
 
 // PUT update basic fields

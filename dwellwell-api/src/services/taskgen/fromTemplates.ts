@@ -2,7 +2,7 @@
 import crypto from "crypto";
 import { prisma } from "../../db/prisma";
 import { initialDueDate } from "./dates";
-import type { TaskTemplate } from "@prisma/client";
+import type { Prisma, TaskTemplate, TaskType, TaskCriticality, UserTaskSourceType } from "@prisma/client";
 import { TemplateState } from "@prisma/client";
 import { ROOM_TYPES } from "@shared/constants/roomTypes";
 
@@ -36,74 +36,71 @@ async function upsertFromTemplate(opts: {
     "u",
     userId,
     "h",
-    homeId, // include home
+    homeId,
     "r",
     roomId ?? "",
     "t",
-    "",
+    "", // reserved for future scoping token
   ]);
 
   const due = initialDueDate(null, taskTemplate.recurrenceInterval);
 
-  await prisma.userTask.upsert({
-    where: { dedupeKey },
-    update: {
-      homeId,
-      roomId: roomId ?? undefined,
-      trackableId: undefined,
+  // Build shared fields from template; typed to align with Prisma JSON expectations
+  const templateFields = {
+    title: taskTemplate.title,
+    description: taskTemplate.description ?? "",
+    dueDate: due,
+    status: "PENDING" as const,
+    itemName: "",
+    category: taskTemplate.category ?? "general",
+    estimatedTimeMinutes: taskTemplate.estimatedTimeMinutes ?? 0,
+    estimatedCost: taskTemplate.estimatedCost ?? 0,
+    criticality: taskTemplate.criticality as TaskCriticality,
+    deferLimitDays: taskTemplate.deferLimitDays ?? 0,
+    canBeOutsourced: taskTemplate.canBeOutsourced ?? false,
+    canDefer: taskTemplate.canDefer ?? true,
+    recurrenceInterval: taskTemplate.recurrenceInterval,
+    taskType: taskTemplate.taskType as TaskType,
+    steps: (taskTemplate.steps?.length ?? 0)
+      ? (taskTemplate.steps as unknown as Prisma.InputJsonValue)
+      : undefined,
+    equipmentNeeded: (taskTemplate.equipmentNeeded?.length ?? 0)
+      ? (taskTemplate.equipmentNeeded as unknown as Prisma.InputJsonValue)
+      : undefined,
+    resources: (taskTemplate.resources ?? undefined) as unknown as Prisma.InputJsonValue | undefined,
+    icon: taskTemplate.icon ?? undefined,
+    imageUrl: taskTemplate.imageUrl ?? undefined,
+    sourceTemplateVersion: taskTemplate.version,
+    // location intentionally omitted unless you want to overwrite it
+  } satisfies Partial<Prisma.UserTaskUncheckedCreateInput>;
 
-      title: taskTemplate.title,
-      description: taskTemplate.description ?? "",
-      dueDate: due,
-      status: "PENDING",
-      itemName: "",
-      category: taskTemplate.category ?? "general",
-      estimatedTimeMinutes: taskTemplate.estimatedTimeMinutes ?? 0,
-      estimatedCost: taskTemplate.estimatedCost ?? 0,
-      criticality: taskTemplate.criticality,
-      deferLimitDays: taskTemplate.deferLimitDays ?? 0,
-      canBeOutsourced: taskTemplate.canBeOutsourced ?? false,
-      canDefer: taskTemplate.canDefer ?? true,
-      recurrenceInterval: taskTemplate.recurrenceInterval,
-      taskType: taskTemplate.taskType,
-      steps: taskTemplate.steps ? (taskTemplate.steps as any) : undefined,
-      equipmentNeeded: taskTemplate.equipmentNeeded ? (taskTemplate.equipmentNeeded as any) : undefined,
-      resources: taskTemplate.resources ? (taskTemplate.resources as any) : undefined,
-      icon: taskTemplate.icon ?? undefined,
-      imageUrl: taskTemplate.imageUrl ?? undefined,
-      sourceTemplateVersion: taskTemplate.version,
-      location: undefined,
+  const sourceType: UserTaskSourceType = (isRoomScoped(taskTemplate) ? "room" : "home");
+
+  const updateData: Prisma.UserTaskUncheckedUpdateInput = {
+    homeId,
+    roomId,            // null for home-scoped; string for room-scoped
+    trackableId: null, // template tasks aren't tied to a trackable here
+    ...templateFields,
+  };
+
+  const createData: Prisma.UserTaskUncheckedCreateInput = {
+    userId,
+    homeId,
+    roomId,
+    trackableId: null,
+    taskTemplateId: taskTemplate.id,
+    sourceType,
+    dedupeKey, // must match where.userId_dedupeKey
+    ...templateFields,
+  };
+
+  await prisma.userTask.upsert({
+    // 🔑 compound unique selector from @@unique([userId, dedupeKey])
+    where: {
+      userId_dedupeKey: { userId, dedupeKey },
     },
-    create: {
-      userId,
-      homeId,
-      roomId,
-      trackableId: null,
-      taskTemplateId: taskTemplate.id,
-      sourceType: "room", // label only; fine for home-scoped too
-      title: taskTemplate.title,
-      description: taskTemplate.description ?? "",
-      dueDate: due,
-      status: "PENDING",
-      itemName: "",
-      category: taskTemplate.category ?? "general",
-      estimatedTimeMinutes: taskTemplate.estimatedTimeMinutes ?? 0,
-      estimatedCost: taskTemplate.estimatedCost ?? 0,
-      criticality: taskTemplate.criticality,
-      deferLimitDays: taskTemplate.deferLimitDays ?? 0,
-      canBeOutsourced: taskTemplate.canBeOutsourced ?? false,
-      canDefer: taskTemplate.canDefer ?? true,
-      recurrenceInterval: taskTemplate.recurrenceInterval,
-      taskType: taskTemplate.taskType,
-      dedupeKey,
-      steps: taskTemplate.steps ? (taskTemplate.steps as any) : undefined,
-      equipmentNeeded: taskTemplate.equipmentNeeded ? (taskTemplate.equipmentNeeded as any) : undefined,
-      resources: taskTemplate.resources ? (taskTemplate.resources as any) : undefined,
-      icon: taskTemplate.icon ?? undefined,
-      imageUrl: taskTemplate.imageUrl ?? undefined,
-      sourceTemplateVersion: taskTemplate.version,
-      location: undefined,
-    },
+    update: updateData,
+    create: createData,
   });
 }
 

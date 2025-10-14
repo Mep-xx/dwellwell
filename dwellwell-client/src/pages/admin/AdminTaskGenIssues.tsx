@@ -15,6 +15,16 @@ type Issue = {
   status: "open" | "in_progress" | "resolved";
   message?: string | null;
   createdAt: string;
+
+  // enriched
+  user?: { id: string; email: string } | null;
+  home?: { id: string; address: string | null; city: string | null; state: string | null } | null;
+  room?: { id: string; name: string | null; type: string | null } | null;
+  trackable?: {
+    id: string;
+    userDefinedName: string | null;
+    applianceCatalog?: { brand: string | null; model: string | null; type: string | null } | null;
+  } | null;
 };
 
 function StatusBadge({ status }: { status: Issue["status"] }) {
@@ -42,6 +52,15 @@ export default function AdminTaskGenIssues() {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function retry(id: string) {
+    await api.post(`/admin/task-generation-issues/${id}/retry`);
+    load();
+  }
+  async function resolve(id: string) {
+    await api.post(`/admin/task-generation-issues/${id}/resolve`);
+    load();
+  }
 
   return (
     <div className="p-4 space-y-4">
@@ -76,33 +95,58 @@ export default function AdminTaskGenIssues() {
                 <th className="p-2 text-left">Created</th>
                 <th className="p-2 text-left">Code</th>
                 <th className="p-2 text-left">Status</th>
-                <th className="p-2 text-left">User</th>
-                <th className="p-2 text-left">Home / Room / Trackable</th>
-                <th className="p-2 text-left">Message</th>
+                <th className="p-2 text-left">User / Context</th>
+                <th className="p-2 text-left">Message & Actions</th>
               </tr>
             </thead>
             <tbody>
               {issues.length === 0 ? (
                 <tr>
-                  <td className="p-4 text-muted-foreground" colSpan={6}>
+                  <td className="p-4 text-muted-foreground" colSpan={5}>
                     No issues 🎉
                   </td>
                 </tr>
               ) : (
-                issues.map((i) => (
-                  <tr key={i.id} className="border-t align-top">
-                    <td className="p-2">{new Date(i.createdAt).toLocaleString()}</td>
-                    <td className="p-2">{i.code}</td>
-                    <td className="p-2"><StatusBadge status={i.status} /></td>
-                    <td className="p-2">{i.userId}</td>
-                    <td className="p-2">
-                      <div>Home: {i.homeId || "—"}</div>
-                      <div>Room: {i.roomId || "—"}</div>
-                      <div>Trackable: {i.trackableId || "—"}</div>
-                    </td>
-                    <td className="p-2 whitespace-pre-wrap">{i.message || "—"}</td>
-                  </tr>
-                ))
+                issues.map((i) => {
+                  const homeStr = i.home
+                    ? [i.home.address, i.home.city, i.home.state].filter(Boolean).join(", ")
+                    : "—";
+                  const trackableStr = i.trackable
+                    ? i.trackable.userDefinedName ||
+                      [i.trackable.applianceCatalog?.brand, i.trackable.applianceCatalog?.model]
+                        .filter(Boolean).join(" ") ||
+                      i.trackable.id
+                    : "—";
+
+                  return (
+                    <tr key={i.id} className="border-t align-top">
+                      <td className="p-2">{new Date(i.createdAt).toLocaleString()}</td>
+                      <td className="p-2">{i.code}</td>
+                      <td className="p-2">
+                        <StatusBadge status={i.status} />
+                      </td>
+                      <td className="p-2">
+                        <div className="text-xs">{i.user?.email ?? i.userId}</div>
+                        <div className="text-xs text-muted-foreground">Home: {homeStr}</div>
+                        <div className="text-xs text-muted-foreground">
+                          Room: {i.room ? `${i.room.name ?? ""} (${i.room.type ?? ""})` : "—"}
+                        </div>
+                        <div className="text-xs text-muted-foreground">Trackable: {trackableStr}</div>
+                      </td>
+                      <td className="p-2 whitespace-pre-wrap">
+                        {i.message || "—"}
+                        <div className="mt-2 flex gap-2">
+                          <Button size="sm" variant="outline" onClick={() => retry(i.id)}>
+                            Retry
+                          </Button>
+                          <Button size="sm" onClick={() => resolve(i.id)}>
+                            Mark resolved
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
