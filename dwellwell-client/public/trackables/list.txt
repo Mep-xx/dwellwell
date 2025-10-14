@@ -25,13 +25,6 @@ exterior door
 garage opener
 water heater 
 workbench
-
-
-
-
-
-
-
 garage
 sprinkler controller
 bbq grill
@@ -40,6 +33,9 @@ fence
 gutter
 fire extinguisher
 first aid
+
+
+
 radon detector
 leak sensor
 water heater

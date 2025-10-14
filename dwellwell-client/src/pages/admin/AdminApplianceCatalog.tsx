@@ -16,6 +16,9 @@ export default function AdminApplianceCatalog() {
   const [editRow, setEditRow] = useState<Row | null>(null);
   const [enrichRow, setEnrichRow] = useState<Row | null>(null);
 
+  // NEW: create modal state
+  const [createOpen, setCreateOpen] = useState(false);
+
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   async function load() {
@@ -95,6 +98,10 @@ export default function AdminApplianceCatalog() {
             onKeyDown={(e) => e.key === "Enter" && load()}
           />
           <Button variant="secondary" onClick={load}>Search</Button>
+          {/* NEW: open create modal */}
+          <Button className="whitespace-nowrap" onClick={() => setCreateOpen(true)}>
+            + New
+          </Button>
         </div>
       </div>
 
@@ -190,10 +197,22 @@ export default function AdminApplianceCatalog() {
         </div>
       </Card>
 
+      {/* Create modal */}
+      <AdminApplianceModal
+        key={createOpen ? "create-open" : "create-closed"}
+        open={createOpen}
+        mode="create"
+        onClose={(refetch) => {
+          setCreateOpen(false);
+          if (refetch) load();
+        }}
+      />
+
       {/* Edit modal */}
       <AdminApplianceModal
         key={editRow?.id || "edit-none"}
         open={!!editRow}
+        mode="edit"
         row={editRow}
         onClose={(refetch) => {
           setEditRow(null);
