@@ -1,5 +1,6 @@
-//dwellwell-client/src/pages/admin/AdminTaskTemplates.tsx
+// dwellwell-client/src/pages/admin/AdminTaskTemplates.tsx
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams, Link } from "react-router-dom";
 import { api } from "@/utils/api";
 import { TaskTemplate as SharedTaskTemplate } from "@shared/types/task";
 import { Button } from "@/components/ui/button";
@@ -10,11 +11,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Checkbox } from "@/components/ui/checkbox";
 
 type ResourceLink = { label: string; url: string };
+
 type AdminTaskTemplate = SharedTaskTemplate & {
   id: string;
   createdAt?: string | Date | null;
   updatedAt?: string | Date | null;
   resources?: ResourceLink[];
+  /** Optional linking fields if your API includes them */
+  catalogId?: string | null;
+  catalogIds?: string[] | null;
 };
 
 function parseList(s: string): string[] {
@@ -38,6 +43,9 @@ function textToResources(s: string): ResourceLink[] {
 }
 
 export default function AdminTaskTemplates() {
+  const [searchParams] = useSearchParams();
+  const catalogIdFromQS = (searchParams.get("catalogId") || "").trim();
+
   const [templates, setTemplates] = useState<AdminTaskTemplate[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editing, setEditing] = useState<AdminTaskTemplate | null>(null);
@@ -47,7 +55,10 @@ export default function AdminTaskTemplates() {
   async function fetchTemplates() {
     try {
       setLoading(true);
-      const res = await api.get<AdminTaskTemplate[]>("/admin/task-templates");
+      // Pass catalogId through to the backend if it supports filtering.
+      const res = await api.get<AdminTaskTemplate[]>("/admin/task-templates", {
+        params: catalogIdFromQS ? { catalogId: catalogIdFromQS } : undefined,
+      });
       setTemplates(res.data);
     } catch (e: any) {
       alert(`Failed to load templates: ${e?.response?.data?.message ?? e.message}`);
@@ -64,7 +75,7 @@ export default function AdminTaskTemplates() {
     }
     fetchTemplates();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [catalogIdFromQS]);
 
   async function handleDelete(id: string) {
     if (!confirm("Delete this task template?")) return;
@@ -86,21 +97,46 @@ export default function AdminTaskTemplates() {
     setIsModalOpen(true);
   }
 
+  // Optional client-side filter if backend doesn't support catalogId
+  const catalogFiltered = useMemo(() => {
+    if (!catalogIdFromQS) return templates;
+    const id = catalogIdFromQS;
+    return templates.filter((t) => {
+      if (t.catalogId && t.catalogId === id) return true;
+      if (Array.isArray(t.catalogIds) && t.catalogIds.includes(id)) return true;
+      return false;
+    });
+  }, [templates, catalogIdFromQS]);
+
   const filtered = useMemo(() => {
+    const base = catalogFiltered;
     const q = query.trim().toLowerCase();
-    if (!q) return templates;
-    return templates.filter(
+    if (!q) return base;
+    return base.filter(
       (t) =>
         (t.title ?? "").toLowerCase().includes(q) ||
         (t.category ?? "").toLowerCase().includes(q) ||
         (t.description ?? "").toLowerCase().includes(q)
     );
-  }, [templates, query]);
+  }, [catalogFiltered, query]);
+
+  const showingCatalogBanner = !!catalogIdFromQS;
 
   return (
     <div className="p-4 space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-2xl font-semibold">Task Templates</h2>
+        <div className="space-y-1">
+          <h2 className="text-2xl font-semibold">Task Templates</h2>
+          {showingCatalogBanner && (
+            <div className="text-xs rounded-md border border-token bg-muted/30 inline-flex items-center gap-2 px-2 py-1">
+              <span className="opacity-80">Filtered by catalogId:</span>
+              <code className="px-1 py-0.5 rounded bg-background border text-[11px]">{catalogIdFromQS}</code>
+              <Link to="/admin/AdminTaskTemplates" className="text-primary hover:underline ml-2">
+                Clear
+              </Link>
+            </div>
+          )}
+        </div>
         <div className="flex gap-2">
           <Input
             className="w-64"
@@ -108,7 +144,6 @@ export default function AdminTaskTemplates() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
-          {/* keep it on one line */}
           <Button size="sm" className="whitespace-nowrap" onClick={handleCreate}>
             + New Template
           </Button>
@@ -191,7 +226,11 @@ export default function AdminTaskTemplates() {
       </Card>
 
       {isModalOpen && (
-        <TemplateModal template={editing} onClose={() => setIsModalOpen(false)} onSaved={fetchTemplates} />
+        <TemplateModal
+          template={editing}
+          onClose={() => setIsModalOpen(false)}
+          onSaved={fetchTemplates}
+        />
       )}
     </div>
   );
@@ -205,14 +244,16 @@ function TemplateModal(props: {
   const { template, onClose, onSaved } = props;
 
   const [saving, setSaving] = useState(false);
-  const [resourcesText, setResourcesText] = useState(resourcesToText(template ? template.resources : []));
+  const [resourcesText, setResourcesText] = useState(
+    resourcesToText(template ? template.resources : [])
+  );
 
   const [form, setForm] = useState<AdminTaskTemplate>({
     id: template ? template.id : "",
     title: template ? template.title : "",
     description: template ? template.description : "",
-    recurrenceInterval: template ? template.recurrenceInterval : "monthly",
-    criticality: template ? template.criticality : "low",
+    recurrenceInterval: template ? (template.recurrenceInterval as any) : "monthly",
+    criticality: template ? (template.criticality as any) : "low",
     canDefer: template ? !!template.canDefer : true,
     deferLimitDays: template ? template.deferLimitDays ?? 7 : 7,
     estimatedTimeMinutes: template ? template.estimatedTimeMinutes ?? 10 : 10,
@@ -220,12 +261,14 @@ function TemplateModal(props: {
     canBeOutsourced: template ? !!template.canBeOutsourced : false,
     category: template ? template.category ?? "" : "",
     icon: template ? template.icon ?? "🧰" : "🧰",
-    taskType: template ? template.taskType ?? "GENERAL" : "GENERAL",
+    taskType: template ? (template.taskType as any) ?? "GENERAL" : "GENERAL",
     steps: template ? template.steps ?? [] : [],
     equipmentNeeded: template ? template.equipmentNeeded ?? [] : [],
     resources: template ? template.resources ?? [] : [],
     createdAt: template ? template.createdAt ?? null : null,
     updatedAt: template ? template.updatedAt ?? null : null,
+    catalogId: template?.catalogId ?? null,
+    catalogIds: template?.catalogIds ?? null,
   });
 
   function setField(k: keyof AdminTaskTemplate, v: any) {
@@ -280,7 +323,7 @@ function TemplateModal(props: {
           />
 
           <select
-            value={form.recurrenceInterval}
+            value={form.recurrenceInterval as any}
             onChange={(e) => setField("recurrenceInterval", e.target.value)}
             className="border p-2 rounded-md bg-background"
           >
@@ -292,7 +335,7 @@ function TemplateModal(props: {
           </select>
 
           <select
-            value={form.criticality}
+            value={form.criticality as any}
             onChange={(e) => setField("criticality", e.target.value)}
             className="border p-2 rounded-md bg-background"
           >
@@ -313,9 +356,7 @@ function TemplateModal(props: {
               type="number"
               min={0}
               value={form.estimatedTimeMinutes || 0}
-              onChange={(e) =>
-                setField("estimatedTimeMinutes", Number(e.target.value) || 0)
-              }
+              onChange={(e) => setField("estimatedTimeMinutes", Number(e.target.value) || 0)}
               placeholder="Time (mins)"
             />
             <Input
@@ -351,7 +392,7 @@ function TemplateModal(props: {
             onChange={(e) => setField("icon", e.target.value)}
           />
           <select
-            value={form.taskType || "GENERAL"}
+            value={(form.taskType as any) || "GENERAL"}
             onChange={(e) => setField("taskType", e.target.value)}
             className="border p-2 rounded-md bg-background"
           >

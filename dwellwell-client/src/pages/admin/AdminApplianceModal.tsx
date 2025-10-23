@@ -1,5 +1,6 @@
 // dwellwell-client/src/pages/admin/AdminApplianceModal.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { api } from "@/utils/api";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -80,8 +81,19 @@ type GenStep = { key: GenStepKey; label: string; status: GenStatus; detail?: str
 function LinearProgress({ value }: { value: number }) {
   const v = Math.max(0, Math.min(100, value));
   return (
-    <div className="h-1.5 w-full rounded bg-muted/40 overflow-hidden">
-      <div className="h-full bg-[rgb(var(--primary))] transition-all" style={{ width: `${v}%` }} />
+    <div
+      className="h-1.5 w-full rounded bg-muted/40 overflow-hidden"
+      role="progressbar"
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(v)}
+    >
+      <motion.div
+        className="h-full bg-[rgb(var(--primary))]"
+        initial={{ width: 0 }}
+        animate={{ width: `${v}%` }}
+        transition={{ type: "spring", stiffness: 120, damping: 22 }}
+      />
     </div>
   );
 }
@@ -103,7 +115,7 @@ function extractTemplates(raw: any): {
 } {
   if (!raw) return { created: [], updated: [], skipped: [], numericTotal: 0 };
 
-  const arr = (v: any) => (Array.isArray(v) ? v : v ? [v] : []);
+  const arr = (x: any) => (Array.isArray(x) ? x : x ? [x] : []);
 
   let created = arr(raw.created ?? raw.tasksCreated ?? raw.new ?? raw.added);
   let updated = arr(raw.updated ?? raw.tasksUpdated ?? raw.changed);
@@ -116,11 +128,11 @@ function extractTemplates(raw: any): {
     arr(raw.proposed) ||
     arr(raw.result?.templates) ||
     arr(raw.result?.items) ||
-    arr(raw.linkedTemplates); // <— support linkedTemplates array if present
+    arr(raw.linkedTemplates); // support { linkedTemplates: [...] }
 
   if (!created.length && altList.length) created = altList;
 
-  // single-object fallbacks
+  // single object fallbacks
   if (!created.length && (raw.template || raw.taskTemplate)) {
     created = arr(raw.template ?? raw.taskTemplate);
   }
@@ -132,9 +144,9 @@ function extractTemplates(raw: any): {
       recurrenceInterval: t?.recurrenceInterval ?? t?.frequency ?? null,
     }));
 
-  // numeric totals some backends return instead of arrays
+  // numeric only responses (e.g., { linked: 4 })
   const numericTotal =
-    Number(raw?.linked) || // <— support your backend’s {linked: 4}
+    Number(raw?.linked) ||
     Number(raw?.templatesSaved) ||
     Number(raw?.totalTemplates) ||
     Number(raw?.createdCount) ||
@@ -143,12 +155,7 @@ function extractTemplates(raw: any): {
     Number(raw?.result?.count) ||
     undefined;
 
-  return {
-    created: tidy(created),
-    updated: tidy(updated),
-    skipped: tidy(skipped),
-    numericTotal,
-  };
+  return { created: tidy(created), updated: tidy(updated), skipped: tidy(skipped), numericTotal };
 }
 
 function normalizePreview(raw: any): EnrichPreview {
@@ -165,23 +172,20 @@ function normalizePreview(raw: any): EnrichPreview {
     Number(raw?.result?.seededTasks) ||
     0;
 
-  const summaryTotal =
-    numericTotal ??
-    (created.length + updated.length + skipped.length);
+  const summaryTotal = numericTotal ?? created.length + updated.length + skipped.length;
 
   return {
     summary:
-      raw?.summary ??
-      `Created ${created.length}, updated ${updated.length}, skipped ${skipped.length}.`,
+      raw?.summary ?? `Created ${created.length}, updated ${updated.length}, skipped ${skipped.length}.`,
     created,
     updated,
     skipped,
     seededTasks: seeded,
-    raw: { ...raw, __summaryTotal: summaryTotal }, // stash total for later fallback
+    raw: { ...raw, __summaryTotal: summaryTotal },
   };
 }
 
-/** Poll a few times for tasks seeded by this catalog; best-effort count */
+/** Poll for tasks seeded by this catalog; best-effort count */
 async function pollForSeededCount(
   catalogId: string,
   templateIds: string[],
@@ -193,30 +197,37 @@ async function pollForSeededCount(
   const tryGet = async (path: string, params?: any) => {
     try {
       const r = await api.get(path, params ? { params } : undefined);
-      const items = Array.isArray(r.data?.items) ? r.data.items : Array.isArray(r.data) ? r.data : [];
+      const items = Array.isArray(r.data?.items)
+        ? r.data.items
+        : Array.isArray(r.data)
+        ? r.data
+        : [];
       return items.length || 0;
     } catch {
-      return 0; // swallow 404/other and keep polling other strategies
+      return 0;
     }
   };
 
-  // 1) By catalogId (this is most reliable in your app)
+  // 1) By catalogId
   for (let i = 0; i < attempts; i++) {
     const n = await tryGet(`/tasks`, { catalogId, includeArchived: 1, limit: 250 });
     if (n) return n;
     await wait(delayMs);
   }
 
-  // 2) By templateIds (if we have any)
+  // 2) By templateIds
   if (templateIds.length) {
     for (let i = 0; i < attempts; i++) {
-      const n = await tryGet(`/tasks`, { templateIds: templateIds.join(","), includeArchived: 1, limit: 250 });
+      const n = await tryGet(`/tasks`, {
+        templateIds: templateIds.join(","),
+        includeArchived: 1,
+        limit: 250,
+      });
       if (n) return n;
       await wait(delayMs);
     }
   }
 
-  // (Removed previous admin route that 404s)
   return 0;
 }
 
@@ -354,7 +365,9 @@ export default function AdminApplianceModal({ open, mode, row, onClose }: Props)
         setActivity(null);
       }
     };
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setShowSuggestions(false); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setShowSuggestions(false);
+    };
     document.addEventListener("mousedown", onDocMouseDown);
     document.addEventListener("keydown", onKey);
     return () => {
@@ -439,7 +452,9 @@ export default function AdminApplianceModal({ open, mode, row, onClose }: Props)
       type: normType || prev.type,
       category: (normCat as any) || prev.category,
       imageUrl: s.imageUrl || prev.imageUrl,
-      notes: s.notes ? [prev.notes?.trim() || "", s.notes.trim()].filter(Boolean).join("\n") : prev.notes,
+      notes: s.notes
+        ? [prev.notes?.trim() || "", s.notes.trim()].filter(Boolean).join("\n")
+        : prev.notes,
     }));
     setSuggestions([]);
     setShowSuggestions(false);
@@ -457,6 +472,10 @@ export default function AdminApplianceModal({ open, mode, row, onClose }: Props)
     return [base, ...addl].filter(Boolean).join("\n");
   }
 
+  const viewTemplatesUrl = genCatalogId
+    ? `/admin/AdminTaskTemplates?catalogId=${encodeURIComponent(genCatalogId)}`
+    : "#";
+
   /* ----------------------------- Enrichment orchestration ----------- */
 
   async function runGeneration(catalogId: string, displayName: string) {
@@ -465,7 +484,7 @@ export default function AdminApplianceModal({ open, mode, row, onClose }: Props)
     setGenError(null);
     setSeededCount(null);
     setTemplatesSaved(null);
-    setGenProgress(10);
+    setGenProgress(12);
     updateStep("ai", { status: "progress" });
 
     // Stage 1: dry-run/preview
@@ -475,6 +494,7 @@ export default function AdminApplianceModal({ open, mode, row, onClose }: Props)
       preview = normalizePreview(dry?.data);
       updateStep("ai", { status: "success" });
       setDebugDry(dry?.data);
+      setGenProgress(28);
     } catch (e: any) {
       updateStep("ai", { status: "error", detail: "Failed to query AI." });
       setGenError(e?.response?.data?.error ?? e.message ?? "Failed to query AI.");
@@ -485,27 +505,30 @@ export default function AdminApplianceModal({ open, mode, row, onClose }: Props)
     // Stage 2: found device (use preview counts if present)
     const dryTotal =
       (preview?.created?.length ?? 0) +
-      (preview?.updated?.length ?? 0) +
-      (preview?.skipped?.length ?? 0) ||
+        (preview?.updated?.length ?? 0) +
+        (preview?.skipped?.length ?? 0) ||
       Number(preview?.raw?.__summaryTotal ?? 0);
 
     updateStep("found", {
       status: "success",
-      detail: dryTotal > 0 ? `Found ${dryTotal} template${dryTotal === 1 ? "" : "s"}.` : "Analyzing templates…",
+      detail:
+        dryTotal > 0
+          ? `Found ${dryTotal} template${dryTotal === 1 ? "" : "s"}.`
+          : "Analyzing templates…",
     });
-    setGenProgress(30);
+    setGenProgress(40);
 
     // Stage 3: persist + seed
     updateStep("generate", { status: "progress" });
-    setGenProgress(55);
+    setGenProgress(58);
 
     let applied: EnrichPreview | null = null;
     try {
-      // <-- THIS is what was missing
       const real = await api.post(`/admin/catalog/${catalogId}/enrich`);
       applied = normalizePreview(real?.data);
       setDebugReal(real?.data);
       updateStep("generate", { status: "success" });
+      setGenProgress(74);
     } catch (e: any) {
       updateStep("generate", { status: "error", detail: "Failed to generate." });
       setGenError(e?.response?.data?.error ?? e.message ?? "Failed to generate.");
@@ -519,39 +542,33 @@ export default function AdminApplianceModal({ open, mode, row, onClose }: Props)
       (applied?.skipped?.length ?? 0);
 
     const numericTotal = Number(applied?.raw?.__summaryTotal ?? 0);
-    // Prefer array totals, else fall back to numeric (e.g., { linked: 4 })
     const totalTemplates = arraysTotal || numericTotal;
 
     // Optionally fetch linked template titles to display
-    let foundTitles: string[] = [];
     try {
       const cat = await api.get(`/admin/catalog/${catalogId}`);
       const linked = Array.isArray(cat?.data?.linkedTemplates)
         ? cat.data.linkedTemplates
         : [];
-      foundTitles = linked
-        .map((t: any) => t?.title)
-        .filter(Boolean)
-        .slice(0, 20); // avoid flooding UI
-    } catch { }
-    if (foundTitles.length) {
-      updateStep("found", {
-        status: "success",
-        detail: `Found ${totalTemplates} template${totalTemplates === 1 ? "" : "s"}: ${foundTitles.join(", ")}`,
-      });
-    } else if (!dryTotal) {
-      updateStep("found", {
-        status: "success",
-        detail: `Found ${totalTemplates} template${totalTemplates === 1 ? "" : "s"}.`,
-      });
-    }
-
-    // If preview had 0, correct the message here
-    if (!dryTotal) {
-      updateStep("found", {
-        status: "success",
-        detail: `Found ${totalTemplates} template${totalTemplates === 1 ? "" : "s"}.`,
-      });
+      const foundTitles = linked.map((t: any) => t?.title).filter(Boolean).slice(0, 20);
+      if (foundTitles.length) {
+        updateStep("found", {
+          status: "success",
+          detail: `Found ${totalTemplates} template${totalTemplates === 1 ? "" : "s"}: ${foundTitles.join(", ")}`,
+        });
+      } else if (!dryTotal) {
+        updateStep("found", {
+          status: "success",
+          detail: `Found ${totalTemplates} template${totalTemplates === 1 ? "" : "s"}.`,
+        });
+      }
+    } catch {
+      if (!dryTotal) {
+        updateStep("found", {
+          status: "success",
+          detail: `Found ${totalTemplates} template${totalTemplates === 1 ? "" : "s"}.`,
+        });
+      }
     }
 
     // Stage 4: saving (and count seeded tasks)
@@ -560,7 +577,7 @@ export default function AdminApplianceModal({ open, mode, row, onClose }: Props)
       status: "progress",
       detail: `Saving ${totalTemplates} template${totalTemplates === 1 ? "" : "s"}…`,
     });
-    setGenProgress(75);
+    setGenProgress(82);
 
     const templateIds = (applied?.created || [])
       .map((t: any) => t?.id)
@@ -577,7 +594,7 @@ export default function AdminApplianceModal({ open, mode, row, onClose }: Props)
       status: "success",
       detail: `Saved ${totalTemplates} template${totalTemplates === 1 ? "" : "s"} • Seeded ${seeded} user task${seeded === 1 ? "" : "s"}.`,
     });
-    setGenProgress(95);
+    setGenProgress(94);
 
     // Stage 5: done
     updateStep("done", {
@@ -636,7 +653,11 @@ export default function AdminApplianceModal({ open, mode, row, onClose }: Props)
         onClose(true);
       }
     } catch (e: any) {
-      const msg = e?.response?.data?.message || e?.response?.data?.error || e?.message || "Save failed";
+      const msg =
+        e?.response?.data?.message ||
+        e?.response?.data?.error ||
+        e?.message ||
+        "Save failed";
       alert(msg);
     } finally {
       setSaving(false);
@@ -674,7 +695,9 @@ export default function AdminApplianceModal({ open, mode, row, onClose }: Props)
           <p className="text-xs text-muted mb-4">
             Created: {new Date(row.createdAt).toLocaleString()} • Used by {row.trackablesCount} trackable(s)
           </p>
-        ) : !compact ? <div className="mb-2" /> : null}
+        ) : !compact ? (
+          <div className="mb-2" />
+        ) : null}
 
         {/* COMPACT: Task Generation only */}
         {compact && (
@@ -716,29 +739,44 @@ export default function AdminApplianceModal({ open, mode, row, onClose }: Props)
             )}
 
             {genProgress >= 100 && (
-              <div className="mt-2 text-sm">
-                <span className="font-medium">Done!</span>{" "}
-                Saved <span className="font-medium">{templatesSaved ?? 0}</span>{" "}
-                template{(templatesSaved ?? 0) === 1 ? "" : "s"}
-                {typeof seededCount === "number" ? (
-                  <>
-                    {" "}&middot; Seeded <span className="font-medium">{seededCount}</span>{" "}
-                    user task{seededCount === 1 ? "" : "s"}
-                  </>
-                ) : null}
-                {genName ? <> for “{genName}”</> : null}.
+              <>
+                <div className="mt-2 text-sm">
+                  <span className="font-medium">Done!</span>{" "}
+                  Saved <span className="font-medium">{templatesSaved ?? 0}</span>{" "}
+                  template{(templatesSaved ?? 0) === 1 ? "" : "s"}
+                  {typeof seededCount === "number" ? (
+                    <>
+                      {" "}&middot; Seeded <span className="font-medium">{seededCount}</span>{" "}
+                      user task{seededCount === 1 ? "" : "s"}
+                    </>
+                  ) : null}
+                  {genName ? <> for “{genName}”</> : null}.
+                </div>
+
+                <div className="mt-3 flex justify-end gap-2">
+                  <Link to={viewTemplatesUrl} className="inline-flex">
+                    <Button variant="outline">View templates</Button>
+                  </Link>
+                  <Button onClick={() => onClose(true)}>Done</Button>
+                </div>
+              </>
+            )}
+
+            {genProgress < 100 && !genError && (
+              <div className="mt-3 flex justify-end">
+                <Button variant="outline" disabled>
+                  Working…
+                </Button>
               </div>
             )}
 
-            <div className="mt-3 flex justify-end gap-2">
-              <Button
-                variant="outline"
-                onClick={() => onClose(true)}
-                disabled={genProgress < 100 && !genError}
-              >
-                Done
-              </Button>
-            </div>
+            {genError && (
+              <div className="mt-3 flex justify-end">
+                <Button variant="outline" onClick={() => onClose(true)}>
+                  Close
+                </Button>
+              </div>
+            )}
           </div>
         )}
 
@@ -931,7 +969,9 @@ export default function AdminApplianceModal({ open, mode, row, onClose }: Props)
             )}
 
             <div className="flex justify-end gap-2 mt-6">
-              <Button variant="outline" onClick={() => onClose(false)} disabled={saving}>Close</Button>
+              <Button variant="outline" onClick={() => onClose(false)} disabled={saving}>
+                Close
+              </Button>
               <Button onClick={save} disabled={saving || (isCreate && (!brand.trim() || !model.trim()))}>
                 {saving ? "Saving…" : isCreate ? "Create" : "Save"}
               </Button>
