@@ -26,7 +26,7 @@ export async function seedRoomTasksForRoom(roomId: string, userId: string) {
     const dedupeKey = makeSeedDedupe(userId, room.id, t.title);
 
     await prisma.userTask.upsert({
-      where: { dedupeKey },
+      where: { userId_dedupeKey: { userId, dedupeKey } },
       update: {
         title: t.title,
         description: t.description ?? "",

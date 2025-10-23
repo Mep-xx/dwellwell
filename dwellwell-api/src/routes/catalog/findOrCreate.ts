@@ -1,8 +1,6 @@
-// dwellwell-api/src/routes/catalog/findOrCreate.ts
 import { Router, Request, Response } from "express";
 import { prisma } from "../../db/prisma";
 import { asyncHandler } from "../../middleware/asyncHandler";
-import { Prisma } from "@prisma/client";
 import { enrichApplianceTasks } from "../../services/taskgen/enrichApplianceTasks";
 
 const router = Router();
@@ -18,7 +16,7 @@ const router = Router();
  *   imageUrl?: string
  * }
  *
- * Creates the catalog row if missing, awards gamification (once),
+ * Creates/updates the catalog row, awards gamification (once),
  * and kicks off enrichment to generate/link TaskTemplates.
  */
 router.post(
@@ -27,14 +25,7 @@ router.post(
     const userId = (req as any)?.user?.id as string | undefined;
     if (!userId) return res.status(401).json({ error: "UNAUTHORIZED" });
 
-    const {
-      brand,
-      model,
-      type,
-      category,
-      notes,
-      imageUrl,
-    } = (req.body ?? {}) as {
+    const { brand, model, type, category, notes, imageUrl } = (req.body ?? {}) as {
       brand?: string;
       model?: string;
       type?: string | null;
@@ -50,10 +41,14 @@ router.post(
     const clean = {
       brand: String(brand).trim(),
       model: String(model).trim(),
+      // default both to "appliance" if not provided
       type: type ? String(type).trim().toLowerCase() : "appliance",
       category: category ? String(category).trim().toLowerCase() : "appliance",
       notes: notes ? String(notes).trim() : null,
-      imageUrl: imageUrl && /^https?:\/\//i.test(String(imageUrl)) ? String(imageUrl) : null,
+      imageUrl:
+        imageUrl && /^https?:\/\//i.test(String(imageUrl))
+          ? String(imageUrl)
+          : null,
     };
 
     // Upsert by composite unique (brand, model)
@@ -75,47 +70,55 @@ router.post(
       },
     });
 
-    // Award gamification once per user+catalog
+    // Award gamification once per (userId, kind, refType, refId)
     try {
-      // respect user setting; if settings row missing, treat as enabled
       const settings = await prisma.userSettings.findUnique({ where: { userId } });
       const enabled = settings?.gamificationEnabled !== false;
 
       if (enabled) {
-        await prisma.gamificationEvent.create({
-          data: {
-            userId,
-            kind: "catalog_contribution",
-            refType: "appliance_catalog",
-            refId: catalog.id,
-            deltaXP: 25,
-          },
+        const kind = "catalog_find_or_create"; // change if you use enums
+        const refType = "applianceCatalog";
+        const refId = catalog.id;
+
+        await prisma.gamificationEvent.createMany({
+          data: [
+            {
+              userId,
+              kind,
+              refType,
+              refId,
+              deltaXP: 10, // ✅ required by your Prisma model
+            },
+          ],
+          skipDuplicates: true, // ignore if it already exists
         });
       }
     } catch {
-      // unique constraint will guard duplicates; errors are non-fatal
+      // non-fatal; uniqueness guard will ignore duplicates
     }
 
-    // Kick enrichment (idempotent; will log issues if OpenAI not configured)
+    // Kick enrichment (idempotent)
     let linked = 0;
     try {
       linked = await enrichApplianceTasks({ prisma, catalogId: catalog.id });
     } catch (e) {
-      await prisma.taskGenerationIssue.create({
-        data: {
-          userId,
-          homeId: null,
-          roomId: null,
-          trackableId: null,
-          code: "enrichment_lookup_failed",
-          status: "open",
-          message: `enrichApplianceTasks failed for catalogId=${catalog.id}`,
-          debugPayload: { error: String(e) },
-        },
-      }).catch(() => {});
+      await prisma.taskGenerationIssue
+        .create({
+          data: {
+            userId,
+            homeId: null,
+            roomId: null,
+            trackableId: null,
+            code: "enrichment_lookup_failed",
+            status: "open",
+            message: `enrichApplianceTasks failed for catalogId=${catalog.id}`,
+            debugPayload: { error: String(e) },
+          },
+        })
+        .catch(() => {});
     }
 
-    // Also return any existing linked templates (for UI hints)
+    // Return any existing linked templates (for UI hints)
     const links = await prisma.applianceTaskTemplate.findMany({
       where: { applianceCatalogId: catalog.id },
       include: { taskTemplate: true },

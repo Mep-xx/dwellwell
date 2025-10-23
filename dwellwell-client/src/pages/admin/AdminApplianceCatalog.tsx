@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import AdminApplianceModal, { AdminApplianceRow } from "./AdminApplianceModal";
-import AdminEnrichModal from "./AdminEnrichModal";
 
 type Row = AdminApplianceRow;
 
@@ -13,11 +12,9 @@ export default function AdminApplianceCatalog() {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [createOpen, setCreateOpen] = useState(false);
   const [editRow, setEditRow] = useState<Row | null>(null);
   const [enrichRow, setEnrichRow] = useState<Row | null>(null);
-
-  // NEW: create modal state
-  const [createOpen, setCreateOpen] = useState(false);
 
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -61,14 +58,12 @@ export default function AdminApplianceCatalog() {
     if (!confirm(`Delete "${row.brand} ${row.model}" from the catalog?`)) return;
 
     setDeletingId(row.id);
-    // optimistic: remove from UI first
     const prev = rows;
     setRows((r) => r.filter((x) => x.id !== row.id));
 
     try {
       await api.delete(`/admin/catalog/${row.id}`);
     } catch (e: any) {
-      // revert on failure
       setRows(prev);
       const status = e?.response?.status;
       if (status === 409) {
@@ -97,11 +92,8 @@ export default function AdminApplianceCatalog() {
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && load()}
           />
-          <Button variant="secondary" onClick={load}>Search</Button>
-          {/* NEW: open create modal */}
-          <Button className="whitespace-nowrap" onClick={() => setCreateOpen(true)}>
-            + New
-          </Button>
+          <Button size="sm" className="whitespace-nowrap" variant="secondary" onClick={load}>Search</Button>
+          <Button size="sm" className="whitespace-nowrap" onClick={() => setCreateOpen(true)}>+ New</Button>
         </div>
       </div>
 
@@ -199,7 +191,6 @@ export default function AdminApplianceCatalog() {
 
       {/* Create modal */}
       <AdminApplianceModal
-        key={createOpen ? "create-open" : "create-closed"}
         open={createOpen}
         mode="create"
         onClose={(refetch) => {
@@ -213,25 +204,12 @@ export default function AdminApplianceCatalog() {
         key={editRow?.id || "edit-none"}
         open={!!editRow}
         mode="edit"
-        row={editRow}
+        row={editRow ?? undefined}
         onClose={(refetch) => {
           setEditRow(null);
           if (refetch) load();
         }}
       />
-
-      {/* Enrich modal */}
-      {enrichRow && (
-        <AdminEnrichModal
-          key={enrichRow.id}
-          open={!!enrichRow}
-          catalogId={enrichRow.id}
-          brand={enrichRow.brand}
-          model={enrichRow.model}
-          onClose={() => setEnrichRow(null)}
-          onApplied={load}
-        />
-      )}
     </div>
   );
 }

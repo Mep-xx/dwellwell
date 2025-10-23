@@ -1,13 +1,14 @@
-// dwellwell-client/src/components/features/TrackableModal.tsx
+// dwellwell-client/src/components/TrackableModal.tsx (or your current path)
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/utils/api";
 import { sanitize } from "@/utils/sanitize";
 import type { TrackableCategory } from "@shared/types/trackable";
 import type { Room } from "@shared/types/room";
 import Combobox from "@/components/ui/Combobox";
-import { ChevronDown, ChevronUp, X } from "lucide-react";
-import { CATEGORY_OPTIONS, TYPE_BY_CATEGORY } from "@shared/constants/trackables";
-import { normalizeType, normalizeCategory, getTypeLabel, } from "@shared/constants/trackables";
+import { X, Loader2, CheckCircle2, CircleAlert, ListChecks } from "lucide-react";
+import { CATEGORY_OPTIONS, TYPE_BY_CATEGORY, normalizeType, normalizeCategory, getTypeLabel } from "@shared/constants/trackables";
+
+/* ---------- types ---------- */
 
 export type CreateTrackableDTO = {
   id?: string;
@@ -17,13 +18,9 @@ export type CreateTrackableDTO = {
   type?: string;
   category?: TrackableCategory | string;
   serialNumber?: string | null;
-  imageUrl?: string;
-  notes?: string | null;
   applianceCatalogId?: string;
   roomId?: string | null;
   homeId?: string | null;
-  productUrl?: string | null;
-  manualUrl?: string | null;
 };
 
 type Props = {
@@ -38,8 +35,6 @@ type ApplianceLookup = {
   model: string;
   type: string;
   category: string;
-  notes?: string;
-  imageUrl?: string;
   matchedCatalogId?: string | null;
 };
 
@@ -51,6 +46,8 @@ type HomeLite = {
   state: string;
 };
 
+type LogItem = { id: string; text: string; kind: "progress" | "success" | "info" | "error" };
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="space-y-2">
@@ -60,22 +57,16 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-/** tiny helper to show transient “activity” */
-function Activity({ text }: { text: string }) {
-  return (
-    <div className="mb-4 rounded-lg border border-token bg-surface-alt px-4 py-3 text-sm">
-      <span className="inline-flex items-center gap-2">
-        <span className="h-2 w-2 rounded-full bg-[rgb(var(--primary))] animate-pulse" />
-        {text}
-      </span>
-    </div>
-  );
+function InlineSpinner({ className = "h-4 w-4" }) {
+  return <Loader2 className={`${className} animate-spin`} />;
 }
+
+/* ---------- component ---------- */
 
 export default function TrackableModal({ isOpen, onClose, onSave, initialData }: Props) {
   const isEditing = Boolean(initialData?.id);
 
-  // form
+  // form (pared down)
   const [form, setForm] = useState<CreateTrackableDTO>({
     userDefinedName: "",
     brand: "",
@@ -83,10 +74,6 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
     type: "",
     category: "general",
     serialNumber: "",
-    imageUrl: "",
-    notes: "",
-    productUrl: "",
-    manualUrl: "",
   });
 
   // lists
@@ -103,10 +90,15 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
   const [activity, setActivity] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // generation progress
+  const [genOpen, setGenOpen] = useState(false);
+  const [genApplying, setGenApplying] = useState(false);
+  const [genLog, setGenLog] = useState<LogItem[]>([]);
+  const [genError, setGenError] = useState<string | null>(null);
+  const logEndRef = useRef<HTMLDivElement | null>(null);
+
   // celebration
   const [celebrate, setCelebrate] = useState<{ name: string; tasks?: number } | null>(null);
-
-  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   const typeOptions = useMemo(
     () => TYPE_BY_CATEGORY[String(form.category || "general")] ?? [],
@@ -127,9 +119,9 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
     if (!isOpen) return;
     setCelebrate(null);
     setActivity(null);
-    setAdvancedOpen(false);
     setSuggestions([]);
     setShowSuggestions(false);
+    resetGen();
 
     if (initialData?.id) {
       setForm({
@@ -140,13 +132,9 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
         type: initialData.type ?? "",
         category: (initialData.category as TrackableCategory) ?? "general",
         serialNumber: initialData.serialNumber ?? "",
-        imageUrl: initialData.imageUrl ?? "",
-        notes: initialData.notes ?? "",
         applianceCatalogId: initialData.applianceCatalogId,
         roomId: initialData.roomId ?? undefined,
         homeId: initialData.homeId ?? undefined,
-        productUrl: initialData.productUrl ?? "",
-        manualUrl: initialData.manualUrl ?? "",
       });
     } else {
       setForm({
@@ -156,10 +144,6 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
         type: "",
         category: "general",
         serialNumber: "",
-        imageUrl: "",
-        notes: "",
-        productUrl: "",
-        manualUrl: "",
       });
     }
   }, [isOpen, initialData]);
@@ -214,10 +198,10 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
       }
     })();
 
-    return () => { cancelled = true; };
-  }, [isOpen, form.homeId]); // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, form.homeId]);
 
-  // name → lookup (catalog then AI, with live activity)
+  // name → lookup (catalog then AI)
   const catalogTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const aiTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastQueryRef = useRef<string>("");
@@ -266,7 +250,7 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
       return;
     }
 
-    // Catalog after short debounce
+    // Catalog after debounce
     catalogTimer.current = setTimeout(async () => {
       try {
         setActivity("Looking through catalog…");
@@ -283,15 +267,13 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
             try {
               if (lastQueryRef.current !== q) return;
               setActivity("Querying AI…");
-              // NOTE: if your API exposes a different route, change here:
-              // e.g. "/lookup/appliances/ai"
               const aiRes = await api.get("/ai/lookup-appliance", { params: { q } });
               if (lastQueryRef.current !== q) return;
               const ai = Array.isArray(aiRes.data) ? aiRes.data : [];
               setSuggestions(ai);
               setShowSuggestions(ai.length > 0);
             } catch {
-              // AI may not be available — just hide the activity and leave suggestions empty.
+              /* ignore */
             } finally {
               setActivity(null);
             }
@@ -315,12 +297,63 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
       model: s.model ?? "",
       type: normType || prev.type,
       category: (normCat as TrackableCategory) ?? prev.category,
-      notes: s.notes || prev.notes,
-      imageUrl: s.imageUrl || prev.imageUrl,
       applianceCatalogId: s.matchedCatalogId ?? prev.applianceCatalogId,
     }));
     closeSuggestions();
   };
+
+  /* ---------- generation progress helpers ---------- */
+
+  function resetGen() {
+    setGenOpen(false);
+    setGenApplying(false);
+    setGenError(null);
+    setGenLog([]);
+  }
+  function pushGen(text: string, kind: LogItem["kind"] = "info") {
+    setGenLog((prev) => [...prev, { id: Math.random().toString(36).slice(2), text, kind }]);
+  }
+
+  useEffect(() => {
+    logEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [genLog.length]);
+
+  /** Poll `/tasks` for a trackable to show live counts while seeders run. */
+  async function pollTasksForTrackable(trackableId: string, tries = 6, delayMs = 700): Promise<number> {
+    const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    let lastCount = 0;
+
+    for (let i = 0; i < tries; i++) {
+      try {
+        const tl = await api.get("/tasks", {
+          params: { trackableId, includeCompleted: 0, includeArchived: 0, limit: 500 },
+        });
+        const list = Array.isArray(tl.data)
+          ? tl.data
+          : Array.isArray(tl.data?.items)
+            ? tl.data.items
+            : Array.isArray(tl.data?.tasks)
+              ? tl.data.tasks
+              : [];
+        lastCount = list.length;
+
+        if (i === 0) {
+          pushGen("Seeding tasks…", "progress");
+        } else {
+          pushGen(`Still working… ${lastCount} task${lastCount === 1 ? "" : "s"} so far.`, "info");
+        }
+
+        // If we already have some tasks and they remain stable on next pass, stop early.
+        if (lastCount > 0 && i >= 2) break;
+      } catch {
+        // no-op; keep polling
+      }
+      await wait(delayMs);
+    }
+    return lastCount;
+  }
+
+  /* ---------- submit ---------- */
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -330,14 +363,9 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
     if (!name) return;
 
     setSubmitting(true);
+    resetGen();
 
-    // fold product/manual urls into notes until API has first-class fields
-    const addl: string[] = [];
-    if (form.productUrl?.trim()) addl.push(`Product: ${form.productUrl.trim()}`);
-    if (form.manualUrl?.trim()) addl.push(`Manual: ${form.manualUrl.trim()}`);
-    const mergedNotes = [form.notes?.trim() || "", ...addl].filter(Boolean).join("\n");
-
-    // ✅ normalize category/type just before save
+    // normalize
     const normCat = normalizeCategory(String(form.category || "general"));
     const normType = normalizeType(form.type || "");
 
@@ -347,16 +375,15 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
       brand: sanitize(form.brand ?? ""),
       model: sanitize(form.model ?? ""),
       serialNumber: sanitize(form.serialNumber ?? ""),
-      notes: sanitize(mergedNotes),
       type: normType || undefined,
       category: normCat,
-      imageUrl: form.imageUrl,
       roomId: form.roomId ?? undefined,
       homeId: form.homeId ?? undefined,
       applianceCatalogId: form.applianceCatalogId,
     };
 
     let trackableId: string | undefined;
+    let catalogId: string | undefined;
 
     try {
       if (isEditing && cleaned.id) {
@@ -367,15 +394,14 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
           kind: cleaned.type || null,
           category: cleaned.category || null,
           serialNumber: cleaned.serialNumber || null,
-          notes: cleaned.notes || null,
-          imageUrl: cleaned.imageUrl || null,
           roomId: cleaned.roomId ?? null,
           homeId: cleaned.homeId ?? null,
           applianceCatalogId: cleaned.applianceCatalogId ?? null,
         });
         trackableId = r.data?.id || cleaned.id;
+        catalogId = r.data?.applianceCatalogId || cleaned.applianceCatalogId || undefined;
       } else {
-        // Try to link/create catalog
+        // Try to link/create catalog (this endpoint already triggers enrichment on the server)
         let applianceCatalogId = cleaned.applianceCatalogId;
         if (!applianceCatalogId && (cleaned.brand?.trim() || "") && (cleaned.model?.trim() || "")) {
           try {
@@ -384,11 +410,10 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
               model: cleaned.model!.trim(),
               type: cleaned.type || undefined,
               category: cleaned.category || undefined,
-              imageUrl: cleaned.imageUrl || undefined,
-              notes: cleaned.notes || undefined,
             });
             applianceCatalogId = fo.data?.catalog?.id;
-          } catch {/* ignore catalog errors */ }
+            catalogId = applianceCatalogId;
+          } catch { /* ignore */ }
         }
 
         const res = await api.post("/trackables", {
@@ -401,55 +426,55 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
           type: cleaned.type || undefined,
           category: cleaned.category || undefined,
           serialNumber: cleaned.serialNumber || undefined,
-          notes: cleaned.notes || undefined,
-          imageUrl: cleaned.imageUrl || undefined,
         });
         trackableId = res.data?.id;
+        catalogId = res.data?.applianceCatalogId || applianceCatalogId || undefined;
       }
 
-      // “Generating tasks…”
-      setActivity("Generating tasks…");
+      // Immediately show generation panel and poll for tasks
+      setGenOpen(true);
+      setGenApplying(true);
+      setGenError(null);
+      pushGen("Preparing task generation…", "progress");
 
-      // We don’t know your exact seeding route; two safe ways:
-      //   1) If the backend auto-seeds, simply wait a breath then count tasks.
-      //   2) If you expose an explicit seed endpoint, call it here.
-      await new Promise((r) => setTimeout(r, 600));
+      // small pause to let seeders kick in
+      await new Promise((r) => setTimeout(r, 400));
 
-      // Count tasks for the celebration message (best-effort)
-      let count: number | undefined = undefined;
+      let count = 0;
       if (trackableId) {
-        try {
-          const tl = await api.get("/tasks", {
-            params: { trackableId, includeCompleted: 0, includeArchived: 0, limit: 500 },
-          });
-          const list = Array.isArray(tl.data)
-            ? tl.data
-            : Array.isArray(tl.data?.items)
-              ? tl.data.items
-              : Array.isArray(tl.data?.tasks)
-                ? tl.data.tasks
-                : [];
-          count = list.length;
-        } catch {/* ignore */ }
+        count = await pollTasksForTrackable(trackableId, 7, 650);
       }
 
+      pushGen(
+        `Ready! ${count} maintenance task${count === 1 ? "" : "s"} added.`,
+        "success"
+      );
+      setGenApplying(false);
+
+      // Final celebration
       setActivity(null);
       setCelebrate({ name, tasks: count });
+
+      // Let the parent refresh its list immediately
       onSave(cleaned);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Save failed", err);
+      setGenApplying(false);
+      setGenError(err?.response?.data?.error ?? err?.message ?? "Failed to generate tasks.");
+      pushGen("Task generation failed.", "error");
       setActivity(null);
     } finally {
       setSubmitting(false);
     }
   };
 
+  /* ---------- render ---------- */
+
   if (!isOpen) return null;
 
   const homeLabel = (h: HomeLite) =>
     h.nickname?.trim() || `${h.address}, ${h.city}, ${h.state}`;
 
-  // Celebration screen replaces the form after success
   if (celebrate) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
@@ -464,7 +489,7 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
           </p>
           {typeof celebrate.tasks === "number" && (
             <p className="mt-1 text-muted">
-              We added <span className="font-semibold text-body">{celebrate.tasks}</span> maintenance task{celebrate.tasks === 1 ? "" : "s"} to keep it in great shape.
+              We added <span className="font-semibold text-body">{celebrate.tasks}</span> maintenance task{celebrate.tasks === 1 ? "" : "s"}.
             </p>
           )}
           <div className="mt-4">
@@ -491,7 +516,45 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
           {isEditing ? "Edit Trackable" : "Add New Trackable"}
         </h2>
 
-        {activity ? <Activity text={activity} /> : null}
+        {activity ? (
+          <div className="mb-3 rounded-lg border border-token bg-surface-alt px-3 py-2 text-sm">
+            <span className="inline-flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-[rgb(var(--primary))] animate-pulse" />
+              {activity}
+            </span>
+          </div>
+        ) : null}
+
+        {/* Generation progress bar (appears right after Save/Create) */}
+        {genOpen && (
+          <div className="mb-4 rounded-lg border border-token p-3">
+            <div className="text-sm font-medium mb-2 flex items-center gap-2">
+              <ListChecks className="h-4 w-4" /> Task Generation
+            </div>
+            <div className="space-y-1 max-h-32 overflow-auto pr-1">
+              {genLog.map((l) => (
+                <div key={l.id} className="text-sm flex items-center gap-2">
+                  {l.kind === "progress" && <InlineSpinner />}
+                  {l.kind === "success" && <CheckCircle2 className="h-4 w-4 text-emerald-600" />}
+                  {l.kind === "error" && <CircleAlert className="h-4 w-4 text-red-600" />}
+                  {l.kind === "info" && <ListChecks className="h-4 w-4 text-muted-foreground" />}
+                  <span className={l.kind === "error" ? "text-red-700" : ""}>{l.text}</span>
+                </div>
+              ))}
+              <div ref={logEndRef} />
+              {genApplying && genLog.length === 0 && (
+                <div className="text-muted text-sm flex items-center gap-2">
+                  <InlineSpinner /> Preparing…
+                </div>
+              )}
+              {genError && (
+                <div className="text-red-700 bg-red-50 border border-red-200 rounded p-2 text-sm">
+                  {genError}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <Section title="Name">
@@ -501,9 +564,12 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
                 name="userDefinedName"
                 autoComplete="off"
                 value={form.userDefinedName}
-                onChange={(e) => handleNameChange(e.target.value)}
+                onChange={(e) => {
+                  onField("userDefinedName", e.target.value);
+                  handleNameChange(e.target.value);
+                }}
                 onBlur={() => setTimeout(closeSuggestions, 100)}
-                placeholder="e.g., Bosch SilencePlus Dishwasher, Samsung Crystal UHD U8000F TV"
+                placeholder="e.g., Bosch SHXM63W55N Dishwasher"
                 className="w-full border border-token bg-card text-body rounded px-3 py-2"
                 required
               />
@@ -600,7 +666,7 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
                 name="brand"
                 value={form.brand ?? ""}
                 onChange={(e) => onField("brand", e.target.value)}
-                placeholder="e.g., Samsung, Bosch, Apple"
+                placeholder="e.g., Samsung, Bosch"
                 className="w-full border border-token bg-card text-body rounded px-3 py-2"
               />
             </Section>
@@ -609,77 +675,21 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
                 name="model"
                 value={form.model ?? ""}
                 onChange={(e) => onField("model", e.target.value)}
-                placeholder="e.g., UN55U8000F, SHXM63W55N, X90K"
+                placeholder="e.g., RF28R7351, SHXM63W55N"
                 className="w-full border border-token bg-card text-body rounded px-3 py-2"
               />
             </Section>
           </div>
 
-          <div className="border border-token rounded-lg">
-            <button
-              type="button"
-              onClick={() => setAdvancedOpen((v) => !v)}
-              className="w-full flex items-center justify-between px-3 py-2 text-sm"
-            >
-              <span className="font-medium text-body">Advanced details</span>
-              {advancedOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </button>
-
-            {advancedOpen && (
-              <div className="px-3 pb-3 pt-1 space-y-4">
-                <Section title="Serial Number">
-                  <input
-                    name="serialNumber"
-                    value={form.serialNumber ?? ""}
-                    onChange={(e) => onField("serialNumber", e.target.value)}
-                    placeholder="Optional"
-                    className="w-full border border-token bg-card text-body rounded px-3 py-2"
-                  />
-                </Section>
-
-                <Section title="Image URL">
-                  <input
-                    name="imageUrl"
-                    value={form.imageUrl ?? ""}
-                    onChange={(e) => onField("imageUrl", e.target.value)}
-                    placeholder="https://…"
-                    className="w-full border border-token bg-card text-body rounded px-3 py-2"
-                  />
-                </Section>
-
-                <Section title="Notes">
-                  <textarea
-                    name="notes"
-                    value={form.notes ?? ""}
-                    onChange={(e) => onField("notes", e.target.value)}
-                    placeholder="Anything you want to remember…"
-                    rows={3}
-                    className="w-full border border-token bg-card text-body rounded px-3 py-2"
-                  />
-                </Section>
-
-                <Section title="Product Page URL">
-                  <input
-                    name="productUrl"
-                    value={form.productUrl ?? ""}
-                    onChange={(e) => onField("productUrl", e.target.value)}
-                    placeholder="https://manufacturer.com/your-product"
-                    className="w-full border border-token bg-card text-body rounded px-3 py-2"
-                  />
-                </Section>
-
-                <Section title="Manual (PDF) URL">
-                  <input
-                    name="manualUrl"
-                    value={form.manualUrl ?? ""}
-                    onChange={(e) => onField("manualUrl", e.target.value)}
-                    placeholder="https://manufacturer.com/manual.pdf"
-                    className="w-full border border-token bg-card text-body rounded px-3 py-2"
-                  />
-                </Section>
-              </div>
-            )}
-          </div>
+          <Section title="Serial Number (optional)">
+            <input
+              name="serialNumber"
+              value={form.serialNumber ?? ""}
+              onChange={(e) => onField("serialNumber", e.target.value)}
+              placeholder="Optional"
+              className="w-full border border-token bg-card text-body rounded px-3 py-2"
+            />
+          </Section>
 
           <div className="flex justify-end gap-2">
             <button
@@ -693,9 +703,10 @@ export default function TrackableModal({ isOpen, onClose, onSave, initialData }:
             <button
               type="submit"
               disabled={submitting}
-              className="px-4 py-2 bg-primary text-on-primary rounded hover:opacity-90 disabled:opacity-60"
+              className="px-4 py-2 bg-primary text-on-primary rounded hover:opacity-90 disabled:opacity-60 inline-flex items-center gap-2"
             >
-              {isEditing ? "Save Changes" : "Save Trackable"}
+              {submitting && <InlineSpinner className="h-4 w-4" />}
+              {isEditing ? "Save Changes" : "Create"}
             </button>
           </div>
         </form>

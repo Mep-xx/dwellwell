@@ -127,7 +127,7 @@ async function upsertUserTask(opts: {
   const due = initialDueDate(anchor, taskTemplate.recurrenceInterval);
 
   await prisma.userTask.upsert({
-    where: { dedupeKey },
+    where: { userId_dedupeKey: { userId, dedupeKey }, },
     update: {
       homeId,
       roomId: roomId ?? undefined,

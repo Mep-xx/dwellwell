@@ -112,7 +112,7 @@ export async function seedTasksForTrackable(opts: {
     const homeId = context.homeId ?? tctx?.homeId ?? null;
 
     await prisma.userTask.upsert({
-      where: { dedupeKey },
+      where: { userId_dedupeKey: { userId, dedupeKey } },
       update: {
         // identifiers / scope
         homeId,
