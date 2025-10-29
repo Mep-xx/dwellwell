@@ -16,6 +16,7 @@ dist-ssr/
 build/
 build-*/   # e.g. build-api, build-client
 *.tsbuildinfo
+src/**/*.js
 
 # ----------------------------
 # Environment files (never commit secrets)

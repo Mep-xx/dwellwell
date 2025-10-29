@@ -98,13 +98,28 @@ export default asyncHandler(async (req: Request, res: Response) => {
     _max: { completedDate: true },
   });
 
-  // Maps for quick lookup
-  const mapCount = (arr: { trackableId: string; _count: { _all: number } }[]) =>
-    new Map(arr.map((r) => [r.trackableId, r._count._all]));
-  const mapMinDate = (arr: { trackableId: string; _min: { dueDate: Date | null } }[]) =>
-    new Map(arr.map((r) => [r.trackableId, r._min.dueDate?.toISOString() ?? null]));
-  const mapMaxDate = (arr: { trackableId: string; _max: { completedDate: Date | null } }[]) =>
-    new Map(arr.map((r) => [r.trackableId, r._max.completedDate?.toISOString() ?? null]));
+  // Helpers — tolerate `trackableId: string | null` by skipping nulls
+  const mapCount = (
+    arr: { trackableId: string | null; _count: { _all: number } }[]
+  ) => new Map(arr.filter(r => r.trackableId).map((r) => [r.trackableId as string, r._count._all]));
+
+  const mapMinDate = (
+    arr: { trackableId: string | null; _min: { dueDate: Date | null } }[]
+  ) =>
+    new Map(
+      arr
+        .filter(r => r.trackableId)
+        .map((r) => [r.trackableId as string, r._min.dueDate?.toISOString() ?? null])
+    );
+
+  const mapMaxDate = (
+    arr: { trackableId: string | null; _max: { completedDate: Date | null } }[]
+  ) =>
+    new Map(
+      arr
+        .filter(r => r.trackableId)
+        .map((r) => [r.trackableId as string, r._max.completedDate?.toISOString() ?? null])
+    );
 
   const activeMap = mapCount(activeCounts);
   const overdueMap = mapCount(overdueCounts);

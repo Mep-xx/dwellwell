@@ -1,6 +1,6 @@
 # Node
 node_modules/
-dist
+dist/
 .env
 *.log
 *.zip
@@ -20,6 +20,7 @@ Thumbs.db
 
 # Build artifacts
 build/
+build-api/
 coverage/
 
 # Ignore uploads directory

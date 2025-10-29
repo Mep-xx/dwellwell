@@ -1,18 +1,23 @@
-//dwellwell-client/tsconfig.json
 {
   "extends": "../tsconfig.base.json",
   "compilerOptions": {
     "module": "ESNext",
     "moduleResolution": "bundler",
     "jsx": "react-jsx",
+    "noImplicitAny": false,
+    "skipLibCheck": true,
+
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
-      "@shared/*": ["../shared/*"],
-      "@constants": ["../shared/constants/index.ts"],
-      "@constants/*": ["../shared/constants/*"]
+
+      // Point to built types/entries from shared
+      "@shared/*": ["../shared/dist/*"],
+      "@constants": ["../shared/dist/constants/index.d.ts"],
+      "@constants/*": ["../shared/dist/constants/*"]
     },
-    "types": ["vite/client", "node"]
+
+    "types": ["vite/client", "node"],
   },
   "include": ["src", "src/types"],
   "exclude": ["node_modules", "dist"]

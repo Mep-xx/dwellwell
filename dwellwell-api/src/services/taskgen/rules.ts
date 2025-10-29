@@ -1,18 +1,13 @@
-// dwellwell-api/src/services/taskgen/rules.ts
-import type { TaskCriticality, TaskType } from "@prisma/client";
-
-/**
- * What a template “seed” looks like. These get persisted/updated in TaskTemplate.
- */
+// Avoid Prisma.$Enums here; keep it portable via string unions.
 export type TemplateSeed = {
   title: string;
   description?: string | null;
   icon?: string | null;
   imageUrl?: string | null;
   category?: string | null;
-  recurrenceInterval: string; // e.g., "7 days", "1 month", "3 months", "6 months", "1 year"
-  taskType?: TaskType | "GENERAL";
-  criticality?: TaskCriticality | "low" | "medium" | "high";
+  recurrenceInterval: string;
+  taskType?: "GENERAL" | string;
+  criticality?: "low" | "medium" | "high" | string;
 
   canDefer?: boolean;
   deferLimitDays?: number;
@@ -25,9 +20,6 @@ export type TemplateSeed = {
   resources?: any;
 };
 
-/**
- * Context available to a rule.
- */
 export type RuleContext = {
   home?: {
     id: string;

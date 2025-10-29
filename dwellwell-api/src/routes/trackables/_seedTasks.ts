@@ -1,11 +1,11 @@
 // dwellwell-api/src/routes/trackables/_seedTasks.ts
-import { PrismaClient, Prisma, UserTaskSourceType, TaskTemplate } from "@prisma/client";
+import { PrismaClient, Prisma, TaskStatus, UserTaskSourceType } from "@prisma/client";
 import crypto from "crypto";
 import { getTrackableDisplay } from "../../services/trackables/display";
 
 /** Safe JSON assignment helper */
 function asJsonOrUndefined<T>(v: T | null | undefined): Prisma.InputJsonValue | undefined {
-  if (v === null || v === undefined) return undefined;
+  if (v == null) return undefined;
   return v as unknown as Prisma.InputJsonValue;
 }
 
@@ -22,6 +22,7 @@ function addByInterval(from: Date, recurrenceInterval: string): Date {
   else d.setMonth(d.getMonth() + n);
   return d;
 }
+
 function initialDueDate(anchor?: Date | null, recurrenceInterval?: string): Date {
   const base = anchor && !isNaN(anchor.getTime()) ? anchor : new Date();
   return addByInterval(base, recurrenceInterval || "monthly");
@@ -58,13 +59,12 @@ export async function seedTasksForTrackable(opts: {
   });
 
   if (!links.length) {
-    // Log for admin triage
+    // Log for admin triage (if the table exists)
     try {
       const t = await prisma.trackable.findUnique({
         where: { id: trackableId },
         select: { homeId: true, roomId: true },
       });
-      // If you have TaskGenerationIssue in your schema, this will work; otherwise no-op
       await prisma.taskGenerationIssue.create({
         data: {
           userId,
@@ -89,40 +89,33 @@ export async function seedTasksForTrackable(opts: {
     select: { purchaseDate: true, homeId: true, roomId: true },
   });
   const anchor = tctx?.purchaseDate ?? null;
-  const fallbackHomeId = tctx?.homeId ?? null;
-  const fallbackRoomId = tctx?.roomId ?? null;
 
   // Enriched display (user name first, then brand/model where known)
   const { composedItemName, context } = await getTrackableDisplay(trackableId);
+
   // Prefer enriched context, fall back to direct trackable fields
-  const ctxHomeId = context.homeId ?? fallbackHomeId ?? null;
-  const ctxRoomId = context.roomId ?? fallbackRoomId ?? null;
+  const homeId = context.homeId ?? tctx?.homeId ?? null;
+  const roomId = context.roomId ?? tctx?.roomId ?? null;
 
   for (const link of links) {
-    const tpl: TaskTemplate | null = link.taskTemplate;
+    const tpl = link.taskTemplate;
     if (!tpl) continue;
 
     const dedupeKey = makeDedupeKey(["catalogTpl", tpl.id, "u", userId, "t", trackableId]);
     const due = initialDueDate(anchor, tpl.recurrenceInterval);
-
-    const trackableHome = await prisma.trackable.findUnique({
-      where: { id: trackableId },
-      select: { homeId: true },
-    });
-    const homeId = context.homeId ?? tctx?.homeId ?? null;
 
     await prisma.userTask.upsert({
       where: { userId_dedupeKey: { userId, dedupeKey } },
       update: {
         // identifiers / scope
         homeId,
-        roomId: context.roomId ?? undefined,
+        roomId: roomId ?? undefined,
 
         // presentation / details
         title: tpl.title,
         description: tpl.description ?? "",
         dueDate: due,
-        status: "PENDING",
+        status: TaskStatus.PENDING,
 
         // provenance
         sourceTemplateVersion: tpl.version,
@@ -152,7 +145,7 @@ export async function seedTasksForTrackable(opts: {
         userId,
 
         homeId,
-        roomId: context.roomId ?? null,
+        roomId: roomId ?? null,
 
         trackableId,
         taskTemplateId: tpl.id,
@@ -161,7 +154,7 @@ export async function seedTasksForTrackable(opts: {
         title: tpl.title,
         description: tpl.description ?? "",
         dueDate: due,
-        status: "PENDING",
+        status: TaskStatus.PENDING,
 
         sourceTemplateVersion: tpl.version,
 

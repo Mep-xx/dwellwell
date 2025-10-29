@@ -1,0 +1,8 @@
+{
+  "files": [],
+  "references": [
+    { "path": "shared" },
+    { "path": "dwellwell-api" },
+    { "path": "dwellwell-client" }
+  ]
+}

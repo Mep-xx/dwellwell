@@ -1,168 +1,240 @@
 // dwellwell-api/src/services/roomTaskSeeder.ts
-import crypto from "crypto";
-import { prisma } from "../db/prisma";
+import {
+  PrismaClient,
+  TaskCriticality,
+  TaskStatus,
+  TaskType,
+  UserTaskSourceType,
+} from "@prisma/client";
+import { prisma as prismaSingleton } from "../db/prisma";
 
-/**
- * Deterministic dedupe key for seed-created room tasks so repeated calls
- * do not create duplicates.
- */
-function makeSeedDedupe(userId: string, roomId: string, title: string) {
-  const raw = ["seed", "u", userId, "r", roomId, "t", title.trim().toLowerCase()].join("|");
-  return crypto.createHash("sha256").update(raw).digest("hex");
+type DefaultTask = {
+  title: string;
+  description?: string;
+  category?: string;
+  dueInDays: number;   // initial due date offset
+  recurrence?: string; // free-form for now
+  criticality?: TaskCriticality;
+};
+
+const ROOM_TYPE_DEFAULT_TASKS: Record<string, DefaultTask[]> = {
+  Kitchen: [
+    {
+      title: "Clean range hood filter",
+      description: "Remove the metal filter and degrease. Rinse and dry.",
+      category: "Cleaning",
+      dueInDays: 30,
+      recurrence: "3mo",
+    },
+    {
+      title: "Sanitize garbage disposal",
+      description: "Deodorize and scrub the splash guard.",
+      category: "Cleaning",
+      dueInDays: 14,
+      recurrence: "1mo",
+    },
+    {
+      title: "Test GFCI outlets",
+      description: "Press TEST then RESET to confirm proper operation.",
+      category: "Electrical",
+      dueInDays: 60,
+      recurrence: "6mo",
+      criticality: TaskCriticality.high,
+    },
+  ],
+  Bathroom: [
+    {
+      title: "Clean exhaust fan grille",
+      description: "Vacuum dust and wash the grille.",
+      category: "Cleaning",
+      dueInDays: 30,
+      recurrence: "3mo",
+    },
+    {
+      title: "Test GFCI outlets",
+      description: "Press TEST then RESET to confirm proper operation.",
+      category: "Electrical",
+      dueInDays: 60,
+      recurrence: "6mo",
+      criticality: TaskCriticality.high,
+    },
+  ],
+  "Living Room": [
+    {
+      title: "Test smoke detector",
+      description: "Press and hold TEST button; replace battery if needed.",
+      category: "Safety",
+      dueInDays: 30,
+      recurrence: "1mo",
+      criticality: TaskCriticality.high,
+    },
+    {
+      title: "Inspect fireplace",
+      description: "Check damper operation and clear debris.",
+      category: "Safety",
+      dueInDays: 90,
+      recurrence: "1y",
+      criticality: TaskCriticality.medium,
+    },
+  ],
+  Bedroom: [
+    {
+      title: "Test smoke detector",
+      description: "Press and hold TEST button; replace battery if needed.",
+      category: "Safety",
+      dueInDays: 30,
+      recurrence: "1mo",
+      criticality: TaskCriticality.high,
+    },
+    {
+      title: "Dust ceiling fan",
+      description: "Wipe blades; reverse direction seasonally.",
+      category: "Cleaning",
+      dueInDays: 30,
+      recurrence: "3mo",
+    },
+  ],
+  Laundry: [
+    {
+      title: "Clean dryer lint trap & check vent",
+      description: "Remove lint; inspect duct for buildup.",
+      category: "Safety",
+      dueInDays: 7,
+      recurrence: "1w",
+      criticality: TaskCriticality.high,
+    },
+    {
+      title: "Inspect washer hoses",
+      description: "Look for bulges, cracks, and leaks.",
+      category: "Safety",
+      dueInDays: 30,
+      recurrence: "6mo",
+    },
+  ],
+  Garage: [
+    {
+      title: "Test garage door auto-reverse",
+      description: "Verify sensors and force reversal limits.",
+      category: "Safety",
+      dueInDays: 30,
+      recurrence: "6mo",
+      criticality: TaskCriticality.high,
+    },
+    {
+      title: "Flush water heater (quick)",
+      description: "Brief flush to remove sediment (full annually).",
+      category: "Plumbing",
+      dueInDays: 60,
+      recurrence: "1y",
+    },
+  ],
+  Basement: [
+    {
+      title: "Test sump pump",
+      description: "Lift float or add water; confirm discharge.",
+      category: "Safety",
+      dueInDays: 30,
+      recurrence: "3mo",
+      criticality: TaskCriticality.high,
+    },
+  ],
+  Attic: [
+    {
+      title: "Inspect attic for leaks/pests",
+      description: "Check sheathing, insulation, and vents.",
+      category: "Inspection",
+      dueInDays: 60,
+      recurrence: "6mo",
+    },
+  ],
+};
+
+function slugify(s: string) {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 }
 
-// Seed simple room-based tasks (quick starter for Rooms UI)
-export async function seedRoomTasksForRoom(roomId: string, userId: string) {
-  const room = await prisma.room.findUnique({
+function addDays(days: number) {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+/**
+ * Seeds a handful of sensible, room-scoped default tasks for a given room.
+ * - Uses (userId, dedupeKey) for idempotency
+ * - Includes homeId on the created tasks (better filtering/grouping)
+ * - Uses real Prisma enums (no Prisma.$Enums)
+ */
+export async function seedRoomTasksForRoom(
+  roomId: string,
+  userId: string,
+  prismaClient?: PrismaClient
+) {
+  const db = prismaClient ?? prismaSingleton;
+
+  const room = await db.room.findUnique({
     where: { id: roomId },
-    include: { detail: true, home: { select: { userId: true } } },
+    select: { id: true, type: true, name: true, homeId: true },
   });
-  if (!room || room.home.userId !== userId) return;
+  if (!room) return;
 
-  const recs = deriveTemplates(room);
-  const now = new Date();
+  const defs = ROOM_TYPE_DEFAULT_TASKS[room.type || ""] ?? [];
+  if (!defs.length) return;
 
-  for (const t of recs) {
-    const dedupeKey = makeSeedDedupe(userId, room.id, t.title);
+  for (const def of defs) {
+    const baseKey = `room-${room.id}-${slugify(def.title)}`;
+    let dedupeKey = baseKey;
 
-    await prisma.userTask.upsert({
-      where: { userId_dedupeKey: { userId, dedupeKey } },
-      update: {
-        title: t.title,
-        description: t.description ?? "",
-        dueDate: computeInitialDue(now, t.recurrenceInterval),
-        status: "PENDING",
-        itemName: room.name,
-        category: t.category ?? "general",
-        estimatedTimeMinutes: t.estimatedTimeMinutes ?? 0,
-        estimatedCost: t.estimatedCost ?? 0,
-        criticality: (t.criticality as any) ?? "medium",
-        deferLimitDays: t.deferLimitDays ?? 0,
-        canBeOutsourced: t.canBeOutsourced ?? false,
-        canDefer: t.canDefer ?? true,
-        recurrenceInterval: t.recurrenceInterval ?? "",
-        taskType: "GENERAL",
-        steps: (t.steps as any) ?? undefined,
-        equipmentNeeded: (t.equipmentNeeded as any) ?? undefined,
-        resources: (t.resources as any) ?? undefined,
-        icon: t.icon ?? undefined,
-        imageUrl: t.imageUrl ?? undefined,
-      },
-      create: {
+    // ensure uniqueness per (userId, dedupeKey)
+    let n = 1;
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const existing = await db.userTask
+        .findUnique({ where: { userId_dedupeKey: { userId, dedupeKey } } })
+        .catch(() => null);
+      if (!existing) break;
+      n += 1;
+      dedupeKey = `${baseKey}-${n}`;
+    }
+
+    await db.userTask.create({
+      data: {
         userId,
-        homeId: room.homeId,
+        homeId: room.homeId ?? null,
         roomId: room.id,
         trackableId: null,
-        taskTemplateId: null, // room templates can be non-catalog
-        sourceType: "room",
-        title: t.title,
-        description: t.description ?? "",
-        dueDate: computeInitialDue(now, t.recurrenceInterval),
-        status: "PENDING",
-        itemName: room.name,
-        category: t.category ?? "general",
-        estimatedTimeMinutes: t.estimatedTimeMinutes ?? 0,
-        estimatedCost: t.estimatedCost ?? 0,
-        criticality: (t.criticality as any) ?? "medium",
-        deferLimitDays: t.deferLimitDays ?? 0,
-        canBeOutsourced: t.canBeOutsourced ?? false,
-        canDefer: t.canDefer ?? true,
-        recurrenceInterval: t.recurrenceInterval ?? "",
-        taskType: "GENERAL",
+        taskTemplateId: null,
+        sourceType: UserTaskSourceType.room,
+
+        title: def.title,
+        description: def.description ?? "",
+        dueDate: addDays(def.dueInDays),
+        status: TaskStatus.PENDING,
+
+        itemName: def.title,
+        category: def.category ?? (room.type || "General"),
+        location: room.name ?? room.type ?? null,
+
+        estimatedTimeMinutes: 0,
+        estimatedCost: 0,
+        criticality: def.criticality ?? TaskCriticality.medium,
+
+        deferLimitDays: 0,
+        canBeOutsourced: false,
+        canDefer: true,
+        isTracking: true,
+
+        recurrenceInterval: def.recurrence ?? "",
+
+        taskType: TaskType.GENERAL,
+
         dedupeKey,
-        steps: (t.steps as any) ?? undefined,
-        equipmentNeeded: (t.equipmentNeeded as any) ?? undefined,
-        resources: (t.resources as any) ?? undefined,
-        icon: t.icon ?? undefined,
-        imageUrl: t.imageUrl ?? undefined,
+        steps: undefined,
+        equipmentNeeded: undefined,
+        resources: undefined,
+        imageUrl: null,
+        icon: null,
       },
     });
-  }
-
-  function computeInitialDue(base: Date, rec?: string) {
-    const d = new Date(base);
-    const r = (rec || "").toLowerCase();
-    const n = parseInt(r.match(/\d+/)?.[0] ?? "3", 10); // default “3”
-    if (r.includes("day")) d.setDate(d.getDate() + n);
-    else if (r.includes("week")) d.setDate(d.getDate() + 7 * n);
-    else if (r.includes("month")) d.setMonth(d.getMonth() + n);
-    else if (r.includes("year")) d.setFullYear(d.getFullYear() + n);
-    else d.setDate(d.getDate() + 90); // fallback ~quarterly
-    return d;
-  }
-
-  function deriveTemplates(room: any) {
-    const out: any[] = [];
-    const type = (room.type || "").toLowerCase();
-
-    if (type.includes("bedroom") || type.includes("nursery") || type.includes("guest")) {
-      out.push({
-        title: "Rotate mattress",
-        description: "Rotate 180° to distribute wear.",
-        recurrenceInterval: "3 months",
-        category: "Bedroom",
-        estimatedTimeMinutes: 10,
-        icon: "🛏️",
-      });
-
-      if (room.detail?.hasSmokeDetector) {
-        out.push({
-          title: "Test smoke detector",
-          recurrenceInterval: "1 month",
-          category: "Safety",
-          estimatedTimeMinutes: 5,
-          icon: "🚨",
-        });
-        out.push({
-          title: "Replace detector batteries",
-          recurrenceInterval: "6 months",
-          category: "Safety",
-          estimatedTimeMinutes: 10,
-          icon: "🔋",
-        });
-      }
-      if (room.detail?.hasCeilingFan) {
-        out.push({
-          title: "Dust ceiling fan",
-          recurrenceInterval: "1 month",
-          category: "General",
-          estimatedTimeMinutes: 10,
-          icon: "🧹",
-        });
-      }
-    }
-
-    if (type.includes("bath")) {
-      out.push({
-        title: "Clean bathroom exhaust fan grille",
-        description: "Vacuum/wipe the grille so humidity clears quickly and prevents mildew.",
-        recurrenceInterval: "3 months",
-        category: "Bathroom",
-        estimatedTimeMinutes: 10,
-        icon: "🧼",
-      });
-      out.push({
-        title: "Inspect & re-caulk tub/shower",
-        description: "Clean old caulk, dry area, apply fresh silicone to prevent leaks and mold.",
-        recurrenceInterval: "1 year",
-        category: "Bathroom",
-        estimatedTimeMinutes: 60,
-        icon: "🧴",
-      });
-    }
-
-    if (type.includes("kitchen")) {
-      out.push({
-        title: "Clean range hood filter",
-        description: "Remove and clean or replace the range hood filter to keep airflow strong.",
-        recurrenceInterval: "3 months",
-        category: "Kitchen",
-        estimatedTimeMinutes: 10,
-        icon: "🍳",
-      });
-    }
-
-    // Add more room types as needed…
-    return out;
   }
 }

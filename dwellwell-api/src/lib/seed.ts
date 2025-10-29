@@ -1,17 +1,48 @@
-//dwellwell-api/src/lib/seed.ts
-import { PrismaClient, TaskType, TaskCriticality } from '@prisma/client';
+// dwellwell-api/src/lib/seed.ts
+/**
+ * Seed ApplianceCatalog + TaskTemplates + Kind→Template links
+ *
+ * Run with ts-node or package script:
+ *   ts-node src/lib/seed.ts
+ *   # or
+ *   npm run seed
+ *
+ * Idempotency:
+ * - ApplianceCatalog: @@unique([brand, model]) upsert
+ * - TaskTemplate: (title, category, recurrenceInterval) findFirst + update/create
+ * - TrackableKindTaskTemplate: @@unique([kind, taskTemplateId]) upsert
+ */
+
+import { PrismaClient, Prisma, TaskType } from '@prisma/client';
 import { ApplianceCatalog } from './mockApplianceCatalog';
 
 const prisma = new PrismaClient();
 
-/**
+/** -----------------------------------------
+ * Helpers
+ * ----------------------------------------*/
+function slugify(s: string) {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+}
+
+function systemKeyForTemplate(t: {
+  title: string;
+  recurrenceInterval: string;
+  category?: string | null;
+}) {
+  return `system-key:seed.ts:${slugify(t.title)}:${slugify(
+    t.recurrenceInterval,
+  )}:${slugify(t.category ?? 'none')}`;
+}
+
+/** -----------------------------------------
  * Seed ApplianceCatalog with brand/model entries.
- */
+ * ----------------------------------------*/
 async function seedApplianceCatalog() {
   for (const appliance of ApplianceCatalog) {
     await prisma.applianceCatalog.upsert({
       where: {
-        // composite unique from your schema: @@unique([brand, model])
+        // composite unique from your schema: @@unique([brand, model], name: "brand_model")
         brand_model: {
           brand: appliance.brand,
           model: appliance.model,
@@ -31,28 +62,31 @@ async function seedApplianceCatalog() {
   console.log('✅ Seeded ApplianceCatalog');
 }
 
-/**
- * Insert/update TaskTemplates that we want available globally
+/** -----------------------------------------
+ * Insert/update TaskTemplates available globally
  * (room-based and brand-agnostic trackable-based).
  *
- * Note: title is not unique in your schema, so we findFirst by title and update.
- */
+ * Uses (title, category, recurrenceInterval) for idempotency
+ * and stamps changelog with a system key.
+ * ----------------------------------------*/
 async function seedTaskTemplates() {
+  // NOTE: Normalize room categories to match ROOM_TYPES exactly for room-scoping:
+  // "Bathroom", "Living Room", "Bedroom", etc.
   const templates = [
     // ------------------------
-    // Room-based examples
+    // Room-based examples (normalized categories)
     // ------------------------
     {
       title: 'Clean Bathroom Mirror',
       description: 'Wipe down mirrors with glass cleaner.',
       recurrenceInterval: 'weekly',
-      criticality: TaskCriticality.low,
+      criticality: 'low', // string enum in your schema
       canDefer: true,
       deferLimitDays: 7,
       estimatedTimeMinutes: 5,
       estimatedCost: 0,
       canBeOutsourced: false,
-      category: 'bathroom',
+      category: 'Bathroom',
       icon: '🪞',
       taskType: TaskType.GENERAL,
       steps: ['Spray cleaner', 'Wipe with cloth'],
@@ -63,13 +97,13 @@ async function seedTaskTemplates() {
       title: 'Vacuum Living Room Carpet',
       description: 'Vacuum carpet to remove dirt and dust.',
       recurrenceInterval: 'weekly',
-      criticality: TaskCriticality.medium,
+      criticality: 'medium',
       canDefer: true,
       deferLimitDays: 7,
       estimatedTimeMinutes: 15,
       estimatedCost: 0,
       canBeOutsourced: true,
-      category: 'living room',
+      category: 'Living Room',
       icon: '🧹',
       taskType: TaskType.GENERAL,
       steps: ['Move furniture as needed', 'Vacuum thoroughly'],
@@ -80,13 +114,13 @@ async function seedTaskTemplates() {
       title: 'Inspect Caulking and Grout',
       description: 'Check for cracks or mold in caulking and grout in the bathroom.',
       recurrenceInterval: '3 months',
-      criticality: TaskCriticality.medium,
+      criticality: 'medium',
       canDefer: true,
       deferLimitDays: 14,
       estimatedTimeMinutes: 10,
       estimatedCost: 0,
       canBeOutsourced: true,
-      category: 'bathroom',
+      category: 'Bathroom',
       icon: '🧴',
       taskType: TaskType.GENERAL,
       steps: [
@@ -101,13 +135,13 @@ async function seedTaskTemplates() {
       title: 'Wipe Down Bathroom Walls',
       description: 'Clean humidity residue and potential mold buildup on bathroom walls.',
       recurrenceInterval: 'monthly',
-      criticality: TaskCriticality.low,
+      criticality: 'low',
       canDefer: true,
       deferLimitDays: 14,
       estimatedTimeMinutes: 15,
       estimatedCost: 0,
       canBeOutsourced: true,
-      category: 'bathroom',
+      category: 'Bathroom',
       icon: '🧼',
       taskType: TaskType.GENERAL,
       steps: [
@@ -122,13 +156,13 @@ async function seedTaskTemplates() {
       title: 'Clean Bathroom Vent',
       description: 'Dust and clean the exhaust fan grill to maintain airflow.',
       recurrenceInterval: '3 months',
-      criticality: TaskCriticality.medium,
+      criticality: 'medium',
       canDefer: true,
       deferLimitDays: 30,
       estimatedTimeMinutes: 10,
       estimatedCost: 0,
       canBeOutsourced: false,
-      category: 'bathroom',
+      category: 'Bathroom',
       icon: '🌀',
       taskType: TaskType.GENERAL,
       steps: [
@@ -144,13 +178,13 @@ async function seedTaskTemplates() {
       title: 'Dust Ceiling Fan or Light Fixture',
       description: 'Remove dust buildup from bedroom ceiling fixtures.',
       recurrenceInterval: 'monthly',
-      criticality: TaskCriticality.low,
+      criticality: 'low',
       canDefer: true,
       deferLimitDays: 7,
       estimatedTimeMinutes: 10,
       estimatedCost: 0,
       canBeOutsourced: true,
-      category: 'bedroom',
+      category: 'Bedroom',
       icon: '💡',
       taskType: TaskType.GENERAL,
       steps: [
@@ -162,13 +196,13 @@ async function seedTaskTemplates() {
     },
 
     // ------------------------
-    // Trackable-based: generic / brand-agnostic
+    // Trackable-based: generic / brand-agnostic (home-scoped categories)
     // ------------------------
     {
       title: 'Clean Dishwasher Filter',
       description: 'Remove and rinse the dishwasher filter to prevent clogging.',
       recurrenceInterval: '3 months',
-      criticality: TaskCriticality.medium,
+      criticality: 'medium',
       canDefer: true,
       deferLimitDays: 30,
       estimatedTimeMinutes: 15,
@@ -190,7 +224,7 @@ async function seedTaskTemplates() {
       title: 'Change HVAC Filter',
       description: 'Replace the air filter to ensure efficient airflow.',
       recurrenceInterval: '3 months',
-      criticality: TaskCriticality.high,
+      criticality: 'high',
       canDefer: false,
       deferLimitDays: 0,
       estimatedTimeMinutes: 10,
@@ -207,13 +241,11 @@ async function seedTaskTemplates() {
       equipmentNeeded: ['New air filter', 'Gloves'],
       resources: [{ label: 'Filter Sizing Guide', url: 'https://example.com/hvac-filters' }],
     },
-
-    // --- Additional generic dishwasher care ---
     {
       title: 'Clean Dishwasher Spray Arms',
       description: 'Clear mineral buildup in spray arm holes for proper spray pattern.',
       recurrenceInterval: '6 months',
-      criticality: TaskCriticality.medium,
+      criticality: 'medium',
       canDefer: true,
       deferLimitDays: 30,
       estimatedTimeMinutes: 15,
@@ -234,7 +266,7 @@ async function seedTaskTemplates() {
       title: 'Descale Dishwasher',
       description: 'Run a descaling cycle to remove limescale and odors.',
       recurrenceInterval: '3 months',
-      criticality: TaskCriticality.low,
+      criticality: 'low',
       canDefer: true,
       deferLimitDays: 30,
       estimatedTimeMinutes: 5,
@@ -251,7 +283,7 @@ async function seedTaskTemplates() {
       title: 'Refill Dishwasher Rinse Aid',
       description: 'Keeps dishes spot-free and improves drying.',
       recurrenceInterval: '1 month',
-      criticality: TaskCriticality.low,
+      criticality: 'low',
       canDefer: true,
       deferLimitDays: 14,
       estimatedTimeMinutes: 2,
@@ -264,13 +296,11 @@ async function seedTaskTemplates() {
       equipmentNeeded: ['Rinse aid'],
       resources: [],
     },
-
-    // --- Refrigerator ---
     {
       title: 'Clean Refrigerator Condenser Coils',
       description: 'Vacuum or brush dust from coils to maintain efficiency.',
       recurrenceInterval: '6 months',
-      criticality: TaskCriticality.high,
+      criticality: 'high',
       canDefer: false,
       deferLimitDays: 0,
       estimatedTimeMinutes: 20,
@@ -287,7 +317,7 @@ async function seedTaskTemplates() {
       title: 'Replace Refrigerator Water Filter',
       description: 'Keeps water/ice clean and flow steady.',
       recurrenceInterval: '6 months',
-      criticality: TaskCriticality.medium,
+      criticality: 'medium',
       canDefer: true,
       deferLimitDays: 30,
       estimatedTimeMinutes: 10,
@@ -304,13 +334,11 @@ async function seedTaskTemplates() {
       equipmentNeeded: ['Compatible filter'],
       resources: [],
     },
-
-    // --- Washing Machine ---
     {
       title: 'Run Drum Clean Cycle',
       description: 'Prevents odor and residue; use washer cleaner or hot cycle.',
       recurrenceInterval: '1 month',
-      criticality: TaskCriticality.medium,
+      criticality: 'medium',
       canDefer: true,
       deferLimitDays: 14,
       estimatedTimeMinutes: 5,
@@ -327,7 +355,7 @@ async function seedTaskTemplates() {
       title: 'Clean Washer Inlet Screens',
       description: 'Remove and rinse inlet filters to restore water flow.',
       recurrenceInterval: '6 months',
-      criticality: TaskCriticality.medium,
+      criticality: 'medium',
       canDefer: true,
       deferLimitDays: 30,
       estimatedTimeMinutes: 15,
@@ -340,13 +368,11 @@ async function seedTaskTemplates() {
       equipmentNeeded: ['Pliers', 'Towel'],
       resources: [],
     },
-
-    // --- Dryer ---
     {
       title: 'Clean Dryer Vent Duct',
       description: 'Reduce fire risk by clearing lint from the duct to the exterior.',
       recurrenceInterval: '3 months',
-      criticality: TaskCriticality.high,
+      criticality: 'high',
       canDefer: false,
       deferLimitDays: 0,
       estimatedTimeMinutes: 30,
@@ -364,13 +390,11 @@ async function seedTaskTemplates() {
       equipmentNeeded: ['Dryer vent brush', 'Vacuum'],
       resources: [],
     },
-
-    // --- Microwave (OTR) ---
     {
       title: 'Replace OTR Microwave Charcoal Filter',
       description: 'If not ducted outdoors, the recirculating charcoal filter needs replacement.',
       recurrenceInterval: '12 months',
-      criticality: TaskCriticality.low,
+      criticality: 'low',
       canDefer: true,
       deferLimitDays: 60,
       estimatedTimeMinutes: 10,
@@ -383,13 +407,11 @@ async function seedTaskTemplates() {
       equipmentNeeded: ['Correct charcoal filter'],
       resources: [],
     },
-
-    // --- Water Heater (tank) ---
     {
       title: 'Flush Water Heater Tank (full)',
       description: 'Drains sediment to extend life and improve efficiency.',
       recurrenceInterval: '12 months',
-      criticality: TaskCriticality.medium,
+      criticality: 'medium',
       canDefer: true,
       deferLimitDays: 60,
       estimatedTimeMinutes: 60,
@@ -406,7 +428,7 @@ async function seedTaskTemplates() {
       title: 'Test T&P Relief Valve',
       description: 'Lift test lever to ensure valve operates and reseats.',
       recurrenceInterval: '12 months',
-      criticality: TaskCriticality.high,
+      criticality: 'high',
       canDefer: false,
       deferLimitDays: 0,
       estimatedTimeMinutes: 5,
@@ -422,62 +444,93 @@ async function seedTaskTemplates() {
   ];
 
   for (const tpl of templates) {
+    const selector = {
+      title: tpl.title,
+      recurrenceInterval: tpl.recurrenceInterval,
+      category: tpl.category ?? null,
+    };
+
     const existing = await prisma.taskTemplate.findFirst({
-      where: { title: tpl.title },
-      select: { id: true },
+      where: selector,
+      select: { id: true, changelog: true },
     });
+
+    // Cast enum-like fields cautiously to handle Prisma version differences
+    const data: any = {
+      ...tpl,
+      taskType: tpl.taskType ?? TaskType.GENERAL,
+      criticality: tpl.criticality ?? 'medium',
+      state: 'VERIFIED',
+      changelog: existing?.changelog ?? systemKeyForTemplate(selector),
+    };
 
     if (existing) {
       await prisma.taskTemplate.update({
         where: { id: existing.id },
-        data: tpl,
+        data,
       });
     } else {
-      await prisma.taskTemplate.create({ data: tpl });
+      await prisma.taskTemplate.create({
+        data: { ...data, version: 1 },
+      });
     }
   }
 
-  console.log('✅ Seeded TaskTemplates');
+  console.log('✅ Seeded TaskTemplates (idempotent)');
 }
 
-/**
- * Map generic "kinds" to TaskTemplates so Quick Add can attach tasks
- * immediately via TrackableKindTaskTemplate.
- */
+/** -----------------------------------------
+ * Map generic "kinds" to TaskTemplates so Quick Add can
+ * attach tasks immediately via TrackableKindTaskTemplate.
+ * ----------------------------------------*/
 async function linkKindTemplates() {
-  // helper to get template id by title
-  const getTplId = async (title: string) =>
-    (await prisma.taskTemplate.findFirst({ where: { title }, select: { id: true } }))?.id ?? null;
+  // helper to get template id by (title, recurrenceInterval, category)
+  const getTplId = async (
+    title: string,
+    recurrenceInterval: string,
+    category?: string | null,
+  ) =>
+    (
+      await prisma.taskTemplate.findFirst({
+        where: { title, recurrenceInterval, category: category ?? null },
+        select: { id: true },
+      })
+    )?.id ?? null;
 
-  const pairs: Array<{ kind: string; title: string; category?: string | null }> = [
+  const pairs: Array<{
+    kind: string;
+    title: string;
+    recurrenceInterval: string;
+    category?: string | null;
+  }> = [
     // dishwasher
-    { kind: 'dishwasher', title: 'Clean Dishwasher Filter' },
-    { kind: 'dishwasher', title: 'Clean Dishwasher Spray Arms' },
-    { kind: 'dishwasher', title: 'Descale Dishwasher' },
-    { kind: 'dishwasher', title: 'Refill Dishwasher Rinse Aid' },
+    { kind: 'dishwasher', title: 'Clean Dishwasher Filter', recurrenceInterval: '3 months', category: 'appliance' },
+    { kind: 'dishwasher', title: 'Clean Dishwasher Spray Arms', recurrenceInterval: '6 months', category: 'appliance' },
+    { kind: 'dishwasher', title: 'Descale Dishwasher', recurrenceInterval: '3 months', category: 'appliance' },
+    { kind: 'dishwasher', title: 'Refill Dishwasher Rinse Aid', recurrenceInterval: '1 month', category: 'appliance' },
 
     // refrigerator
-    { kind: 'refrigerator', title: 'Clean Refrigerator Condenser Coils' },
-    { kind: 'refrigerator', title: 'Replace Refrigerator Water Filter' },
+    { kind: 'refrigerator', title: 'Clean Refrigerator Condenser Coils', recurrenceInterval: '6 months', category: 'appliance' },
+    { kind: 'refrigerator', title: 'Replace Refrigerator Water Filter', recurrenceInterval: '6 months', category: 'appliance' },
 
     // washer / dryer
-    { kind: 'washing_machine', title: 'Run Drum Clean Cycle' },
-    { kind: 'washing_machine', title: 'Clean Washer Inlet Screens' },
-    { kind: 'dryer', title: 'Clean Dryer Vent Duct' },
+    { kind: 'washing_machine', title: 'Run Drum Clean Cycle', recurrenceInterval: '1 month', category: 'appliance' },
+    { kind: 'washing_machine', title: 'Clean Washer Inlet Screens', recurrenceInterval: '6 months', category: 'appliance' },
+    { kind: 'dryer', title: 'Clean Dryer Vent Duct', recurrenceInterval: '3 months', category: 'safety' },
 
     // microwave (OTR)
-    { kind: 'microwave', title: 'Replace OTR Microwave Charcoal Filter' },
+    { kind: 'microwave', title: 'Replace OTR Microwave Charcoal Filter', recurrenceInterval: '12 months', category: 'kitchen' },
 
     // water heater
-    { kind: 'water_heater', title: 'Flush Water Heater Tank (full)' },
-    { kind: 'water_heater', title: 'Test T&P Relief Valve' },
+    { kind: 'water_heater', title: 'Flush Water Heater Tank (full)', recurrenceInterval: '12 months', category: 'plumbing' },
+    { kind: 'water_heater', title: 'Test T&P Relief Valve', recurrenceInterval: '12 months', category: 'safety' },
 
     // hvac
-    { kind: 'hvac', title: 'Change HVAC Filter' },
+    { kind: 'hvac', title: 'Change HVAC Filter', recurrenceInterval: '3 months', category: 'appliance' },
   ];
 
   for (const p of pairs) {
-    const tplId = await getTplId(p.title);
+    const tplId = await getTplId(p.title, p.recurrenceInterval, p.category ?? null);
     if (!tplId) continue;
 
     await prisma.trackableKindTaskTemplate.upsert({
@@ -491,6 +544,9 @@ async function linkKindTemplates() {
   console.log('✅ Linked TrackableKindTaskTemplate mappings');
 }
 
+/** -----------------------------------------
+ * Main
+ * ----------------------------------------*/
 async function main() {
   await seedApplianceCatalog();
   await seedTaskTemplates();

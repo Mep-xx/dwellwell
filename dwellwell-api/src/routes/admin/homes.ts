@@ -1,8 +1,46 @@
 import { Router } from 'express';
 import { prisma } from '../../db/prisma';
-import { Prisma } from '@prisma/client';
+import { requireAuth } from '../../middleware/requireAuth';
+import { requireAdmin } from '../../middleware/requireAdmin';
 
 const router = Router();
+router.use(requireAuth, requireAdmin);
+
+/** Narrow unions for sorting */
+type SortField = 'createdAt';
+type SortDir = 'asc' | 'desc';
+
+/** Selected shape from prisma.home */
+type HomeRow = {
+  id: string;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  createdAt: Date;
+  userId: string | null;
+};
+
+/** Owner records we load separately */
+type OwnerRow = { id: string; email: string };
+
+/** groupBy(HomeId) shapes */
+type RoomGroup = { homeId: string | null; _count: { _all: number } };
+type TrackableGroup = { homeId: string | null; _count: { _all: number } };
+
+/** Case-insensitive literal */
+type Insensitive = 'insensitive';
+const INSENSITIVE: Insensitive = 'insensitive';
+
+/** Separate the OR object from the union to avoid HomeWhere['OR'] error */
+type HomeWhereOrObject = {
+  OR: Array<
+    | { address: { contains: string; mode: Insensitive } }
+    | { city: { contains: string; mode: Insensitive } }
+    | { state: { contains: string; mode: Insensitive } }
+    | { userId: { in: string[] } }
+  >;
+};
+type HomeWhere = undefined | HomeWhereOrObject;
 
 router.get('/', async (req, res) => {
   try {
@@ -17,44 +55,40 @@ router.get('/', async (req, res) => {
     const size = Math.min(Math.max(parseInt(pageSize || '25', 10) || 25, 1), 100);
     const skip = (pageNum - 1) * size;
 
-    // Sort
-    let orderBy: Prisma.HomeOrderByWithRelationInput = { createdAt: 'desc' };
-    if (sort) {
-      const [field, dir] = String(sort).split(':');
-      if (['createdAt'].includes(field) && ['asc', 'desc'].includes(dir)) {
-        orderBy = { [field]: dir as Prisma.SortOrder };
-      }
-    }
+    // Strict sort parsing
+    const [sortFieldRaw, sortDirRaw] = String(sort).split(':');
+    const sortField: SortField = sortFieldRaw === 'createdAt' ? 'createdAt' : 'createdAt';
+    const sortDir: SortDir = sortDirRaw === 'asc' ? 'asc' : 'desc';
+    const orderBy: Array<Record<SortField, SortDir>> = [{ [sortField]: sortDir }];
 
     const needle = q?.trim();
-    const insensitive = Prisma.QueryMode.insensitive;
 
-    // If the search includes owner email, we need candidate userIds first.
+    // If searching by email, collect candidate userIds
     let candidateUserIds: string[] | undefined;
     if (needle) {
       const users = await prisma.user.findMany({
-        where: { email: { contains: needle, mode: insensitive } },
+        where: { email: { contains: needle, mode: INSENSITIVE } },
         select: { id: true },
       });
-      candidateUserIds = users.map(u => u.id);
+      // 🔧 annotate the callback param to avoid implicit any
+      candidateUserIds = users.map((u: { id: string }) => u.id);
     }
 
-    // Build Home where clause WITHOUT unknown fields/relations
-    let where: Prisma.HomeWhereInput | undefined;
+    // Build a strict HomeWhere (no any)
+    let where: HomeWhere;
     if (needle) {
-      where = {
-        OR: [
-          { address: { contains: needle, mode: insensitive } },
-          { city: { contains: needle, mode: insensitive } },
-          { state: { contains: needle, mode: insensitive } },
-          ...(candidateUserIds && candidateUserIds.length > 0
-            ? [{ userId: { in: candidateUserIds } } as Prisma.HomeWhereInput]
-            : []),
-        ],
-      };
+      const orClauses: HomeWhereOrObject['OR'] = [
+        { address: { contains: needle, mode: INSENSITIVE } },
+        { city:    { contains: needle, mode: INSENSITIVE } },
+        { state:   { contains: needle, mode: INSENSITIVE } },
+      ];
+      if (candidateUserIds && candidateUserIds.length > 0) {
+        orClauses.push({ userId: { in: candidateUserIds } });
+      }
+      where = { OR: orClauses };
     }
 
-    // Total & page items
+    // Count + page load (typed)
     const [total, itemsRaw] = await Promise.all([
       prisma.home.count({ where }),
       prisma.home.findMany({
@@ -73,11 +107,15 @@ router.get('/', async (req, res) => {
       }),
     ]);
 
-    const homeIds = itemsRaw.map((h) => h.id);
-    const userIds = Array.from(new Set(itemsRaw.map((h) => h.userId).filter(Boolean))) as string[];
+    const homes: HomeRow[] = itemsRaw as HomeRow[];
 
-    // Per‑home counts
-    const [roomCounts, trackableCounts, owners] = await Promise.all([
+    const homeIds: string[] = homes.map((h) => h.id);
+    const userIds: string[] = Array.from(
+      new Set(homes.map((h) => h.userId).filter((v): v is string => Boolean(v)))
+    );
+
+    // Aggregates & owners
+    const [roomGroupsRaw, trackableGroupsRaw, ownersRaw] = await Promise.all([
       prisma.room.groupBy({
         by: ['homeId'],
         _count: { _all: true },
@@ -90,37 +128,33 @@ router.get('/', async (req, res) => {
       }),
       userIds.length
         ? prisma.user.findMany({
-          where: { id: { in: userIds } },
-          select: { id: true, email: true },
-        })
-        : Promise.resolve([] as { id: string; email: string }[]),
+            where: { id: { in: userIds } },
+            select: { id: true, email: true },
+          })
+        : Promise.resolve([] as OwnerRow[]),
     ]);
 
-    const roomCountMap = roomCounts.reduce(
-      (m, r) => {
-        if (r.homeId) m.set(r.homeId, r._count._all);
-        return m;
-      },
-      new Map<string, number>()
-    );
+    const roomGroups: RoomGroup[] = roomGroupsRaw as RoomGroup[];
+    const trackableGroups: TrackableGroup[] = trackableGroupsRaw as TrackableGroup[];
+    const owners: OwnerRow[] = ownersRaw as OwnerRow[];
 
-    const trackableCountMap = trackableCounts.reduce(
-      (m, t) => {
-        if (t.homeId) m.set(t.homeId, t._count._all);
-        return m;
-      },
-      new Map<string, number>()
-    );
+    // Build lookup maps (typed)
+    const roomCountMap = new Map<string, number>();
+    for (const r of roomGroups) {
+      if (r.homeId) roomCountMap.set(r.homeId, r._count._all);
+    }
 
-    const ownerMap = owners.reduce(
-      (m, o) => {
-        if (o.id) m.set(o.id, o);
-        return m;
-      },
-      new Map<string, { id: string; email: string }>()
-    );
+    const trackableCountMap = new Map<string, number>();
+    for (const t of trackableGroups) {
+      if (t.homeId) trackableCountMap.set(t.homeId, t._count._all);
+    }
 
-    const items = itemsRaw.map((h) => ({
+    const ownerMap = new Map<string, OwnerRow>();
+    for (const o of owners) {
+      ownerMap.set(o.id, o);
+    }
+
+    const items = homes.map((h) => ({
       id: h.id,
       address: h.address,
       city: h.city,
@@ -139,6 +173,7 @@ router.get('/', async (req, res) => {
       items,
     });
   } catch (err) {
+    // eslint-disable-next-line no-console
     console.error('GET /api/admin/homes failed:', err);
     res.status(500).json({ message: 'Failed to fetch homes' });
   }

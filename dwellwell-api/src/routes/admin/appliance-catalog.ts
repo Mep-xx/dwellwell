@@ -2,7 +2,6 @@ import { Router, Request, Response } from "express";
 import { prisma } from "../../db/prisma";
 import { requireAuth } from "../../middleware/requireAuth";
 import { requireAdmin } from "../../middleware/requireAdmin";
-import { Prisma } from "@prisma/client";
 
 const router = Router();
 router.use(requireAuth, requireAdmin);
@@ -12,18 +11,18 @@ router.get("/", async (req: Request, res: Response) => {
   const q = String(req.query.q ?? "").trim().toLowerCase();
   const take = Math.min(Math.max(parseInt(String(req.query.take ?? "100"), 10) || 100, 1), 500);
 
-  const where: Prisma.ApplianceCatalogWhereInput | undefined = q
+  const where = q
     ? {
-        OR: [
-          { brand: { contains: q, mode: Prisma.QueryMode.insensitive } },
-          { model: { contains: q, mode: Prisma.QueryMode.insensitive } },
-          { type: { contains: q, mode: Prisma.QueryMode.insensitive } },
-          { category: { contains: q, mode: Prisma.QueryMode.insensitive } },
-        ],
-      }
+      OR: [
+        { brand: { contains: q, mode: "insensitive" as any } },
+        { model: { contains: q, mode: "insensitive" as any } },
+        { type: { contains: q, mode: "insensitive" as any } },
+        { category: { contains: q, mode: "insensitive" as any } },
+      ],
+    }
     : undefined;
 
-  const items = (await prisma.applianceCatalog.findMany({
+  const items = await prisma.applianceCatalog.findMany({
     where,
     take,
     orderBy: [{ brand: "asc" }, { model: "asc" }],
@@ -31,17 +30,12 @@ router.get("/", async (req: Request, res: Response) => {
       applianceTaskTemplates: { include: { taskTemplate: true } },
       trackables: { select: { id: true } },
     },
-  })) as Array<
-    Prisma.ApplianceCatalogGetPayload<{
-      include: {
-        applianceTaskTemplates: { include: { taskTemplate: true } };
-        trackables: { select: { id: true } };
-      };
-    }>
-  >;
+  });
+
+  type Item = (typeof items)[number];
 
   res.json(
-    items.map((c) => ({
+    items.map((c: Item) => ({
       id: c.id,
       brand: c.brand,
       model: c.model,
@@ -49,11 +43,13 @@ router.get("/", async (req: Request, res: Response) => {
       category: c.category,
       notes: c.notes,
       imageUrl: c.imageUrl,
-      linkedTemplates: c.applianceTaskTemplates.map((l: { taskTemplate: { id: string; title: string; recurrenceInterval: string } }) => ({
-        id: l.taskTemplate.id,
-        title: l.taskTemplate.title,
-        recurrenceInterval: l.taskTemplate.recurrenceInterval,
-      })),
+      linkedTemplates: c.applianceTaskTemplates.map(
+        (l: { taskTemplate: { id: string; title: string; recurrenceInterval: string } }) => ({
+          id: l.taskTemplate.id,
+          title: l.taskTemplate.title,
+          recurrenceInterval: l.taskTemplate.recurrenceInterval,
+        })
+      ),
       trackablesCount: c.trackables.length,
       createdAt: c.createdAt,
     }))
@@ -71,6 +67,7 @@ router.get("/:id", async (req: Request, res: Response) => {
     },
   });
   if (!c) return res.status(404).json({ error: "NOT_FOUND" });
+
   res.json({
     id: c.id,
     brand: c.brand,
@@ -79,11 +76,13 @@ router.get("/:id", async (req: Request, res: Response) => {
     category: c.category,
     notes: c.notes,
     imageUrl: c.imageUrl,
-    linkedTemplates: c.applianceTaskTemplates.map((l) => ({
-      id: l.taskTemplate.id,
-      title: l.taskTemplate.title,
-      recurrenceInterval: l.taskTemplate.recurrenceInterval,
-    })),
+    linkedTemplates: c.applianceTaskTemplates.map(
+      (l: { taskTemplate: { id: string; title: string; recurrenceInterval: string } }) => ({
+        id: l.taskTemplate.id,
+        title: l.taskTemplate.title,
+        recurrenceInterval: l.taskTemplate.recurrenceInterval,
+      })
+    ),
     trackablesCount: c.trackables.length,
     createdAt: c.createdAt,
   });
@@ -113,13 +112,13 @@ router.post("/", async (req: Request, res: Response) => {
     return res.status(409).json({ error: "ALREADY_EXISTS", id: exists.id });
   }
 
-  // Prisma expects non-null strings for type/category in your schema; coerce sensible defaults.
   const created = await prisma.applianceCatalog.create({
     data: {
       brand: brand.trim(),
       model: model.trim(),
-      type: typeof type === "string" ? type.trim() : "",           // <- string, not null
-      category: typeof category === "string" ? category.trim() : "general", // <- string, not null
+      // If your schema defines these as NOT NULL string columns, coerce sensible defaults:
+      type: typeof type === "string" ? type.trim() : "",
+      category: typeof category === "string" ? category.trim() : "general",
       notes: typeof notes === "string" ? notes : null,
       imageUrl: typeof imageUrl === "string" ? imageUrl : null,
     },
@@ -141,7 +140,7 @@ router.put("/:id", async (req: Request, res: Response) => {
   const updated = await prisma.applianceCatalog.update({
     where: { id },
     data: {
-      // If your schema requires non-null strings, coerce to empty/defaults when client sends null
+      // Only update provided fields
       type: typeof type === "string" ? type : undefined,
       category: typeof category === "string" ? category : undefined,
       notes: typeof notes === "string" ? notes : undefined,

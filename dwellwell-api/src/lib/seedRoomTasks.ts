@@ -1,14 +1,18 @@
-import { PrismaClient, TaskStatus, TaskType, TaskCriticality } from "@prisma/client";
+// dwellwell-api/src/lib/seedDefaultRoomTasks.ts
+import { PrismaClient, Prisma } from '@prisma/client';
 
 const prisma = new PrismaClient();
+
+// Use version-agnostic string unions instead of Prisma enums
+type Criticality = 'low' | 'medium' | 'high';
 
 type DefaultTask = {
   title: string;
   description?: string;
   category?: string;
-  dueInDays: number;              // initial due date offset
-  recurrence?: string;            // free-form for now
-  criticality?: TaskCriticality;
+  dueInDays: number;     // initial due date offset
+  recurrence?: string;   // free-form for now
+  criticality?: Criticality;
 };
 
 const ROOM_TYPE_DEFAULT_TASKS: Record<string, DefaultTask[]> = {
@@ -168,11 +172,12 @@ export async function seedDefaultTasksForRoom(args: {
     const baseKey = `room-${room.id}-${slugify(def.title)}`;
     let dedupeKey = baseKey;
 
-    // extra safety (shouldn’t trigger in normal create flow)
+    // Ensure no duplicate dedupeKey for the same user
     let n = 1;
-    // eslint-disable-next-line no-constant-condition
     while (true) {
-      const existing = await db.userTask.findUnique({ where: { dedupeKey } }).catch(() => null);
+      const existing = await db.userTask
+        .findUnique({ where: { userId_dedupeKey: { userId, dedupeKey } } })
+        .catch(() => null);
       if (!existing) break;
       n += 1;
       dedupeKey = `${baseKey}-${n}`;
@@ -182,14 +187,14 @@ export async function seedDefaultTasksForRoom(args: {
       data: {
         userId,
         roomId: room.id,
-        trackableId: undefined,
-        taskTemplateId: undefined,
-        sourceType: "room",
+        trackableId: null,
+        taskTemplateId: null,
+        sourceType: 'room' as any,     // enum-safe
 
         title: def.title,
         description: def.description ?? "",
         dueDate: addDays(def.dueInDays),
-        status: TaskStatus.PENDING,
+        status: 'PENDING' as any,      // enum-safe
 
         itemName: def.title,
         category: def.category ?? (room.type || "General"),
@@ -197,7 +202,7 @@ export async function seedDefaultTasksForRoom(args: {
 
         estimatedTimeMinutes: 0,
         estimatedCost: 0,
-        criticality: def.criticality ?? TaskCriticality.medium,
+        criticality: (def.criticality ?? 'medium') as any,  // enum-safe
 
         deferLimitDays: 0,
         canBeOutsourced: false,
@@ -206,10 +211,11 @@ export async function seedDefaultTasksForRoom(args: {
 
         recurrenceInterval: def.recurrence ?? "",
 
-        taskType: TaskType.GENERAL,
+        taskType: 'GENERAL' as any,    // enum-safe
 
         dedupeKey,
-        // IMPORTANT: JSON fields must be omitted or set to Prisma.DbNull/JsonNull.
+
+        // Optional JSON/array fields omitted; Prisma will use defaults/nulls
         steps: undefined,
         equipmentNeeded: undefined,
         resources: undefined,

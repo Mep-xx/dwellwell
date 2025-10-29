@@ -2,7 +2,7 @@
 import { Router, Request, Response } from "express";
 import { requireAuth } from "../../middleware/requireAuth";
 import { requireAdmin } from "../../middleware/requireAdmin";
-import { PrismaClient, TaskCriticality, TaskType } from "@prisma/client";
+import { PrismaClient, TaskType, TaskCriticality } from "@prisma/client";
 import { ApplianceCatalog as SeedCatalog } from "../../lib/mockApplianceCatalog";
 
 const prisma = new PrismaClient();
@@ -10,11 +10,6 @@ const router = Router();
 
 router.use(requireAuth, requireAdmin);
 
-/**
- * POST /admin/tools/run-seeds
- * Runs the same logic as your CLI seed, but from the admin UI.
- * Safe/idempotent.
- */
 router.post("/run-seeds", async (req: Request, res: Response) => {
   try {
     // 1) Seed catalog
@@ -39,7 +34,7 @@ router.post("/run-seeds", async (req: Request, res: Response) => {
         title: "Change HVAC Filter",
         description: "Replace the air filter to ensure efficient airflow.",
         recurrenceInterval: "3 months",
-        criticality: "high",
+        criticality: TaskCriticality.high,
         canDefer: false,
         deferLimitDays: 0,
         estimatedTimeMinutes: 10,
@@ -47,31 +42,62 @@ router.post("/run-seeds", async (req: Request, res: Response) => {
         canBeOutsourced: false,
         category: "appliance",
         icon: "🌬️",
-        taskType: "GENERAL",
-        steps: ["Turn off the HVAC system", "Remove old filter", "Insert new filter facing airflow direction arrows"],
+        taskType: TaskType.GENERAL,
+        steps: [
+          "Turn off the HVAC system",
+          "Remove old filter",
+          "Insert new filter facing airflow direction arrows",
+        ],
         equipmentNeeded: ["New air filter", "Gloves"],
-        resources: [],
+        resources: [] as Array<{ label: string; url: string }>,
       },
     ] satisfies Array<{
-      title: string; description: string; recurrenceInterval: string;
-      criticality: TaskCriticality; canDefer: boolean; deferLimitDays: number;
-      estimatedTimeMinutes: number; estimatedCost: number; canBeOutsourced: boolean;
-      category: string; icon: string; taskType: TaskType; steps: string[]; equipmentNeeded: string[]; resources: any[];
+      title: string;
+      description: string;
+      recurrenceInterval: string;
+      criticality: TaskCriticality;
+      canDefer: boolean;
+      deferLimitDays: number;
+      estimatedTimeMinutes: number;
+      estimatedCost: number;
+      canBeOutsourced: boolean;
+      category: string;
+      icon: string;
+      taskType: TaskType;
+      steps: string[];
+      equipmentNeeded: string[];
+      resources: { label: string; url: string }[];
     }>;
 
     for (const tpl of templates) {
-      const existing = await prisma.taskTemplate.findFirst({ where: { title: tpl.title } });
-      if (existing) await prisma.taskTemplate.update({ where: { id: existing.id }, data: tpl });
-      else await prisma.taskTemplate.create({ data: tpl });
+      const existing = await prisma.taskTemplate.findFirst({
+        where: { title: tpl.title },
+      });
+      if (existing) {
+        await prisma.taskTemplate.update({
+          where: { id: existing.id },
+          data: tpl,
+        });
+      } else {
+        await prisma.taskTemplate.create({ data: tpl });
+      }
     }
 
     // 3) Kind mappings (minimal)
-    const hvacTpl = await prisma.taskTemplate.findFirst({ where: { title: "Change HVAC Filter" } });
+    const hvacTpl = await prisma.taskTemplate.findFirst({
+      where: { title: "Change HVAC Filter" },
+    });
     if (hvacTpl) {
       await prisma.trackableKindTaskTemplate.upsert({
-        where: { kind_taskTemplateId: { kind: "hvac", taskTemplateId: hvacTpl.id } },
+        where: {
+          kind_taskTemplateId: { kind: "hvac", taskTemplateId: hvacTpl.id },
+        },
         update: {},
-        create: { kind: "hvac", category: "appliance", taskTemplateId: hvacTpl.id },
+        create: {
+          kind: "hvac",
+          category: "appliance",
+          taskTemplateId: hvacTpl.id,
+        },
       });
     }
 

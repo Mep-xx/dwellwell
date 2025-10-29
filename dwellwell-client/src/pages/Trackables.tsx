@@ -192,8 +192,6 @@ export default function Trackables(_: Props) {
                     type: curr.type ?? undefined,
                     category: curr.category ?? undefined,
                     serialNumber: (curr as any).serialNumber,
-                    imageUrl: curr.imageUrl ?? undefined,
-                    notes: (curr as any).notes,
                     applianceCatalogId: (curr as any).applianceCatalogId,
                     roomId: (curr as any).roomId ?? undefined,
                     homeId: (curr as any).homeId ?? undefined,

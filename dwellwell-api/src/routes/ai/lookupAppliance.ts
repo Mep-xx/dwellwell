@@ -40,14 +40,16 @@ router.get('/lookup-appliance', asyncHandler(async (req: Request, res: Response)
 
   if (tokens.length) {
     // AND of ORs → each token must match at least one of the text fields
-    const whereAnd: Prisma.ApplianceCatalogWhereInput[] = tokens.map((t) => ({
-      OR: [
-        { brand:    { contains: t, mode: Prisma.QueryMode.insensitive } },
-        { model:    { contains: t, mode: Prisma.QueryMode.insensitive } },
-        { type:     { contains: t, mode: Prisma.QueryMode.insensitive } },
-        { category: { contains: t, mode: Prisma.QueryMode.insensitive } },
-      ],
-    }));
+    const whereAnd = q
+      ? {
+        OR: [
+          { brand: { contains: q, mode: 'insensitive' as any } },
+          { model: { contains: q, mode: 'insensitive' as any } },
+          { type: { contains: q, mode: 'insensitive' as any } },
+          { category: { contains: q, mode: 'insensitive' as any } },
+        ],
+      }
+      : undefined;
 
     catalogCandidates = await prisma.applianceCatalog.findMany({
       where: { AND: whereAnd },
@@ -58,8 +60,8 @@ router.get('/lookup-appliance', asyncHandler(async (req: Request, res: Response)
   }
 
   const ALLOWED_CATEGORIES = [
-    'appliance','kitchen','bathroom','heating','cooling','plumbing','electrical','outdoor','safety','general',
-    'electronics','computing','entertainment','lighting','cleaning','tools','furniture',
+    'appliance', 'kitchen', 'bathroom', 'heating', 'cooling', 'plumbing', 'electrical', 'outdoor', 'safety', 'general',
+    'electronics', 'computing', 'entertainment', 'lighting', 'cleaning', 'tools', 'furniture',
   ];
 
   const SYSTEM = `

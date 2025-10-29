@@ -1,13 +1,25 @@
-//dwellwell-api/tsconfig.json
+// dwellwell-api/tsconfig.json
 {
   "extends": "../tsconfig.base.json",
   "compilerOptions": {
+    "baseUrl": ".",
+    "rootDir": ".",
+    "outDir": "../build-api",
+
     "module": "CommonJS",
-    "rootDir": "..",                 // <— broaden to repo root
-    "outDir": "../build-api",        // <— emit into a sibling folder
-    "composite": true,
-    "types": ["node"]
+    "moduleResolution": "Node",
+
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "types": ["node"],
+
+    "paths": {
+      "@shared": ["../shared/dist/index"],
+      "@shared/*": ["../shared/dist/*"],
+      "@constants": ["../shared/dist/constants/index"],
+      "@constants/*": ["../shared/dist/constants/*"]
+    }
   },
-  "include": ["src", "../shared", "../dwellwell-client/src/utils/zillowUrl.ts", "scripts"],   // <— compile api/src + shared
-  "exclude": ["node_modules", "build", "../build-api"]
+  "include": ["src", "scripts"],
+  "exclude": ["node_modules", "../build-api", "../shared/dist"]
 }

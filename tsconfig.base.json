@@ -1,17 +1,13 @@
-//tsconfig.base.json
 {
   "compilerOptions": {
     "target": "ES2020",
     "lib": ["ESNext", "DOM"],
-
-    "moduleResolution": "node",
+    "moduleResolution": "NodeNext",
     "resolveJsonModule": true,
-
     "strict": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
-
     "baseUrl": ".",
     "paths": {
       "@shared/*": ["shared/*"],

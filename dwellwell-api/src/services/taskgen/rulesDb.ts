@@ -1,10 +1,4 @@
-// dwellwell-api/src/services/taskgen/rulesDb.ts
 import { prisma } from "../../db/prisma";
-import type {
-  TaskGenRule,
-  TaskGenRuleCondition,
-  TaskGenRuleTemplate,
-} from "@prisma/client";
 import type { Rule, RuleContext, TemplateSeed } from "./rules";
 
 /**
@@ -39,7 +33,53 @@ function canonicalRoomType(x: unknown) {
  * Convert DB rows into in-memory Rule[] compatible with taskgen/index.ts
  */
 
-function buildWhen(conds: TaskGenRuleCondition[]): (ctx: RuleContext) => boolean {
+type DbCondition = {
+  idx: number;
+  target: "home" | "room" | "room_detail" | "trackable";
+  field: string;
+  op:
+    | "exists"
+    | "not_exists"
+    | "eq"
+    | "ne"
+    | "contains"
+    | "not_contains"
+    | "gte"
+    | "lte"
+    | "in"
+    | "not_in";
+  value?: any | null;
+  values?: any[] | null;
+};
+
+type DbTemplate = {
+  title: string;
+  description?: string | null;
+  icon?: string | null;
+  imageUrl?: string | null;
+  category?: string | null;
+  recurrenceInterval: string;
+  taskType?: any;
+  criticality?: any;
+  canDefer?: boolean | null;
+  deferLimitDays?: number | null;
+  estimatedTimeMinutes?: number | null;
+  estimatedCost?: number | null;
+  canBeOutsourced?: boolean | null;
+  steps?: string[] | null;
+  equipmentNeeded?: string[] | null;
+  resources?: any;
+};
+
+type DbRule = {
+  key: string;
+  scope: "home" | "room" | "trackable";
+  enabled: boolean;
+  template: DbTemplate | null;
+  conditions: DbCondition[];
+};
+
+function buildWhen(conds: DbCondition[]): (ctx: RuleContext) => boolean {
   // ALL-of conditions (AND)
   return (ctx: RuleContext) => {
     for (const c of conds.sort((a, b) => a.idx - b.idx)) {
@@ -163,7 +203,7 @@ function buildWhen(conds: TaskGenRuleCondition[]): (ctx: RuleContext) => boolean
   };
 }
 
-function dbTemplateToSeed(t: TaskGenRuleTemplate): TemplateSeed {
+function dbTemplateToSeed(t: DbTemplate): TemplateSeed {
   return {
     title: t.title,
     description: t.description ?? undefined,
@@ -171,23 +211,20 @@ function dbTemplateToSeed(t: TaskGenRuleTemplate): TemplateSeed {
     imageUrl: t.imageUrl ?? undefined,
     category: t.category ?? undefined,
     recurrenceInterval: t.recurrenceInterval,
-    taskType: t.taskType,
-    criticality: t.criticality,
-    canDefer: t.canDefer,
-    deferLimitDays: t.deferLimitDays,
-    estimatedTimeMinutes: t.estimatedTimeMinutes,
-    estimatedCost: t.estimatedCost,
-    canBeOutsourced: t.canBeOutsourced,
-    steps: t.steps ?? [],
-    equipmentNeeded: t.equipmentNeeded ?? [],
+    taskType: (t.taskType as any) ?? "GENERAL",
+    criticality: (t.criticality as any) ?? "medium",
+    canDefer: t.canDefer ?? undefined,
+    deferLimitDays: t.deferLimitDays ?? undefined,
+    estimatedTimeMinutes: t.estimatedTimeMinutes ?? undefined,
+    estimatedCost: t.estimatedCost ?? undefined,
+    canBeOutsourced: t.canBeOutsourced ?? undefined,
+    steps: t.steps ?? undefined,
+    equipmentNeeded: t.equipmentNeeded ?? undefined,
     resources: t.resources ?? undefined,
   };
 }
 
-export type DbRuleBundle = TaskGenRule & {
-  template: TaskGenRuleTemplate | null;
-  conditions: TaskGenRuleCondition[];
-};
+export type DbRuleBundle = DbRule;
 
 let cache:
   | {
@@ -201,14 +238,14 @@ const CACHE_MS = 10_000; // small cache; tweak as needed
 export async function loadRulesFromDb(): Promise<Rule[]> {
   if (cache && Date.now() - cache.at < CACHE_MS) return cache.rules;
 
-  const rows = await prisma.taskGenRule.findMany({
+  const rows = (await prisma.taskGenRule.findMany({
     where: { enabled: true },
     orderBy: { updatedAt: "desc" },
     include: {
       template: true,
       conditions: true,
     },
-  });
+  })) as DbRule[];
 
   const rules: Rule[] = rows.map((r) => {
     const seed: TemplateSeed = r.template
@@ -221,11 +258,11 @@ export async function loadRulesFromDb(): Promise<Rule[]> {
           criticality: "medium",
         } as TemplateSeed);
 
-    const when = buildWhen(r.conditions);
+    const when = buildWhen(r.conditions || []);
 
     return {
       key: r.key,
-      scope: r.scope as any,
+      scope: r.scope,
       template: seed,
       when,
       // Optional: future support for per-rule toUserTask overrides from DB

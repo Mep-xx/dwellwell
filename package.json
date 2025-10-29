@@ -1,6 +1,17 @@
 {
+  "name": "dwellwell",
+  "private": true,
+  "workspaces": ["dwellwell-api", "dwellwell-client", "shared"],
+  "scripts": {
+    "dev": "npx concurrently -n shared,api,web -c green,cyan,magenta \"npm -w @dwellwell/shared run build:watch\" \"npm -w dwellwell-api run dev\" \"npm -w dwellwell-client run dev\"",
+    "dev:api-web": "concurrently -n api,web -c green,blue \"npm -w dwellwell-api run dev\" \"npm -w dwellwell-client run dev\"",
+    "build": "npm -w @dwellwell/shared run build && npm -w dwellwell-api run build && npm -w dwellwell-client run build",
+    "lint": "eslint .",
+    "format": "prettier -w .",
+    "typecheck": "tsc -b"
+  },
   "devDependencies": {
-    "@types/node": "^22.14.0",
-    "prisma": "^6.6.0"
+    "concurrently": "^9.0.0",
+    "typescript": "^5.9.3"
   }
 }

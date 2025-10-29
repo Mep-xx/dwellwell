@@ -1,56 +1,77 @@
-// dwellwell-api/src/services/taskgen/index.ts
 import crypto from "crypto";
 import { prisma } from "../../db/prisma";
-import type { TaskTemplate, TaskType, TaskCriticality } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { addByInterval, initialDueDate } from "./dates";
 import type { RuleContext, Rule, TemplateSeed } from "./rules";
 import { getHomeRules, getRoomRules, getTrackableRules } from "./rulesDb";
 import { getTrackableDisplay } from "../../services/trackables/display";
 import { seedRoomTasksForRoom } from "../roomTaskSeeder";
 
-/** —————————————————————————————————————————————————————
- * Template + UserTask helpers
- * ————————————————————————————————————————————————————— */
+// Local unions to avoid Prisma.$Enums
+type TaskTypeStr = "GENERAL" | string;
+type TaskCriticalityStr = "low" | "medium" | "high" | string;
 
-async function ensureTemplate(key: string, seed: TemplateSeed): Promise<TaskTemplate> {
-  const existing = await prisma.taskTemplate.findFirst({
+type TaskTemplateLike = {
+  id: string;
+  title: string;
+  description: string | null;
+  icon: string | null;
+  imageUrl: string | null;
+  category: string | null;
+  recurrenceInterval: string;
+  taskType: TaskTypeStr;
+  criticality: TaskCriticalityStr;
+  canDefer: boolean | null;
+  deferLimitDays: number | null;
+  estimatedTimeMinutes: number | null;
+  estimatedCost: number | null;
+  canBeOutsourced: boolean | null;
+  steps?: unknown;
+  equipmentNeeded?: unknown;
+  resources?: unknown;
+  version: number | null;
+  state: string;
+  changelog: string | null;
+};
+
+async function ensureTemplate(key: string, seed: TemplateSeed): Promise<TaskTemplateLike> {
+  const existing = (await prisma.taskTemplate.findFirst({
     where: {
       title: seed.title,
       category: seed.category ?? null,
       recurrenceInterval: seed.recurrenceInterval,
     },
-  });
+  })) as TaskTemplateLike | null;
+
+  // normalize arrays
+  const stepsArr: string[] = Array.isArray(seed.steps) ? seed.steps.map(String) : [];
+  const equipArr: string[] = Array.isArray(seed.equipmentNeeded) ? seed.equipmentNeeded.map(String) : [];
 
   if (existing) {
-    const updated = await prisma.taskTemplate.update({
+    const updated = (await prisma.taskTemplate.update({
       where: { id: existing.id },
       data: {
         description: existing.description ?? seed.description ?? undefined,
         icon: existing.icon ?? seed.icon ?? undefined,
         imageUrl: existing.imageUrl ?? seed.imageUrl ?? undefined,
-        taskType: existing.taskType ?? ((seed.taskType as TaskType) ?? "GENERAL"),
-        criticality: existing.criticality ?? ((seed.criticality as TaskCriticality) ?? "medium"),
+        taskType: (existing.taskType ?? (seed.taskType as TaskTypeStr) ?? "GENERAL") as any,
+        criticality: (existing.criticality ?? (seed.criticality as TaskCriticalityStr) ?? "medium") as any,
         canDefer: existing.canDefer ?? (seed.canDefer ?? true),
         deferLimitDays: existing.deferLimitDays ?? (seed.deferLimitDays ?? 0),
         estimatedTimeMinutes: existing.estimatedTimeMinutes ?? (seed.estimatedTimeMinutes ?? 30),
         estimatedCost: existing.estimatedCost ?? (seed.estimatedCost ?? 0),
         canBeOutsourced: existing.canBeOutsourced ?? (seed.canBeOutsourced ?? false),
-        steps:
-          (Array.isArray(existing.steps) && (existing.steps as any[]).length)
-            ? existing.steps
-            : (seed.steps as any) ?? [],
-        equipmentNeeded:
-          (Array.isArray(existing.equipmentNeeded) && (existing.equipmentNeeded as any[]).length)
-            ? existing.equipmentNeeded
-            : (seed.equipmentNeeded as any) ?? [],
-        resources: (existing as any).resources ?? (seed as any).resources ?? undefined,
+        steps: stepsArr.length ? { set: stepsArr } : undefined,
+        equipmentNeeded: equipArr.length ? { set: equipArr } : undefined,
+        // keep resources if you store JSON; omit if not part of schema
+        // resources: (existing as any).resources ?? (seed as any).resources ?? undefined,
         changelog: existing.changelog ?? `system-key:${key}`,
       },
-    });
+    })) as TaskTemplateLike;
     return updated;
   }
 
-  const created = await prisma.taskTemplate.create({
+  const created = (await prisma.taskTemplate.create({
     data: {
       title: seed.title,
       description: seed.description ?? null,
@@ -58,21 +79,21 @@ async function ensureTemplate(key: string, seed: TemplateSeed): Promise<TaskTemp
       imageUrl: seed.imageUrl ?? null,
       category: seed.category ?? null,
       recurrenceInterval: seed.recurrenceInterval,
-      taskType: ((seed.taskType as TaskType) ?? "GENERAL"),
-      criticality: ((seed.criticality as TaskCriticality) ?? "medium"),
+      taskType: ((seed.taskType as TaskTypeStr) ?? "GENERAL") as any,
+      criticality: ((seed.criticality as TaskCriticalityStr) ?? "medium") as any,
       canDefer: seed.canDefer ?? true,
       deferLimitDays: seed.deferLimitDays ?? 0,
       estimatedTimeMinutes: seed.estimatedTimeMinutes ?? 30,
       estimatedCost: seed.estimatedCost ?? 0,
       canBeOutsourced: seed.canBeOutsourced ?? false,
-      steps: (seed.steps as any) ?? [],
-      equipmentNeeded: (seed.equipmentNeeded as any) ?? [],
-      resources: (seed as any).resources ?? undefined,
+      steps: stepsArr,
+      equipmentNeeded: equipArr,
+      // resources: ((seed as any).resources ?? undefined) as any,
       version: 1,
       state: "VERIFIED",
       changelog: `system-key:${key}`,
     },
-  });
+  })) as TaskTemplateLike;
   return created;
 }
 
@@ -86,7 +107,7 @@ async function upsertUserTask(opts: {
   homeId?: string | null;
   roomId?: string | null;
   trackableId?: string | null;
-  taskTemplate: TaskTemplate;
+  taskTemplate: TaskTemplateLike;
   sourceType: "room" | "trackable";
   titleOverride?: string | null;
   descriptionOverride?: string | null;
@@ -126,8 +147,13 @@ async function upsertUserTask(opts: {
 
   const due = initialDueDate(anchor, taskTemplate.recurrenceInterval);
 
+  const stepsArr: string[] =
+    Array.isArray(taskTemplate.steps as any) ? (taskTemplate.steps as any[]).map(String) : [];
+  const equipArr: string[] =
+    Array.isArray(taskTemplate.equipmentNeeded as any) ? (taskTemplate.equipmentNeeded as any[]).map(String) : [];
+
   await prisma.userTask.upsert({
-    where: { userId_dedupeKey: { userId, dedupeKey }, },
+    where: { userId_dedupeKey: { userId, dedupeKey } },
     update: {
       homeId,
       roomId: roomId ?? undefined,
@@ -141,18 +167,18 @@ async function upsertUserTask(opts: {
       category: taskTemplate.category ?? "general",
       estimatedTimeMinutes: taskTemplate.estimatedTimeMinutes ?? 0,
       estimatedCost: taskTemplate.estimatedCost ?? 0,
-      criticality: taskTemplate.criticality,
+      criticality: taskTemplate.criticality as any,
       deferLimitDays: taskTemplate.deferLimitDays ?? 0,
       canBeOutsourced: taskTemplate.canBeOutsourced ?? false,
-      canDefer: taskTemplate.canDefer ?? taskTemplate.canDefer ?? true,
+      canDefer: taskTemplate.canDefer ?? true,
       recurrenceInterval: taskTemplate.recurrenceInterval,
-      taskType: taskTemplate.taskType,
-      steps: taskTemplate.steps ? (taskTemplate.steps as any) : undefined,
-      equipmentNeeded: taskTemplate.equipmentNeeded ? (taskTemplate.equipmentNeeded as any) : undefined,
-      resources: taskTemplate.resources ? (taskTemplate.resources as any) : undefined,
+      taskType: taskTemplate.taskType as any,
+      steps: stepsArr.length ? { set: stepsArr } : undefined,
+      equipmentNeeded: equipArr.length ? { set: equipArr } : undefined,
+      resources: (taskTemplate.resources as any) ?? undefined,
       icon: taskTemplate.icon ?? undefined,
       imageUrl: taskTemplate.imageUrl ?? undefined,
-      sourceTemplateVersion: taskTemplate.version,
+      sourceTemplateVersion: taskTemplate.version ?? undefined,
       location: location ?? undefined,
     },
     create: {
@@ -170,27 +196,23 @@ async function upsertUserTask(opts: {
       category: taskTemplate.category ?? "general",
       estimatedTimeMinutes: taskTemplate.estimatedTimeMinutes ?? 0,
       estimatedCost: taskTemplate.estimatedCost ?? 0,
-      criticality: taskTemplate.criticality,
+      criticality: taskTemplate.criticality as any,
       deferLimitDays: taskTemplate.deferLimitDays ?? 0,
       canBeOutsourced: taskTemplate.canBeOutsourced ?? false,
       canDefer: taskTemplate.canDefer ?? true,
       recurrenceInterval: taskTemplate.recurrenceInterval,
-      taskType: taskTemplate.taskType,
+      taskType: taskTemplate.taskType as any,
       dedupeKey,
-      steps: taskTemplate.steps ? (taskTemplate.steps as any) : undefined,
-      equipmentNeeded: taskTemplate.equipmentNeeded ? (taskTemplate.equipmentNeeded as any) : undefined,
-      resources: taskTemplate.resources ? (taskTemplate.resources as any) : undefined,
+      steps: stepsArr.length ? stepsArr : undefined,
+      equipmentNeeded: equipArr.length ? equipArr : undefined,
+      resources: (taskTemplate.resources as any) ?? undefined,
       icon: taskTemplate.icon ?? undefined,
       imageUrl: taskTemplate.imageUrl ?? undefined,
-      sourceTemplateVersion: taskTemplate.version,
+      sourceTemplateVersion: taskTemplate.version ?? undefined,
       location: location ?? undefined,
     },
   });
 }
-
-/** —————————————————————————————————————————————————————
- * Rule applicators (now sourced from DB)
- * ————————————————————————————————————————————————————— */
 
 async function applyRules(
   userId: string,
@@ -213,7 +235,6 @@ async function applyRules(
         sourceType: rule.scope === "trackable" ? "trackable" : "room",
         titleOverride: overrides.title ?? null,
         descriptionOverride: overrides.description ?? null,
-        // Default itemName to the room name for room-scoped tasks (helps filtering/grouping)
         itemName: overrides.itemName ?? (ctx.room?.name ?? null),
         location: overrides.location ?? null,
       });
@@ -238,10 +259,6 @@ async function applyRules(
   }
 }
 
-/** —————————————————————————————————————————————————————
- * Public API
- * ————————————————————————————————————————————————————— */
-
 export async function generateTasksForRoom(roomId: string) {
   const room = await prisma.room.findUnique({
     where: { id: roomId },
@@ -254,7 +271,6 @@ export async function generateTasksForRoom(roomId: string) {
   const ctx: RuleContext = {
     room: room || undefined,
     home: room.home || undefined,
-    // no trackable in this flow
   };
 
   const rules = await getRoomRules();
@@ -262,10 +278,8 @@ export async function generateTasksForRoom(roomId: string) {
 }
 
 export async function generateTasksForNewRoom(roomId: string) {
-  // Run rule-based generation first
   await generateTasksForRoom(roomId);
 
-  // If nothing was generated for this room, seed minimal room tasks as a fallback.
   const room = await prisma.room.findUnique({
     where: { id: roomId },
     include: { home: { select: { userId: true } } },

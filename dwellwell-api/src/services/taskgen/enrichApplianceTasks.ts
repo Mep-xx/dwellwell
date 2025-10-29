@@ -1,18 +1,10 @@
 // dwellwell-api/src/services/taskgen/enrichApplianceTasks.ts
+import { PrismaClient, TaskCriticality, TaskType } from "@prisma/client";
 import OpenAI from "openai";
-import { PrismaClient, TaskType, TaskCriticality } from "@prisma/client";
 
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
-/**
- * Given a catalog row, ask OpenAI for suggested maintenance tasks,
- * then upsert TaskTemplates and link them with ApplianceTaskTemplate.
- *
- * Returns number of templates linked.
- *
- * Safe to call multiple times (idempotent by (title, recurrenceInterval) match).
- */
 export async function enrichApplianceTasks(opts: {
   prisma: PrismaClient;
   catalogId: string;
@@ -41,7 +33,6 @@ export async function enrichApplianceTasks(opts: {
   });
   if (!catalog) return 0;
 
-  // If this catalog item already has links, don't regenerate unless desired.
   const existingLinks = await prisma.applianceTaskTemplate.count({
     where: { applianceCatalogId: catalogId },
   });
@@ -71,7 +62,7 @@ Each task:
 Rules:
 - Prefer model-specific tasks (e.g., filters, coils, descaling) and safe cadences.
 - Do NOT invent brand web links if unsure.
-  `.trim();
+`.trim();
 
   const user = `
 APPLIANCE:
@@ -84,7 +75,7 @@ APPLIANCE:
 }
 
 Return ONLY JSON.
-  `.trim();
+`.trim();
 
   let content = "[]";
   try {
@@ -124,14 +115,28 @@ Return ONLY JSON.
       return [];
     }
   }
-  const tasks: any[] = Array.isArray(parseFirstJsonBlob(content))
-    ? parseFirstJsonBlob(content)
-    : [];
+
+  const parsed = parseFirstJsonBlob(content);
+  const tasks: any[] = Array.isArray(parsed) ? parsed : [];
 
   let linked = 0;
+
+  // helper: map string -> TaskCriticality enum
+  const toCrit = (c: unknown): TaskCriticality => {
+    switch (String(c ?? "").toLowerCase()) {
+      case "high":
+        return TaskCriticality.high;
+      case "low":
+        return TaskCriticality.low;
+      default:
+        return TaskCriticality.medium;
+    }
+  };
+
   for (const t of tasks) {
     const title = String(t?.title ?? "").trim();
-    const recurrenceInterval = String(t?.recurrenceInterval ?? "").trim() || "6 months";
+    const recurrenceInterval =
+      String(t?.recurrenceInterval ?? "").trim() || "6 months";
     if (!title) continue;
 
     const existing = await prisma.taskTemplate.findFirst({
@@ -142,43 +147,63 @@ Return ONLY JSON.
       },
     });
 
-    const criticality: TaskCriticality = (() => {
-      const c = String(t?.criticality ?? "").toLowerCase();
-      return c === "high" ? "high" : c === "low" ? "low" : "medium";
-    })();
+    const criticality = toCrit(t?.criticality);
 
-    const data = {
+    // Array fields as real arrays (NOT JSON)
+    const stepsArr: string[] = Array.isArray(t?.steps)
+      ? t.steps.map((s: any) => String(s)).slice(0, 10)
+      : [];
+    const equipArr: string[] = Array.isArray(t?.equipmentNeeded)
+      ? t.equipmentNeeded.map((s: any) => String(s)).slice(0, 10)
+      : [];
+
+    const baseData = {
       title,
       description: t?.description ? String(t.description) : null,
       icon: t?.icon ? String(t.icon) : null,
       imageUrl: null as string | null,
       category: t?.category ? String(t.category) : "appliance",
       recurrenceInterval,
-      taskType: ((): TaskType => "GENERAL")(),
+      taskType: TaskType.GENERAL,
       criticality,
-      canDefer: typeof t?.canDefer === "boolean" ? Boolean(t.canDefer) : true,
-      deferLimitDays: Number.isFinite(+t?.deferLimitDays) ? +t.deferLimitDays : 0,
-      estimatedTimeMinutes: Number.isFinite(+t?.estimatedTimeMinutes) ? +t.estimatedTimeMinutes : 15,
-      estimatedCost: Number.isFinite(+t?.estimatedCost) ? +t.estimatedCost : 0,
-      canBeOutsourced: typeof t?.canBeOutsourced === "boolean" ? Boolean(t.canBeOutsourced) : false,
-      steps: Array.isArray(t?.steps) ? t.steps.map((s: any) => String(s)).slice(0, 10) : [],
-      equipmentNeeded: Array.isArray(t?.equipmentNeeded)
-        ? t.equipmentNeeded.map((s: any) => String(s)).slice(0, 10)
-        : [],
-      resources: Array.isArray(t?.resources)
-        ? t.resources
-            .map((r: any) => ({
-              label: String(r?.label ?? "").slice(0, 80),
-              url: String(r?.url ?? ""),
-            }))
-            .filter((r: any) => /^https?:\/\//i.test(r.url))
-        : undefined,
+      canDefer:
+        typeof t?.canDefer === "boolean" ? Boolean(t.canDefer) : true,
+      deferLimitDays: Number.isFinite(+t?.deferLimitDays)
+        ? +t.deferLimitDays
+        : 0,
+      estimatedTimeMinutes: Number.isFinite(+t?.estimatedTimeMinutes)
+        ? +t.estimatedTimeMinutes
+        : 15,
+      estimatedCost: Number.isFinite(+t?.estimatedCost)
+        ? +t.estimatedCost
+        : 0,
+      canBeOutsourced:
+        typeof t?.canBeOutsourced === "boolean"
+          ? Boolean(t.canBeOutsourced)
+          : false,
+    };
+
+    // UPDATE uses `{ set: [...] }` for array fields (scalar lists)
+    const dataForUpdate = {
+      ...baseData,
+      steps: { set: stepsArr },
+      equipmentNeeded: { set: equipArr },
+      state: "VERIFIED" as const,
+    };
+
+    const dataForCreate = {
+      ...baseData,
+      steps: stepsArr,
+      equipmentNeeded: equipArr,
       state: "VERIFIED" as const,
     };
 
     const template = existing
-      ? await prisma.taskTemplate.update({ where: { id: existing.id }, data })
-      : await prisma.taskTemplate.create({ data });
+      ? await prisma.taskTemplate.update({
+          where: { id: existing.id },
+          data: dataForUpdate,
+        })
+      : await prisma.taskTemplate.create({ data: dataForCreate });
 
     await prisma.applianceTaskTemplate
       .upsert({
