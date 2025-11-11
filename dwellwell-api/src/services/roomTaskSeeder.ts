@@ -1,20 +1,15 @@
-// dwellwell-api/src/services/roomTaskSeeder.ts
-import {
-  PrismaClient,
-  TaskCriticality,
-  TaskStatus,
-  TaskType,
-  UserTaskSourceType,
-} from "@prisma/client";
+//dwellwell-api/src/services/roomTaskSeeder.ts
+import { PrismaClient } from "@prisma/client";
 import { prisma as prismaSingleton } from "../db/prisma";
 
+type Criticality = "low" | "medium" | "high";
 type DefaultTask = {
   title: string;
   description?: string;
   category?: string;
   dueInDays: number;   // initial due date offset
   recurrence?: string; // free-form for now
-  criticality?: TaskCriticality;
+  criticality?: Criticality;
 };
 
 const ROOM_TYPE_DEFAULT_TASKS: Record<string, DefaultTask[]> = {
@@ -39,7 +34,7 @@ const ROOM_TYPE_DEFAULT_TASKS: Record<string, DefaultTask[]> = {
       category: "Electrical",
       dueInDays: 60,
       recurrence: "6mo",
-      criticality: TaskCriticality.high,
+      criticality: "high",
     },
   ],
   Bathroom: [
@@ -56,7 +51,7 @@ const ROOM_TYPE_DEFAULT_TASKS: Record<string, DefaultTask[]> = {
       category: "Electrical",
       dueInDays: 60,
       recurrence: "6mo",
-      criticality: TaskCriticality.high,
+      criticality: "high",
     },
   ],
   "Living Room": [
@@ -66,7 +61,7 @@ const ROOM_TYPE_DEFAULT_TASKS: Record<string, DefaultTask[]> = {
       category: "Safety",
       dueInDays: 30,
       recurrence: "1mo",
-      criticality: TaskCriticality.high,
+      criticality: "high",
     },
     {
       title: "Inspect fireplace",
@@ -74,7 +69,7 @@ const ROOM_TYPE_DEFAULT_TASKS: Record<string, DefaultTask[]> = {
       category: "Safety",
       dueInDays: 90,
       recurrence: "1y",
-      criticality: TaskCriticality.medium,
+      criticality: "medium",
     },
   ],
   Bedroom: [
@@ -84,7 +79,7 @@ const ROOM_TYPE_DEFAULT_TASKS: Record<string, DefaultTask[]> = {
       category: "Safety",
       dueInDays: 30,
       recurrence: "1mo",
-      criticality: TaskCriticality.high,
+      criticality: "high",
     },
     {
       title: "Dust ceiling fan",
@@ -101,7 +96,7 @@ const ROOM_TYPE_DEFAULT_TASKS: Record<string, DefaultTask[]> = {
       category: "Safety",
       dueInDays: 7,
       recurrence: "1w",
-      criticality: TaskCriticality.high,
+      criticality: "high",
     },
     {
       title: "Inspect washer hoses",
@@ -118,7 +113,7 @@ const ROOM_TYPE_DEFAULT_TASKS: Record<string, DefaultTask[]> = {
       category: "Safety",
       dueInDays: 30,
       recurrence: "6mo",
-      criticality: TaskCriticality.high,
+      criticality: "high",
     },
     {
       title: "Flush water heater (quick)",
@@ -135,7 +130,7 @@ const ROOM_TYPE_DEFAULT_TASKS: Record<string, DefaultTask[]> = {
       category: "Safety",
       dueInDays: 30,
       recurrence: "3mo",
-      criticality: TaskCriticality.high,
+      criticality: "high",
     },
   ],
   Attic: [
@@ -163,7 +158,7 @@ function addDays(days: number) {
  * Seeds a handful of sensible, room-scoped default tasks for a given room.
  * - Uses (userId, dedupeKey) for idempotency
  * - Includes homeId on the created tasks (better filtering/grouping)
- * - Uses real Prisma enums (no Prisma.$Enums)
+ * - No Prisma version-specific types used
  */
 export async function seedRoomTasksForRoom(
   roomId: string,
@@ -204,12 +199,12 @@ export async function seedRoomTasksForRoom(
         roomId: room.id,
         trackableId: null,
         taskTemplateId: null,
-        sourceType: UserTaskSourceType.room,
+        sourceType: "room",
 
         title: def.title,
         description: def.description ?? "",
         dueDate: addDays(def.dueInDays),
-        status: TaskStatus.PENDING,
+        status: "PENDING",
 
         itemName: def.title,
         category: def.category ?? (room.type || "General"),
@@ -217,7 +212,7 @@ export async function seedRoomTasksForRoom(
 
         estimatedTimeMinutes: 0,
         estimatedCost: 0,
-        criticality: def.criticality ?? TaskCriticality.medium,
+        criticality: def.criticality ?? "medium",
 
         deferLimitDays: 0,
         canBeOutsourced: false,
@@ -225,8 +220,7 @@ export async function seedRoomTasksForRoom(
         isTracking: true,
 
         recurrenceInterval: def.recurrence ?? "",
-
-        taskType: TaskType.GENERAL,
+        taskType: "GENERAL",
 
         dedupeKey,
         steps: undefined,

@@ -1,5 +1,5 @@
-// dwellwell-api/src/services/taskgen/enrichApplianceTasks.ts
-import { PrismaClient, TaskCriticality, TaskType } from "@prisma/client";
+//dwellwell-api/src/services/taskgen/enrichApplianceTasks.ts
+import { PrismaClient } from "@prisma/client";
 import OpenAI from "openai";
 
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
@@ -121,15 +121,14 @@ Return ONLY JSON.
 
   let linked = 0;
 
-  // helper: map string -> TaskCriticality enum
-  const toCrit = (c: unknown): TaskCriticality => {
+  const toCrit = (c: unknown): "low" | "medium" | "high" => {
     switch (String(c ?? "").toLowerCase()) {
       case "high":
-        return TaskCriticality.high;
+        return "high";
       case "low":
-        return TaskCriticality.low;
+        return "low";
       default:
-        return TaskCriticality.medium;
+        return "medium";
     }
   };
 
@@ -147,9 +146,6 @@ Return ONLY JSON.
       },
     });
 
-    const criticality = toCrit(t?.criticality);
-
-    // Array fields as real arrays (NOT JSON)
     const stepsArr: string[] = Array.isArray(t?.steps)
       ? t.steps.map((s: any) => String(s)).slice(0, 10)
       : [];
@@ -164,30 +160,24 @@ Return ONLY JSON.
       imageUrl: null as string | null,
       category: t?.category ? String(t.category) : "appliance",
       recurrenceInterval,
-      taskType: TaskType.GENERAL,
-      criticality,
-      canDefer:
-        typeof t?.canDefer === "boolean" ? Boolean(t.canDefer) : true,
-      deferLimitDays: Number.isFinite(+t?.deferLimitDays)
-        ? +t.deferLimitDays
-        : 0,
+      taskType: "GENERAL" as const,
+      criticality: toCrit(t?.criticality),
+      canDefer: typeof t?.canDefer === "boolean" ? Boolean(t.canDefer) : true,
+      deferLimitDays: Number.isFinite(+t?.deferLimitDays) ? +t.deferLimitDays : 0,
       estimatedTimeMinutes: Number.isFinite(+t?.estimatedTimeMinutes)
         ? +t.estimatedTimeMinutes
         : 15,
-      estimatedCost: Number.isFinite(+t?.estimatedCost)
-        ? +t.estimatedCost
-        : 0,
+      estimatedCost: Number.isFinite(+t?.estimatedCost) ? +t.estimatedCost : 0,
       canBeOutsourced:
         typeof t?.canBeOutsourced === "boolean"
           ? Boolean(t.canBeOutsourced)
           : false,
     };
 
-    // UPDATE uses `{ set: [...] }` for array fields (scalar lists)
     const dataForUpdate = {
       ...baseData,
-      steps: { set: stepsArr },
-      equipmentNeeded: { set: equipArr },
+      steps: { set: stepsArr },             // scalar lists in UPDATE
+      equipmentNeeded: { set: equipArr },   // scalar lists in UPDATE
       state: "VERIFIED" as const,
     };
 

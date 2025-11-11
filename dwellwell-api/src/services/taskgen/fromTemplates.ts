@@ -2,14 +2,6 @@
 import crypto from "crypto";
 import { prisma } from "../../db/prisma";
 import { initialDueDate } from "./dates";
-import type {
-  Prisma,
-  TaskTemplate,
-  TaskType,
-  TaskCriticality,
-  UserTaskSourceType,
-} from "@prisma/client";
-import { TemplateState } from "@prisma/client";
 import { ROOM_TYPES } from "@shared/constants/roomTypes";
 
 /**
@@ -24,31 +16,51 @@ function makeDedupeKey(parts: (string | null | undefined)[]) {
   return crypto.createHash("sha256").update(raw).digest("hex");
 }
 
-function isRoomScoped(t: TaskTemplate | TemplatePick) {
+const tplSelect = {
+  id: true,
+  title: true,
+  description: true,
+  icon: true,
+  imageUrl: true,
+  category: true,
+  recurrenceInterval: true,
+  taskType: true,
+  criticality: true,
+  canDefer: true,
+  deferLimitDays: true,
+  estimatedTimeMinutes: true,
+  estimatedCost: true,
+  canBeOutsourced: true,
+  steps: true,
+  equipmentNeeded: true,
+  resources: true,
+  version: true,
+} as const;
+
+type TemplatePick = {
+  id: string;
+  title: string;
+  description: string | null;
+  icon: string | null;
+  imageUrl: string | null;
+  category: string | null;
+  recurrenceInterval: string | null;
+  taskType: string | null;
+  criticality: "low" | "medium" | "high" | null;
+  canDefer: boolean | null;
+  deferLimitDays: number | null;
+  estimatedTimeMinutes: number | null;
+  estimatedCost: number | null;
+  canBeOutsourced: boolean | null;
+  steps: string[] | null;
+  equipmentNeeded: string[] | null;
+  resources: unknown | null;
+  version: number | null;
+};
+
+function isRoomScoped(t: TemplatePick) {
   return !!t.category && ROOM_TYPES.includes(t.category);
 }
-
-type TemplatePick = Pick<
-  TaskTemplate,
-  | "id"
-  | "title"
-  | "description"
-  | "icon"
-  | "imageUrl"
-  | "category"
-  | "recurrenceInterval"
-  | "taskType"
-  | "criticality"
-  | "canDefer"
-  | "deferLimitDays"
-  | "estimatedTimeMinutes"
-  | "estimatedCost"
-  | "canBeOutsourced"
-  | "steps"
-  | "equipmentNeeded"
-  | "resources"
-  | "version"
->;
 
 type ConcreteTemplateFields = {
   description: string;
@@ -57,15 +69,15 @@ type ConcreteTemplateFields = {
   category: string;
   estimatedTimeMinutes: number;
   estimatedCost: number;
-  criticality: TaskCriticality;
+  criticality: "low" | "medium" | "high";
   deferLimitDays: number;
   canBeOutsourced: boolean;
   canDefer: boolean;
   recurrenceInterval: string;
-  taskType: TaskType;
-  steps?: Prisma.InputJsonValue;
-  equipmentNeeded?: Prisma.InputJsonValue;
-  resources?: Prisma.InputJsonValue;
+  taskType: string; // e.g., "GENERAL"
+  steps?: unknown;
+  equipmentNeeded?: unknown;
+  resources?: unknown;
   icon?: string;
   imageUrl?: string;
   sourceTemplateVersion?: number;
@@ -80,26 +92,21 @@ function materializeTemplateFields(tpl: TemplatePick, due: Date): ConcreteTempla
     category: tpl.category ?? "general",
     estimatedTimeMinutes: tpl.estimatedTimeMinutes ?? 0,
     estimatedCost: tpl.estimatedCost ?? 0,
-    criticality: (tpl.criticality ?? "medium") as TaskCriticality,
+    criticality: (tpl.criticality ?? "medium"),
     deferLimitDays: tpl.deferLimitDays ?? 0,
     canBeOutsourced: tpl.canBeOutsourced ?? false,
     canDefer: tpl.canDefer ?? true,
     recurrenceInterval: tpl.recurrenceInterval ?? "",
-    taskType: (tpl.taskType ?? "GENERAL") as TaskType,
-    steps:
-      (tpl.steps?.length ?? 0)
-        ? (tpl.steps as unknown as Prisma.InputJsonValue)
-        : undefined,
+    taskType: tpl.taskType ?? "GENERAL",
+    steps: (tpl.steps && tpl.steps.length) ? (tpl.steps as unknown) : undefined,
     equipmentNeeded:
-      (tpl.equipmentNeeded?.length ?? 0)
-        ? (tpl.equipmentNeeded as unknown as Prisma.InputJsonValue)
+      (tpl.equipmentNeeded && tpl.equipmentNeeded.length)
+        ? (tpl.equipmentNeeded as unknown)
         : undefined,
-    resources: (tpl.resources ?? undefined) as unknown as
-      | Prisma.InputJsonValue
-      | undefined,
+    resources: tpl.resources ?? undefined,
     icon: tpl.icon ?? undefined,
     imageUrl: tpl.imageUrl ?? undefined,
-    sourceTemplateVersion: tpl.version,
+    sourceTemplateVersion: tpl.version ?? undefined,
   };
 }
 
@@ -111,7 +118,7 @@ async function upsertFromTemplate(opts: {
   itemName: string;
   location?: string | null;
   taskTemplate: TemplatePick;
-  sourceType: UserTaskSourceType; // "room" | "home"
+  sourceType: "room" | "home";
 }) {
   const {
     userId,
@@ -136,16 +143,15 @@ async function upsertFromTemplate(opts: {
     sourceType,
   ]);
 
-  const due = initialDueDate(null, taskTemplate.recurrenceInterval);
+  const due = initialDueDate(null, taskTemplate.recurrenceInterval ?? "");
   const fields = materializeTemplateFields(taskTemplate, due);
 
-  // Required fields with safe fallbacks
   const safeTitle = taskTemplate.title || "Home Maintenance Task";
 
-  const baseUpdate: Prisma.UserTaskUncheckedUpdateInput = {
+  const baseUpdate = {
     homeId,
     roomId,
-    trackableId: null,
+    trackableId: null as string | null,
     itemName,
     location,
 
@@ -156,7 +162,7 @@ async function upsertFromTemplate(opts: {
     recurrenceInterval: fields.recurrenceInterval,
 
     // concretes
-    description: fields.description, // always a string
+    description: fields.description,
     dueDate: fields.dueDate,
     status: fields.status,
     category: fields.category,
@@ -173,14 +179,14 @@ async function upsertFromTemplate(opts: {
     sourceTemplateVersion: fields.sourceTemplateVersion,
   };
 
-  const baseCreate: Prisma.UserTaskUncheckedCreateInput = {
+  const baseCreate = {
     userId,
     homeId,
     roomId,
-    trackableId: null,
+    trackableId: null as string | null,
     taskTemplateId: taskTemplate.id,
     sourceType,
-    dedupeKey, // matches where.userId_dedupeKey
+    dedupeKey,
     itemName,
     location,
 
@@ -190,7 +196,7 @@ async function upsertFromTemplate(opts: {
     criticality: fields.criticality,
     recurrenceInterval: fields.recurrenceInterval,
 
-    // concretes (no undefineds)
+    // concretes
     description: fields.description,
     dueDate: fields.dueDate,
     status: fields.status,
@@ -209,7 +215,7 @@ async function upsertFromTemplate(opts: {
   };
 
   await prisma.userTask.upsert({
-    where: { userId_dedupeKey: { userId, dedupeKey } }, // @@unique([userId, dedupeKey])
+    where: { userId_dedupeKey: { userId, dedupeKey } },
     update: baseUpdate,
     create: baseCreate,
   });
@@ -219,32 +225,12 @@ async function upsertFromTemplate(opts: {
 async function getSeedableTemplates(): Promise<TemplatePick[]> {
   return prisma.taskTemplate.findMany({
     where: {
-      state: TemplateState.VERIFIED,
-      // Exclude anything linked to trackables
+      state: "VERIFIED",
       TrackableKindTaskTemplate: { none: {} },
       ApplianceTaskTemplate: { none: {} },
     },
-    select: {
-      id: true,
-      title: true,
-      description: true,
-      icon: true,
-      imageUrl: true,
-      category: true,
-      recurrenceInterval: true,
-      taskType: true,
-      criticality: true,
-      canDefer: true,
-      deferLimitDays: true,
-      estimatedTimeMinutes: true,
-      estimatedCost: true,
-      canBeOutsourced: true,
-      steps: true,
-      equipmentNeeded: true,
-      resources: true,
-      version: true,
-    },
-  });
+    select: tplSelect,
+  }) as unknown as TemplatePick[];
 }
 
 /**
@@ -275,7 +261,7 @@ export async function generateTasksFromTemplatesForHome(homeId: string) {
         userId: home.userId,
         homeId: home.id,
         roomId: room.id,
-        itemName: room.name, // e.g., "Primary Bathroom"
+        itemName: room.name,
         location: room.name,
         taskTemplate: tpl,
         sourceType: "room",

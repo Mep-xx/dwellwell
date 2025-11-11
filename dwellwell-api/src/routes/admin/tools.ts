@@ -2,7 +2,7 @@
 import { Router, Request, Response } from "express";
 import { requireAuth } from "../../middleware/requireAuth";
 import { requireAdmin } from "../../middleware/requireAdmin";
-import { PrismaClient, TaskType, TaskCriticality } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
 import { ApplianceCatalog as SeedCatalog } from "../../lib/mockApplianceCatalog";
 
 const prisma = new PrismaClient();
@@ -28,13 +28,13 @@ router.post("/run-seeds", async (req: Request, res: Response) => {
       });
     }
 
-    // 2) Seed a focused set of templates (mirror of lib/seed.ts)
+    // 2) Seed a focused set of templates
     const templates = [
       {
         title: "Change HVAC Filter",
         description: "Replace the air filter to ensure efficient airflow.",
         recurrenceInterval: "3 months",
-        criticality: TaskCriticality.high,
+        criticality: "high" as const,
         canDefer: false,
         deferLimitDays: 0,
         estimatedTimeMinutes: 10,
@@ -42,7 +42,7 @@ router.post("/run-seeds", async (req: Request, res: Response) => {
         canBeOutsourced: false,
         category: "appliance",
         icon: "🌬️",
-        taskType: TaskType.GENERAL,
+        taskType: "GENERAL" as const,
         steps: [
           "Turn off the HVAC system",
           "Remove old filter",
@@ -51,23 +51,7 @@ router.post("/run-seeds", async (req: Request, res: Response) => {
         equipmentNeeded: ["New air filter", "Gloves"],
         resources: [] as Array<{ label: string; url: string }>,
       },
-    ] satisfies Array<{
-      title: string;
-      description: string;
-      recurrenceInterval: string;
-      criticality: TaskCriticality;
-      canDefer: boolean;
-      deferLimitDays: number;
-      estimatedTimeMinutes: number;
-      estimatedCost: number;
-      canBeOutsourced: boolean;
-      category: string;
-      icon: string;
-      taskType: TaskType;
-      steps: string[];
-      equipmentNeeded: string[];
-      resources: { label: string; url: string }[];
-    }>;
+    ] as const;
 
     for (const tpl of templates) {
       const existing = await prisma.taskTemplate.findFirst({
