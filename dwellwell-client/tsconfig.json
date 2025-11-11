@@ -1,3 +1,4 @@
+// dwellwell-client/tsconfig.json
 {
   "extends": "../tsconfig.base.json",
   "compilerOptions": {
@@ -7,17 +8,16 @@
     "noImplicitAny": false,
     "skipLibCheck": true,
 
+    "noEmit": true,                   // <-- add this
+
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
-
-      // Point to built types/entries from shared
       "@shared/*": ["../shared/dist/*"],
       "@constants": ["../shared/dist/constants/index.d.ts"],
       "@constants/*": ["../shared/dist/constants/*"]
     },
-
-    "types": ["vite/client", "node"],
+    "types": ["vite/client", "node"]
   },
   "include": ["src", "src/types"],
   "exclude": ["node_modules", "dist"]

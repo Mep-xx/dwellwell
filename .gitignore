@@ -1,31 +1,27 @@
-# Node
-node_modules/
-dist/
-.env
-*.log
-*.zip
-*.rar
-*.7z
-dwellwell.zip
-src.zip
-dwellwell-client.zip
-dwellwell-api.zip
+# prevent compiled JS in client source
+dwellwell-client/src/**/*.js
+dwellwell-client/src/**/*.mjs
+dwellwell-client/src/**/*.cjs
+dwellwell-client/src/**/*.js.map
+# (intentionally NOT ignoring .d.ts — we keep src/types and vite-env.d.ts)
 
-# VS Code
-.vscode
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Build artifacts
+# builds/caches
 build/
 build-api/
+dist/
 coverage/
+.next/
+.vite/
+.turbo/
+.cache/
 
-# Ignore uploads directory
-/uploads/
-dwellwell-api/uploads/homes/
+# env
+.env
+.env.*.local
 
-# Ignore secret directories
-/sensitive files
+# misc
+node_modules/
+.vscode
+.DS_Store
+Thumbs.db
+sensitive\ files/
