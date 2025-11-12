@@ -3,6 +3,7 @@ import { Request, Response } from 'express';
 import { prisma } from '../../db/prisma';
 import { asyncHandler } from '../../middleware/asyncHandler';
 import { z } from 'zod';
+import type { Prisma } from '@prisma/client';
 
 const PrefSchema = z.object({
   event: z.enum([
@@ -21,8 +22,8 @@ export default asyncHandler(async (req: Request, res: Response) => {
   const userId = (req as any).user.id as string;
   const list = PrefArray.parse(req.body ?? []);
 
-  const results = await prisma.$transaction(async (tx) => {
-    const out = [];
+  const results = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const out: any[] = [];
     for (const p of list) {
       const existing = await tx.notificationPreference.findFirst({
         where: {

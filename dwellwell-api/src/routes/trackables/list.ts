@@ -1,34 +1,28 @@
+//dwellwell-api/src/routes/trackables/list.ts
 import { Request, Response } from "express";
 import { asyncHandler } from "../../middleware/asyncHandler";
 import { prisma } from "../../db/prisma";
 import { getTrackableDisplay } from "../../services/trackables/display";
 
 export default asyncHandler(async (req: Request, res: Response) => {
-  const userId = (req as any).user?.id;
+  const userId = (req as any).user?.id as string | undefined;
   if (!userId) return res.status(401).json({ error: "UNAUTHORIZED" });
 
   const homeId = (req.query.homeId as string) || undefined;
   const scope = (req.query.scope as string) || undefined;
   let roomIdParam = req.query.roomId as string | undefined;
 
-  // Normalize "?roomId=null" and "?roomId=" to mean actual NULL
   const roomIdFilter =
     roomIdParam === "null" || roomIdParam === "" ? null : roomIdParam || undefined;
 
-  // Base user filter
   const where: any = { ownerUserId: userId };
-
-  // Home filter when provided
   if (homeId) where.homeId = homeId;
-
-  // Scope handling
   if (scope === "home") {
     where.roomId = null;
   } else if (roomIdFilter !== undefined) {
-    where.roomId = roomIdFilter; // either a concrete id or null
+    where.roomId = roomIdFilter;
   }
 
-  // Pull trackables
   const rows = await prisma.trackable.findMany({
     where,
     orderBy: { createdAt: "desc" },
@@ -39,12 +33,11 @@ export default asyncHandler(async (req: Request, res: Response) => {
     },
   });
 
-  const trackableIds = rows.map((r) => r.id);
+  const trackableIds = rows.map((r: any) => r.id);
   if (trackableIds.length === 0) {
     return res.json([]);
   }
 
-  // Use user's lead time if present; fallback = 7 days
   const settings = await prisma.userSettings.findUnique({
     where: { userId },
     select: { defaultDaysBeforeDue: true },
@@ -54,16 +47,13 @@ export default asyncHandler(async (req: Request, res: Response) => {
   const now = new Date();
   const soon = new Date(now.getTime() + leadDays * 24 * 60 * 60 * 1000);
 
-  // Aggregate counts & dates with groupBy
   const whereBase = {
     userId,
     trackableId: { in: trackableIds },
     archivedAt: null as any,
-    // leave pausedAt alone; if you want paused tasks excluded, add pausedAt: null
     isTracking: true,
   };
 
-  // Active = all pending, not archived
   const activeCounts = await prisma.userTask.groupBy({
     by: ["trackableId"],
     where: { ...whereBase, status: "PENDING" },
@@ -78,11 +68,7 @@ export default asyncHandler(async (req: Request, res: Response) => {
 
   const dueSoonCounts = await prisma.userTask.groupBy({
     by: ["trackableId"],
-    where: {
-      ...whereBase,
-      status: "PENDING",
-      dueDate: { gte: now, lte: soon },
-    },
+    where: { ...whereBase, status: "PENDING", dueDate: { gte: now, lte: soon } },
     _count: { _all: true },
   });
 
@@ -98,27 +84,25 @@ export default asyncHandler(async (req: Request, res: Response) => {
     _max: { completedDate: true },
   });
 
-  // Helpers — tolerate `trackableId: string | null` by skipping nulls
   const mapCount = (
     arr: { trackableId: string | null; _count: { _all: number } }[]
-  ) => new Map(arr.filter(r => r.trackableId).map((r) => [r.trackableId as string, r._count._all]));
+  ) => new Map(arr.filter(r => r.trackableId)
+                 .map((r) => [r.trackableId as string, r._count._all]));
 
   const mapMinDate = (
     arr: { trackableId: string | null; _min: { dueDate: Date | null } }[]
   ) =>
     new Map(
-      arr
-        .filter(r => r.trackableId)
-        .map((r) => [r.trackableId as string, r._min.dueDate?.toISOString() ?? null])
+      arr.filter(r => r.trackableId)
+         .map((r) => [r.trackableId as string, r._min.dueDate?.toISOString() ?? null])
     );
 
   const mapMaxDate = (
     arr: { trackableId: string | null; _max: { completedDate: Date | null } }[]
   ) =>
     new Map(
-      arr
-        .filter(r => r.trackableId)
-        .map((r) => [r.trackableId as string, r._max.completedDate?.toISOString() ?? null])
+      arr.filter(r => r.trackableId)
+         .map((r) => [r.trackableId as string, r._max.completedDate?.toISOString() ?? null])
     );
 
   const activeMap = mapCount(activeCounts);
@@ -128,7 +112,7 @@ export default asyncHandler(async (req: Request, res: Response) => {
   const lastCompletedMap = mapMaxDate(lastCompleted);
 
   const trackables = await Promise.all(
-    rows.map(async (t) => {
+    rows.map(async (t: any) => {
       const type = t.kind ?? t.applianceCatalog?.type ?? null;
       const category = t.category ?? t.applianceCatalog?.category ?? "general";
       const display = await getTrackableDisplay(t.id);
@@ -141,13 +125,10 @@ export default asyncHandler(async (req: Request, res: Response) => {
 
       return {
         id: t.id,
-
-        // Names
         userDefinedName: t.userDefinedName ?? "",
         displayName: display.composedItemName,
-        name: display.composedItemName, // legacy/caller compatibility
+        name: display.composedItemName,
 
-        // Prefer per-item overrides, fallback to catalog
         brand: t.brand ?? t.applianceCatalog?.brand ?? null,
         model: t.model ?? t.applianceCatalog?.model ?? null,
         type,
@@ -158,7 +139,6 @@ export default asyncHandler(async (req: Request, res: Response) => {
         notes: t.notes ?? null,
         applianceCatalogId: t.applianceCatalogId ?? null,
 
-        // Placement
         homeId: t.homeId ?? null,
         roomId: t.roomId ?? null,
         roomName: t.room?.name ?? null,
@@ -166,7 +146,6 @@ export default asyncHandler(async (req: Request, res: Response) => {
 
         status: t.status,
 
-        // Aggregates
         nextDueDate: nextDueMap.get(t.id) ?? null,
         counts,
 

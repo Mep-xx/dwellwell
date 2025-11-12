@@ -13,7 +13,7 @@ function parseStatus(s?: string | null) {
 }
 
 export default asyncHandler(async (req: Request, res: Response) => {
-  const userId = (req as any).user?.id;
+  const userId = (req as any).user?.id as string | undefined;
   if (!userId) return res.status(401).json({ error: "UNAUTHORIZED" });
 
   const homeId = (req.query.homeId as string) || undefined;
@@ -25,18 +25,13 @@ export default asyncHandler(async (req: Request, res: Response) => {
     1,
     Math.min(parseInt((req.query.limit as string) || "100", 10) || 100, 500)
   );
-  const sort = (req.query.sort as string) || "dueDate"; // "-completedAt" for recent
+  const sort = (req.query.sort as string) || "dueDate";
 
   const now = new Date();
   const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 3600 * 1000);
 
-  // ---------- base (all queries) ----------
-  const base: any = {
-    userId,
-    archivedAt: null,
-  };
+  const base: any = { userId, archivedAt: null };
 
-  // Status filter
   if (statusQ === "active") base.status = "PENDING";
   else if (statusQ === "completed") base.status = "COMPLETED";
   else if (statusQ === "overdue") {
@@ -47,32 +42,25 @@ export default asyncHandler(async (req: Request, res: Response) => {
     base.dueDate = { gte: now, lte: sevenDaysFromNow };
   }
 
-  // ---------- scope filters ----------
-  // Explicit room/trackable filters take precedence.
   if (roomId) base.roomId = roomId;
   if (trackableId) base.trackableId = trackableId;
 
-  // Home filter: match ANY of…
-  //   - task.homeId (NEW)
-  //   - task.room.homeId
-  //   - task.trackable.homeId
   const where =
     homeId && !roomId && !trackableId
       ? {
-        AND: [
-          base,
-          {
-            OR: [
-              { homeId }, // ✅ new direct column
-              { room: { is: { homeId } } },
-              { trackable: { is: { homeId } } },
-            ],
-          },
-        ],
-      }
+          AND: [
+            base,
+            {
+              OR: [
+                { homeId },
+                { room: { is: { homeId } } },
+                { trackable: { is: { homeId } } },
+              ],
+            },
+          ],
+        }
       : base;
 
-  // Sorting
   const orderBy =
     sort === "-completedAt"
       ? [{ completedDate: "desc" as const }, { createdAt: "desc" as const }]
@@ -91,17 +79,17 @@ export default asyncHandler(async (req: Request, res: Response) => {
           brand: true,
           model: true,
           kind: true,
-          applianceCatalog: { select: { brand: true, model: true, type: true } },
+          applianceCatalog: { select: { brand: true, model: true, type: true} },
           homeId: true,
           roomId: true,
         },
       },
-      home: { select: { id: true } }, // optional, for completeness
+      home: { select: { id: true } },
     },
   });
 
-  const out = tasks.map((t) => {
-    const tr = t.trackable;
+  const out = tasks.map((t: any) => {
+    const tr = t.trackable as any | null;
     const brand = tr?.brand ?? tr?.applianceCatalog?.brand ?? null;
     const model = tr?.model ?? tr?.applianceCatalog?.model ?? null;
     const type = tr?.kind ?? tr?.applianceCatalog?.type ?? null;
@@ -116,14 +104,12 @@ export default asyncHandler(async (req: Request, res: Response) => {
 
       estimatedTimeMinutes: t.estimatedTimeMinutes ?? null,
 
-      // scope
       homeId: t.homeId ?? null,
       roomId: t.roomId ?? null,
       roomName: t.room?.name ?? null,
       trackableId: tr?.id ?? null,
       itemName: t.itemName ?? "",
 
-      // trackable adornments (for UI badges)
       trackableBrand: brand,
       trackableModel: model,
       trackableType: type,

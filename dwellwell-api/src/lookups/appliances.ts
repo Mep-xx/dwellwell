@@ -1,4 +1,3 @@
-//dwellwell-api/src/lookups/appliances.ts
 import { Router } from 'express';
 import { prisma } from '../db/prisma';
 
@@ -13,7 +12,6 @@ router.get('/appliances', async (req, res) => {
   const q = String(req.query.q || '').trim();
   if (!q) return res.json([]);
 
-  // Very light fuzzy-ish search across brand/model/type
   const rows = await prisma.applianceCatalog.findMany({
     where: {
       OR: [
@@ -26,7 +24,13 @@ router.get('/appliances', async (req, res) => {
     orderBy: { brand: 'asc' },
   });
 
-  const out = rows.map(r => ({
+  const out = rows.map((r: {
+    brand: string | null;
+    model: string | null;
+    type: string | null;
+    category: string | null;
+    imageUrl: string | null;
+  }) => ({
     brand: r.brand ?? '',
     model: r.model ?? '',
     type: r.type ?? '',

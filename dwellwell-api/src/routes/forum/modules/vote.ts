@@ -1,8 +1,8 @@
-//dwellwell-api/src/routes/forum/vote.ts
 import { Request, Response } from "express";
 import { prisma } from "../../../db/prisma";
 import { asyncHandler } from "../../../middleware/asyncHandler";
 import { awardXP } from "../../../services/gamification/awardXP";
+import type { Prisma } from "@prisma/client";
 
 export default asyncHandler(async (req: Request, res: Response) => {
   const userId = (req as any).user.id as string;
@@ -11,9 +11,9 @@ export default asyncHandler(async (req: Request, res: Response) => {
   if (!threadId && !postId) return res.status(400).json({ error: "threadId or postId required" });
 
   const existing = await prisma.forumVote.findFirst({ where: { userId, threadId: threadId ?? undefined, postId: postId ?? undefined }});
-  const delta = existing ? value - existing.value : value;
+  const delta = existing ? (value - existing.value) : value;
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     if (existing) {
       await tx.forumVote.update({ where: { id: existing.id }, data: { value } });
     } else {
@@ -23,7 +23,6 @@ export default asyncHandler(async (req: Request, res: Response) => {
     if (postId) await tx.forumPost.update({ where: { id: postId }, data: { score: { increment: delta } }});
   });
 
-  // XP to author only for positive delta
   if (delta > 0) {
     if (postId) {
       const post = await prisma.forumPost.findUnique({ where: { id: postId }, select: { authorId: true }});

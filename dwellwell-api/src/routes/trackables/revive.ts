@@ -16,9 +16,11 @@ function nextFromToday(rec: string) {
   return d;
 }
 
-export default asyncHandler(async (req: Request, res: Response) => {
-  const userId = (req as any).user?.id;
+export default asyncHandler(async (req, res) => {
+  const userId = (req as any).user?.id as string | undefined;
   const { trackableId } = req.params as any;
+
+  if (!userId) return res.status(401).json({ error: 'UNAUTHORIZED' }); // ← add this
 
   const t = await getOwnedTrackable(userId, trackableId);
   if (!t) return res.status(404).json({ error: 'TRACKABLE_NOT_FOUND' });
@@ -34,9 +36,9 @@ export default asyncHandler(async (req: Request, res: Response) => {
   });
 
   const now = new Date();
-  const tx = tasks.map((x) => {
+  const tx = tasks.map((x: { id: string; archivedAt: Date | null; dueDate: Date; recurrenceInterval: string | null }) => {
     const data: any = { archivedAt: null, pausedAt: null, isTracking: true };
-    if (x.dueDate < now) data.dueDate = nextFromToday(x.recurrenceInterval);
+    if (x.dueDate < now) data.dueDate = nextFromToday(x.recurrenceInterval || '');
     return prisma.userTask.update({ where: { id: x.id }, data });
   });
   if (tx.length) await prisma.$transaction(tx);

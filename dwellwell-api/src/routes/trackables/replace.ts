@@ -1,8 +1,8 @@
+//dwellwell-api/src/routes/trackables/replace.ts
 import { Request, Response } from "express";
 import { asyncHandler } from "../../middleware/asyncHandler";
 import { prisma } from "../../db/prisma";
 import crypto from "crypto";
-import type { Prisma } from "@prisma/client";
 
 export default asyncHandler(async (req: Request, res: Response) => {
   const userId = (req as any).user?.id as string | undefined;
@@ -20,7 +20,6 @@ export default asyncHandler(async (req: Request, res: Response) => {
 
   if (!userId) return res.status(401).json({ error: "UNAUTHORIZED" });
 
-  // 1) Fetch old trackable owned by user (with its active assignment)
   const oldT = await prisma.trackable.findFirst({
     where: { id: trackableId, ownerUserId: userId },
     include: {
@@ -31,7 +30,6 @@ export default asyncHandler(async (req: Request, res: Response) => {
 
   const active = oldT.assignments[0] || null;
 
-  // 2) Validate optional new home/room targets
   if (newTrackable?.homeId) {
     const home = await prisma.home.findFirst({ where: { id: newTrackable.homeId, userId } });
     if (!home) return res.status(400).json({ error: "HOME_NOT_FOUND_OR_NOT_OWNED" });
@@ -47,7 +45,6 @@ export default asyncHandler(async (req: Request, res: Response) => {
     }
   }
 
-  // 3) Create replacement trackable
   const created = await prisma.trackable.create({
     data: {
       ownerUserId: userId,
@@ -59,7 +56,6 @@ export default asyncHandler(async (req: Request, res: Response) => {
     },
   });
 
-  // 4) Supersession links + retire old
   await prisma.trackable.update({
     where: { id: oldT.id },
     data: {
@@ -75,7 +71,6 @@ export default asyncHandler(async (req: Request, res: Response) => {
     data: { supersedes: { connect: { id: oldT.id } } },
   });
 
-  // 5) Close active assignment for old; open new one for replacement
   const targetHomeId = newTrackable?.homeId ?? active?.homeId ?? null;
   const targetRoomId = newTrackable?.roomId ?? active?.roomId ?? null;
 
@@ -96,13 +91,11 @@ export default asyncHandler(async (req: Request, res: Response) => {
     });
   }
 
-  // 6) Archive old tasks
   await prisma.userTask.updateMany({
     where: { trackableId: oldT.id, archivedAt: null },
     data: { archivedAt: new Date(), isTracking: false, pausedAt: null },
   });
 
-  // 7) Seed tasks for the new trackable from catalog templates (if any)
   const templates = await prisma.applianceTaskTemplate.findMany({
     where: { applianceCatalogId: created.applianceCatalogId ?? undefined },
     include: { taskTemplate: true },
@@ -111,47 +104,46 @@ export default asyncHandler(async (req: Request, res: Response) => {
   if (templates.length) {
     const now = new Date();
 
-    // Cast to InputJsonValue and only include when non-empty to satisfy createMany typing.
-    const toInputJsonOrUndefined = (v: unknown): Prisma.InputJsonValue | undefined => {
+    const toInputJsonOrUndefined = (v: unknown): any => {
       if (v == null) return undefined;
       if (Array.isArray(v) && v.length === 0) return undefined;
-      return v as unknown as Prisma.InputJsonValue;
+      return v as any;
     };
 
     await prisma.userTask.createMany({
-      data: templates.map((t) => {
+      data: templates.map((t: any) => {
+        const tt = t.taskTemplate;
         const base = {
           id: crypto.randomUUID(),
           userId,
           homeId: targetHomeId ?? null,
           roomId: targetRoomId ?? null,
           trackableId: created.id,
-          taskTemplateId: t.taskTemplateId,
-          sourceType: "trackable" as const,
-          title: t.taskTemplate.title,
-          description: t.taskTemplate.description ?? "",
-          dueDate: computeInitialDue(now, t.taskTemplate.recurrenceInterval),
-          status: "PENDING" as const,
+          taskTemplateId: tt.id,
+          sourceType: "trackable" as any,
+          title: tt.title,
+          description: tt.description ?? "",
+          dueDate: computeInitialDue(now, tt.recurrenceInterval),
+          status: "PENDING" as any,
           itemName: created.userDefinedName ?? "",
-          category: t.taskTemplate.category ?? "general",
-          estimatedTimeMinutes: t.taskTemplate.estimatedTimeMinutes ?? 0,
-          estimatedCost: t.taskTemplate.estimatedCost ?? 0,
-          criticality: t.taskTemplate.criticality,
-          deferLimitDays: t.taskTemplate.deferLimitDays ?? 0,
-          canBeOutsourced: t.taskTemplate.canBeOutsourced ?? false,
-          canDefer: t.taskTemplate.canDefer ?? true,
-          recurrenceInterval: t.taskTemplate.recurrenceInterval ?? "",
-          taskType: t.taskTemplate.taskType,
-          dedupeKey: `${created.id}:${t.taskTemplateId}`,
-          icon: t.taskTemplate.icon ?? null,
-          imageUrl: t.taskTemplate.imageUrl ?? null,
-          sourceTemplateVersion: t.taskTemplate.version,
+          category: tt.category ?? "general",
+          estimatedTimeMinutes: tt.estimatedTimeMinutes ?? 0,
+          estimatedCost: tt.estimatedCost ?? 0,
+          criticality: tt.criticality,
+          deferLimitDays: tt.deferLimitDays ?? 0,
+          canBeOutsourced: tt.canBeOutsourced ?? false,
+          canDefer: tt.canDefer ?? true,
+          recurrenceInterval: tt.recurrenceInterval ?? "",
+          taskType: tt.taskType,
+          dedupeKey: `${created.id}:${tt.id}`,
+          icon: tt.icon ?? null,
+          imageUrl: tt.imageUrl ?? null,
+          sourceTemplateVersion: tt.version,
         };
 
-        // Conditionally add JSON fields to avoid null/JsonValue type issues
-        const steps = toInputJsonOrUndefined(t.taskTemplate.steps ?? []);
-        const equipmentNeeded = toInputJsonOrUndefined(t.taskTemplate.equipmentNeeded ?? []);
-        const resources = toInputJsonOrUndefined(t.taskTemplate.resources ?? []);
+        const steps = toInputJsonOrUndefined(tt.steps ?? []);
+        const equipmentNeeded = toInputJsonOrUndefined(tt.equipmentNeeded ?? []);
+        const resources = toInputJsonOrUndefined(tt.resources ?? []);
 
         return {
           ...base,
@@ -164,7 +156,6 @@ export default asyncHandler(async (req: Request, res: Response) => {
     });
   }
 
-  // 8) Lifecycle log
   await prisma.lifecycleEvent.create({
     data: {
       userId,
@@ -178,7 +169,6 @@ export default asyncHandler(async (req: Request, res: Response) => {
   res.status(201).json({ oldId: oldT.id, newId: created.id });
 });
 
-/** Simple interval parser for first due date */
 function computeInitialDue(base: Date, rec: string | null | undefined) {
   const d = new Date(base);
   const r = (rec || "").toLowerCase();

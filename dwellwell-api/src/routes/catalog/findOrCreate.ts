@@ -6,6 +6,7 @@ import { enrichApplianceTasks } from "../../services/taskgen/enrichApplianceTask
 const router = Router();
 
 /**
+ * POST /catalog/find-or-create
  * Body:
  * {
  *   brand: string,
@@ -15,9 +16,6 @@ const router = Router();
  *   notes?: string,
  *   imageUrl?: string
  * }
- *
- * Creates/updates the catalog row, awards gamification (once),
- * and kicks off enrichment to generate/link TaskTemplates.
  */
 router.post(
   "/find-or-create",
@@ -76,7 +74,7 @@ router.post(
       const enabled = settings?.gamificationEnabled !== false;
 
       if (enabled) {
-        const kind = "catalog_find_or_create"; // change if you use enums
+        const kind = "catalog_find_or_create";
         const refType = "applianceCatalog";
         const refId = catalog.id;
 
@@ -87,14 +85,14 @@ router.post(
               kind,
               refType,
               refId,
-              deltaXP: 10, // ✅ required by your Prisma model
+              deltaXP: 10,
             },
           ],
-          skipDuplicates: true, // ignore if it already exists
+          skipDuplicates: true,
         });
       }
     } catch {
-      // non-fatal; uniqueness guard will ignore duplicates
+      // non-fatal
     }
 
     // Kick enrichment (idempotent)
@@ -126,7 +124,7 @@ router.post(
 
     res.json({
       catalog,
-      linkedTemplates: links.map((l) => ({
+      linkedTemplates: links.map((l: { taskTemplate: any }) => ({
         id: l.taskTemplate.id,
         title: l.taskTemplate.title,
         recurrenceInterval: l.taskTemplate.recurrenceInterval,

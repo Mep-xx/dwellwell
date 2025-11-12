@@ -1,4 +1,3 @@
-//dwellwell-api/src/routes/admin/task-generation-issues.ts
 import { Router, Request, Response } from "express";
 import { prisma } from "../../db/prisma";
 import { requireAuth } from "../../middleware/requireAuth";
@@ -9,8 +8,7 @@ router.use(requireAuth, requireAdmin);
 
 /**
  * GET /admin/task-generation-issues
- * Adds enriched info for user/home/room/trackable without using Prisma includes
- * (to avoid relation typing problems against your current schema).
+ * Adds enriched info for user/home/room/trackable without using Prisma includes.
  */
 router.get("/", async (req: Request, res: Response) => {
   try {
@@ -30,14 +28,12 @@ router.get("/", async (req: Request, res: Response) => {
       where,
       orderBy: { createdAt: "desc" },
       take: 200,
-      // no include — we’ll enrich manually
     });
 
-    // Collect IDs for batch lookups
-    const userIds = Array.from(new Set(raw.map(r => r.userId).filter(Boolean))) as string[];
-    const homeIds = Array.from(new Set(raw.map(r => r.homeId).filter(Boolean))) as string[];
-    const roomIds = Array.from(new Set(raw.map(r => r.roomId).filter(Boolean))) as string[];
-    const trackableIds = Array.from(new Set(raw.map(r => r.trackableId).filter(Boolean))) as string[];
+    const userIds = Array.from(new Set(raw.map((r: any) => r.userId).filter(Boolean))) as string[];
+    const homeIds = Array.from(new Set(raw.map((r: any) => r.homeId).filter(Boolean))) as string[];
+    const roomIds = Array.from(new Set(raw.map((r: any) => r.roomId).filter(Boolean))) as string[];
+    const trackableIds = Array.from(new Set(raw.map((r: any) => r.trackableId).filter(Boolean))) as string[];
 
     const [users, homes, rooms, trackables] = await Promise.all([
       userIds.length ? prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, email: true } }) : Promise.resolve([]),
@@ -53,17 +49,17 @@ router.get("/", async (req: Request, res: Response) => {
       }) : Promise.resolve([]),
     ]);
 
-    const userMap = new Map(users.map(u => [u.id, u]));
-    const homeMap = new Map(homes.map(h => [h.id, h]));
-    const roomMap = new Map(rooms.map(r => [r.id, r]));
-    const trackableMap = new Map(trackables.map(t => [t.id, t]));
+    const userMap = new Map(users.map((u: any) => [u.id, u]));
+    const homeMap = new Map(homes.map((h: any) => [h.id, h]));
+    const roomMap = new Map(rooms.map((r: any) => [r.id, r]));
+    const trackableMap = new Map(trackables.map((t: any) => [t.id, t]));
 
-    const items = raw.map(r => ({
+    const items = raw.map((r: any) => ({
       ...r,
-      user: r.userId ? userMap.get(r.userId) ?? null : null,
-      home: r.homeId ? homeMap.get(r.homeId) ?? null : null,
-      room: r.roomId ? roomMap.get(r.roomId) ?? null : null,
-      trackable: r.trackableId ? trackableMap.get(r.trackableId) ?? null : null,
+      user: r.userId ? (userMap.get(r.userId) ?? null) : null,
+      home: r.homeId ? (homeMap.get(r.homeId) ?? null) : null,
+      room: r.roomId ? (roomMap.get(r.roomId) ?? null) : null,
+      trackable: r.trackableId ? (trackableMap.get(r.trackableId) ?? null) : null,
     }));
 
     res.json(items);
@@ -91,7 +87,6 @@ router.post("/:id/resolve", async (req: Request, res: Response) => {
 
 /**
  * POST /admin/task-generation-issues/:id/retry
- * (lightweight retry hook; records an event and flags status)
  */
 router.post("/:id/retry", async (req: Request, res: Response) => {
   try {

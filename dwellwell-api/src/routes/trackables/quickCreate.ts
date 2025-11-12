@@ -2,7 +2,6 @@
 import type { Request, Response } from "express";
 import { prisma } from "../../db/prisma";
 
-/** Convert "range_hood" -> "Range Hood" for a friendly default name */
 function titleCaseKind(kind: string) {
   return kind
     .replace(/[_-]+/g, " ")
@@ -11,25 +10,18 @@ function titleCaseKind(kind: string) {
     .replace(/\b\w/g, (m) => m.toUpperCase());
 }
 
-/** Very simple next-due helper (we don’t store a strict duration format here) */
 function computeNextDueFromInterval(recurrenceInterval?: string | null): Date {
   const d = new Date();
   const r = (recurrenceInterval || "").toLowerCase();
-  const n = parseInt(r.match(/\d+/)?.[0] ?? "3", 10); // default “3”
+  const n = parseInt(r.match(/\d+/)?.[0] ?? "3", 10);
   if (r.includes("day")) d.setDate(d.getDate() + n);
   else if (r.includes("week")) d.setDate(d.getDate() + 7 * n);
   else if (r.includes("month")) d.setMonth(d.getMonth() + n);
   else if (r.includes("year")) d.setFullYear(d.getFullYear() + n);
-  else d.setDate(d.getDate() + 90); // fallback ~quarterly
+  else d.setDate(d.getDate() + 90);
   return d;
 }
 
-/**
- * Quick-create a GENERIC trackable and immediately seed brand-agnostic tasks
- * via TrackableKindTaskTemplate mappings (if present).
- *
- * Auth is applied at the router level.
- */
 export default async function quickCreate(req: Request, res: Response) {
   const userId = (req as any).user?.id as string | undefined;
   const { roomId, homeId: homeIdInput, kind: rawKind, category, userDefinedName } = (req.body ?? {}) as {
@@ -45,10 +37,8 @@ export default async function quickCreate(req: Request, res: Response) {
     return res.status(400).json({ error: "roomId and kind are required" });
   }
 
-  // Normalize the kind for consistent lookups
   const kind = String(rawKind).trim().toLowerCase();
 
-  // Validate room belongs to the authenticated user (via its home)
   const room = await prisma.room.findFirst({
     where: { id: roomId, home: { userId } },
     select: { id: true, homeId: true, name: true },
@@ -59,7 +49,6 @@ export default async function quickCreate(req: Request, res: Response) {
 
   const homeId = homeIdInput ?? room.homeId;
 
-  // De-dupe: same room + kind + IN_USE
   const existing = await prisma.trackable.findFirst({
     where: { roomId: room.id, kind, status: "IN_USE" },
     select: { id: true },
@@ -68,7 +57,6 @@ export default async function quickCreate(req: Request, res: Response) {
     return res.json({ id: existing.id, deduped: true });
   }
 
-  // Create generic trackable
   const defaultName = userDefinedName ?? titleCaseKind(kind);
   const trackable = await prisma.trackable.create({
     data: {
@@ -87,7 +75,6 @@ export default async function quickCreate(req: Request, res: Response) {
     select: { id: true, homeId: true, roomId: true, kind: true },
   });
 
-  // Create active assignment row (history)
   try {
     await prisma.trackableAssignment.create({
       data: {
@@ -97,11 +84,8 @@ export default async function quickCreate(req: Request, res: Response) {
         startAt: new Date(),
       },
     });
-  } catch {
-    /* non-fatal */
-  }
+  } catch {/* non-fatal */ }
 
-  // Seed generic tasks using the kind->template mapping table
   const kindMappings = await prisma.trackableKindTaskTemplate.findMany({
     where: { kind },
     select: {
@@ -121,6 +105,7 @@ export default async function quickCreate(req: Request, res: Response) {
           icon: true,
           imageUrl: true,
           category: true,
+          version: true,
         },
       },
     },
@@ -128,18 +113,18 @@ export default async function quickCreate(req: Request, res: Response) {
 
   if (kindMappings.length) {
     await prisma.userTask.createMany({
-      data: kindMappings.map(({ taskTemplate }) => ({
+      data: kindMappings.map(({ taskTemplate }: { taskTemplate: any }) => ({
         userId,
         homeId: trackable.homeId ?? undefined,
         roomId: trackable.roomId ?? undefined,
         trackableId: trackable.id,
         taskTemplateId: taskTemplate.id,
-        sourceType: "trackable",
+        sourceType: "trackable" as any,
         title: taskTemplate.title,
         description: taskTemplate.description ?? "",
         dueDate: computeNextDueFromInterval(taskTemplate.recurrenceInterval),
-        status: "PENDING",
-        sourceTemplateVersion: 1, // adopt template version at creation
+        status: "PENDING" as any,
+        sourceTemplateVersion: taskTemplate.version ?? 1,
         itemName: defaultName,
         category: taskTemplate.category ?? (kind || "general"),
         location: undefined,
@@ -152,7 +137,6 @@ export default async function quickCreate(req: Request, res: Response) {
         isTracking: true,
         recurrenceInterval: taskTemplate.recurrenceInterval ?? "",
         taskType: taskTemplate.taskType ?? "GENERAL",
-        // safe unique
         dedupeKey: `${trackable.id}:${taskTemplate.id}`,
         icon: taskTemplate.icon ?? null,
         imageUrl: taskTemplate.imageUrl ?? null,

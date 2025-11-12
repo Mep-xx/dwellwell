@@ -1,12 +1,12 @@
 // dwellwell-api/src/routes/trackables/_seedTasks.ts
-import { PrismaClient, Prisma, TaskStatus, UserTaskSourceType } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
 import crypto from "crypto";
 import { getTrackableDisplay } from "../../services/trackables/display";
 
-/** Safe JSON assignment helper */
-function asJsonOrUndefined<T>(v: T | null | undefined): Prisma.InputJsonValue | undefined {
+/** Safe JSON assignment helper (use JsonValue for wider Prisma compat) */
+function asJsonOrUndefined<T>(v: T | null | undefined): any {
   if (v == null) return undefined;
-  return v as unknown as Prisma.InputJsonValue;
+  return v as any;
 }
 
 /** Recurrence helpers */
@@ -34,14 +34,6 @@ function makeDedupeKey(parts: (string | null | undefined)[]) {
   return crypto.createHash("sha256").update(raw).digest("hex");
 }
 
-/**
- * Seed tasks for a trackable from its ApplianceTaskTemplate links.
- * - Idempotent via dedupeKey (templateId + userId + trackableId).
- * - Sets homeId/roomId on tasks (critical for home-scoped queries).
- * - Due dates anchored off purchaseDate when present.
- * - itemName uses the user's name first, with brand+model appended when available.
- * - Logs an admin-visible issue if no links exist.
- */
 export async function seedTasksForTrackable(opts: {
   prisma: PrismaClient;
   userId: string;
@@ -49,17 +41,14 @@ export async function seedTasksForTrackable(opts: {
   applianceCatalogId?: string | null;
 }) {
   const { prisma, userId, trackableId, applianceCatalogId } = opts;
-
   if (!applianceCatalogId) return;
 
-  // Find all template links for this catalog item
   const links = await prisma.applianceTaskTemplate.findMany({
     where: { applianceCatalogId },
     include: { taskTemplate: true },
   });
 
   if (!links.length) {
-    // Log for admin triage (if the table exists)
     try {
       const t = await prisma.trackable.findUnique({
         where: { id: trackableId },
@@ -77,23 +66,17 @@ export async function seedTasksForTrackable(opts: {
           debugPayload: { applianceCatalogId },
         },
       });
-    } catch {
-      // swallow; admin table might not exist in some environments
-    }
+    } catch {/* ignore */}
     return;
   }
 
-  // Context for anchoring & display
   const tctx = await prisma.trackable.findUnique({
     where: { id: trackableId },
     select: { purchaseDate: true, homeId: true, roomId: true },
   });
   const anchor = tctx?.purchaseDate ?? null;
 
-  // Enriched display (user name first, then brand/model where known)
   const { composedItemName, context } = await getTrackableDisplay(trackableId);
-
-  // Prefer enriched context, fall back to direct trackable fields
   const homeId = context.homeId ?? tctx?.homeId ?? null;
   const roomId = context.roomId ?? tctx?.roomId ?? null;
 
@@ -107,20 +90,16 @@ export async function seedTasksForTrackable(opts: {
     await prisma.userTask.upsert({
       where: { userId_dedupeKey: { userId, dedupeKey } },
       update: {
-        // identifiers / scope
         homeId,
         roomId: roomId ?? undefined,
 
-        // presentation / details
         title: tpl.title,
         description: tpl.description ?? "",
         dueDate: due,
-        status: TaskStatus.PENDING,
+        status: "PENDING" as any,
 
-        // provenance
         sourceTemplateVersion: tpl.version,
 
-        // copied fields
         recurrenceInterval: tpl.recurrenceInterval ?? "",
         criticality: tpl.criticality,
         estimatedTimeMinutes: tpl.estimatedTimeMinutes ?? 0,
@@ -132,14 +111,13 @@ export async function seedTasksForTrackable(opts: {
         icon: tpl.icon ?? undefined,
         imageUrl: tpl.imageUrl ?? undefined,
 
-        // item naming (user's name first; brand/model appended by display helper)
         itemName: composedItemName,
         location: null,
 
-        // JSON-ish
         steps: asJsonOrUndefined(tpl.steps ?? []),
         equipmentNeeded: asJsonOrUndefined(tpl.equipmentNeeded ?? []),
         resources: asJsonOrUndefined(tpl.resources ?? null),
+        isTracking: true,
       },
       create: {
         userId,
@@ -149,12 +127,12 @@ export async function seedTasksForTrackable(opts: {
 
         trackableId,
         taskTemplateId: tpl.id,
-        sourceType: UserTaskSourceType.trackable,
+        sourceType: "trackable" as any,
 
         title: tpl.title,
         description: tpl.description ?? "",
         dueDate: due,
-        status: TaskStatus.PENDING,
+        status: "PENDING" as any,
 
         sourceTemplateVersion: tpl.version,
 
@@ -169,7 +147,6 @@ export async function seedTasksForTrackable(opts: {
         icon: tpl.icon ?? null,
         imageUrl: tpl.imageUrl ?? null,
 
-        // item naming (user's name first; brand/model appended by display helper)
         itemName: composedItemName,
         location: null,
 

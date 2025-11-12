@@ -113,8 +113,8 @@ router.get("/overview", async (req, res) => {
   });
   const weeklyStreak = computeWeeklyStreak(
     recentCompleted
-      .filter((r) => r.completedDate)
-      .map((r) => r.completedDate as Date)
+      .filter((r: { completedDate: Date | null }) => r.completedDate)
+      .map((r: { completedDate: Date | null }) => r.completedDate as Date)
   );
 
   // Activity feed
@@ -126,28 +126,24 @@ router.get("/overview", async (req, res) => {
 
   const activity =
     activityEvents.length > 0
-      ? activityEvents.map((e) => ({
+      ? activityEvents.map((e: { id: string; action: string; entity: string | null; createdAt: Date }) => ({
           id: e.id,
-          label: formatAction(e.action, e.entity),
+          label: formatAction(e.action, e.entity ?? undefined),
           ts: e.createdAt.toISOString(),
         }))
-      : recentCompleted.slice(0, 10).map((t, i) => ({
-          id: `completed-${i}`,
-          label: "Completed a task",
-          ts: (t.completedDate as Date).toISOString(),
-        }));
+      : recentCompleted.slice(0, 10).map(
+          (t: { completedDate: Date | null }, i: number) => ({
+            id: `completed-${i}`,
+            label: "Completed a task",
+            ts: (t.completedDate as Date).toISOString(),
+          })
+        );
 
   // Derived badges from streak
   const badges: {
     id: string;
     label: string;
-    icon:
-      | "trophy"
-      | "star"
-      | "medal"
-      | "crown"
-      | "shield"
-      | "flame";
+    icon: "trophy" | "star" | "medal" | "crown" | "shield" | "flame";
     earnedAt?: string | null;
   }[] = [];
   if (weeklyStreak >= 1)

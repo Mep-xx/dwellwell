@@ -1,8 +1,8 @@
-//dwellwell-api/src/routes/auth/refresh.ts
 import type { Request, Response } from 'express';
 import { prisma } from '../../db/prisma';
 import { compareToken, hashToken, signAccess, signRefresh, verifyRefresh } from '../../utils/auth';
 import { COOKIE_SAMESITE, COOKIE_SECURE, REFRESH_COOKIE_PATH, REFRESH_MAX_AGE_MS, REFRESH_HINT_COOKIE } from '../../config/cookies';
+import type { Prisma } from '@prisma/client';
 
 const IDLE_MAX_DAYS = Number(process.env.REFRESH_IDLE_MAX_DAYS ?? 0); // 0 = disabled
 const ROTATION_GRACE_MS = Number(process.env.REFRESH_ROTATION_GRACE_MS ?? 15000);
@@ -44,7 +44,6 @@ export default async function refresh(req: Request, res: Response) {
   }
 
   if (!matched) {
-    // Just clear cookies for this browser
     res.clearCookie('refreshToken', { httpOnly: true, sameSite: COOKIE_SAMESITE, secure: COOKIE_SECURE, path: REFRESH_COOKIE_PATH });
     res.clearCookie(REFRESH_HINT_COOKIE, { path: REFRESH_COOKIE_PATH });
     return fail(res, 'UNAUTHORIZED', 'NO_MATCHING_SESSION');
@@ -82,7 +81,7 @@ export default async function refresh(req: Request, res: Response) {
       const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || undefined;
       const expiresAt = new Date(Date.now() + REFRESH_MAX_AGE_MS);
 
-      await prisma.$transaction(async (tx) => {
+      await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         await tx.refreshSession.update({
           where: { id: cursor.id },
           data: { revokedAt: new Date(), lastUsedAt: new Date() },
@@ -125,7 +124,7 @@ export default async function refresh(req: Request, res: Response) {
   const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || undefined;
   const expiresAt = new Date(Date.now() + REFRESH_MAX_AGE_MS);
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await tx.refreshSession.update({
       where: { id: matched!.id },
       data: { revokedAt: new Date(), lastUsedAt: new Date() },

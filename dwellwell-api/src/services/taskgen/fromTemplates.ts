@@ -45,7 +45,7 @@ type TemplatePick = {
   imageUrl: string | null;
   category: string | null;
   recurrenceInterval: string | null;
-  taskType: string | null;
+  taskType: string | null; // "GENERAL" | "AI_GENERATED" | "USER_DEFINED" (we'll treat as string)
   criticality: "low" | "medium" | "high" | null;
   canDefer: boolean | null;
   deferLimitDays: number | null;
@@ -92,15 +92,15 @@ function materializeTemplateFields(tpl: TemplatePick, due: Date): ConcreteTempla
     category: tpl.category ?? "general",
     estimatedTimeMinutes: tpl.estimatedTimeMinutes ?? 0,
     estimatedCost: tpl.estimatedCost ?? 0,
-    criticality: (tpl.criticality ?? "medium"),
+    criticality: tpl.criticality ?? "medium",
     deferLimitDays: tpl.deferLimitDays ?? 0,
     canBeOutsourced: tpl.canBeOutsourced ?? false,
     canDefer: tpl.canDefer ?? true,
     recurrenceInterval: tpl.recurrenceInterval ?? "",
     taskType: tpl.taskType ?? "GENERAL",
-    steps: (tpl.steps && tpl.steps.length) ? (tpl.steps as unknown) : undefined,
+    steps: tpl.steps && tpl.steps.length ? (tpl.steps as unknown) : undefined,
     equipmentNeeded:
-      (tpl.equipmentNeeded && tpl.equipmentNeeded.length)
+      tpl.equipmentNeeded && tpl.equipmentNeeded.length
         ? (tpl.equipmentNeeded as unknown)
         : undefined,
     resources: tpl.resources ?? undefined,
@@ -148,7 +148,8 @@ async function upsertFromTemplate(opts: {
 
   const safeTitle = taskTemplate.title || "Home Maintenance Task";
 
-  const baseUpdate = {
+  // Cast to any to stay compatible across Prisma v4/v6 JSON & enum typings.
+  const baseUpdate: any = {
     homeId,
     roomId,
     trackableId: null as string | null,
@@ -157,8 +158,8 @@ async function upsertFromTemplate(opts: {
 
     // requireds
     title: safeTitle,
-    taskType: fields.taskType,
-    criticality: fields.criticality,
+    taskType: fields.taskType as any,
+    criticality: fields.criticality as any,
     recurrenceInterval: fields.recurrenceInterval,
 
     // concretes
@@ -171,15 +172,15 @@ async function upsertFromTemplate(opts: {
     deferLimitDays: fields.deferLimitDays,
     canBeOutsourced: fields.canBeOutsourced,
     canDefer: fields.canDefer,
-    steps: fields.steps,
-    equipmentNeeded: fields.equipmentNeeded,
-    resources: fields.resources,
+    steps: fields.steps as any,
+    equipmentNeeded: fields.equipmentNeeded as any,
+    resources: fields.resources as any,
     icon: fields.icon,
     imageUrl: fields.imageUrl,
     sourceTemplateVersion: fields.sourceTemplateVersion,
   };
 
-  const baseCreate = {
+  const baseCreate: any = {
     userId,
     homeId,
     roomId,
@@ -192,8 +193,8 @@ async function upsertFromTemplate(opts: {
 
     // requireds
     title: safeTitle,
-    taskType: fields.taskType,
-    criticality: fields.criticality,
+    taskType: fields.taskType as any,
+    criticality: fields.criticality as any,
     recurrenceInterval: fields.recurrenceInterval,
 
     // concretes
@@ -206,9 +207,9 @@ async function upsertFromTemplate(opts: {
     deferLimitDays: fields.deferLimitDays,
     canBeOutsourced: fields.canBeOutsourced,
     canDefer: fields.canDefer,
-    steps: fields.steps,
-    equipmentNeeded: fields.equipmentNeeded,
-    resources: fields.resources,
+    steps: fields.steps as any,
+    equipmentNeeded: fields.equipmentNeeded as any,
+    resources: fields.resources as any,
     icon: fields.icon,
     imageUrl: fields.imageUrl,
     sourceTemplateVersion: fields.sourceTemplateVersion,
@@ -223,14 +224,15 @@ async function upsertFromTemplate(opts: {
 
 /** Fetch VERIFIED templates that are NOT trackable-linked (no kind/catalog links). */
 async function getSeedableTemplates(): Promise<TemplatePick[]> {
-  return prisma.taskTemplate.findMany({
+  const rows = await prisma.taskTemplate.findMany({
     where: {
       state: "VERIFIED",
       TrackableKindTaskTemplate: { none: {} },
       ApplianceTaskTemplate: { none: {} },
     },
     select: tplSelect,
-  }) as unknown as TemplatePick[];
+  });
+  return rows as unknown as TemplatePick[];
 }
 
 /**

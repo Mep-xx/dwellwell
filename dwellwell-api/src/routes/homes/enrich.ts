@@ -1,6 +1,5 @@
 //dwellwell-api/src/routes/homes/enrich.ts
 import { Router, Request, Response } from "express";
-import { Room } from "@prisma/client";
 import { prisma } from "../../db/prisma";
 import OpenAI from "openai";
 import { requireAuth } from "../../middleware/requireAuth";
@@ -259,19 +258,19 @@ router.post("/:homeId/enrich", requireAuth, async (req: Request, res: Response) 
     if (!home) return res.status(404).json({ error: "HOME_NOT_FOUND" });
 
     const current = {
-      address: home.address ?? null,
-      city: home.city ?? null,
-      state: home.state ?? null,
-      zip: home.zip ?? null,
-      squareFeet: home.squareFeet ?? null,
-      yearBuilt: home.yearBuilt ?? null,
-      architecturalStyle: home.architecturalStyle ?? null,
-      hasCentralAir: home.hasCentralAir ?? null,
-      hasBaseboard: home.hasBaseboard ?? null,
-      roofType: home.roofType ?? null,
-      sidingType: home.sidingType ?? null,
+      address: (home as any).address ?? null,
+      city: (home as any).city ?? null,
+      state: (home as any).state ?? null,
+      zip: (home as any).zip ?? null,
+      squareFeet: (home as any).squareFeet ?? null,
+      yearBuilt: (home as any).yearBuilt ?? null,
+      architecturalStyle: (home as any).architecturalStyle ?? null,
+      hasCentralAir: (home as any).hasCentralAir ?? null,
+      hasBaseboard: (home as any).hasBaseboard ?? null,
+      roofType: (home as any).roofType ?? null,
+      sidingType: (home as any).sidingType ?? null,
       features: Array.isArray((home as any).features) ? (home as any).features : [],
-      rooms: (home.rooms || []).map((r: Room) => ({
+      rooms: (home.rooms || []).map((r: any) => ({
         name: r.name,
         type: (r as any).type || "Room",
         floor: (r as any).floor || 1,

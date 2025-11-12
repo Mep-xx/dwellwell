@@ -1,4 +1,3 @@
-// dwellwell-api/src/routes/admin/adminTrackableList.ts
 import { Router } from 'express';
 import { prisma } from '../../db/prisma';
 
@@ -22,11 +21,11 @@ router.get('/', async (req, res) => {
     const skip = (pageNum - 1) * size;
 
     // orderBy
-    let orderBy: any = { createdAt: 'desc' as const };
+    let orderBy: Record<string, 'asc' | 'desc'> = { createdAt: 'desc' };
     if (sort) {
       const [field, dir] = String(sort).split(':');
       if (['createdAt'].includes(field) && ['asc', 'desc'].includes(dir)) {
-        orderBy = { [field]: dir };
+        orderBy = { [field]: dir as 'asc' | 'desc' };
       }
     }
 
@@ -81,15 +80,17 @@ router.get('/', async (req, res) => {
       }),
     ]);
 
-    // resource counts via groupBy (works even if Trackable.resources relation is missing)
+    // resource counts via groupBy
     const resourceCounts = await prisma.trackableResource.groupBy({
       by: ['trackableId'],
       _count: { _all: true },
-      where: { trackableId: { in: itemsRaw.map(i => i.id) } },
+      where: { trackableId: { in: itemsRaw.map((i: { id: any; }) => i.id) } },
     });
-    const countMap = new Map(resourceCounts.map(rc => [rc.trackableId, rc._count._all]));
+    const countMap = new Map<string, number>(
+      resourceCounts.map((rc: { trackableId: string; _count: { _all: number } }) => [rc.trackableId, rc._count._all])
+    );
 
-    const items = itemsRaw.map((t) => {
+    const items = itemsRaw.map((t: any) => {
       const h = t.home;
       return {
         id: t.id,

@@ -1,4 +1,3 @@
-// dwellwell-api/src/lib/seed.ts
 /**
  * Seed ApplianceCatalog + TaskTemplates + Kind→Template links
  *
@@ -13,7 +12,7 @@
  * - TrackableKindTaskTemplate: @@unique([kind, taskTemplateId]) upsert
  */
 
-import { PrismaClient, Prisma, TaskType } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import { ApplianceCatalog } from './mockApplianceCatalog';
 
 const prisma = new PrismaClient();
@@ -73,14 +72,12 @@ async function seedTaskTemplates() {
   // NOTE: Normalize room categories to match ROOM_TYPES exactly for room-scoping:
   // "Bathroom", "Living Room", "Bedroom", etc.
   const templates = [
-    // ------------------------
-    // Room-based examples (normalized categories)
-    // ------------------------
+    // ------------------------ Room-based examples ------------------------
     {
       title: 'Clean Bathroom Mirror',
       description: 'Wipe down mirrors with glass cleaner.',
       recurrenceInterval: 'weekly',
-      criticality: 'low', // string enum in your schema
+      criticality: 'low',
       canDefer: true,
       deferLimitDays: 7,
       estimatedTimeMinutes: 5,
@@ -88,7 +85,7 @@ async function seedTaskTemplates() {
       canBeOutsourced: false,
       category: 'Bathroom',
       icon: '🪞',
-      taskType: TaskType.GENERAL,
+      taskType: 'GENERAL',
       steps: ['Spray cleaner', 'Wipe with cloth'],
       equipmentNeeded: ['Glass cleaner', 'Microfiber cloth'],
       resources: [],
@@ -105,7 +102,7 @@ async function seedTaskTemplates() {
       canBeOutsourced: true,
       category: 'Living Room',
       icon: '🧹',
-      taskType: TaskType.GENERAL,
+      taskType: 'GENERAL',
       steps: ['Move furniture as needed', 'Vacuum thoroughly'],
       equipmentNeeded: ['Vacuum'],
       resources: [],
@@ -122,7 +119,7 @@ async function seedTaskTemplates() {
       canBeOutsourced: true,
       category: 'Bathroom',
       icon: '🧴',
-      taskType: TaskType.GENERAL,
+      taskType: 'GENERAL',
       steps: [
         'Visually inspect shower, tub, and sink areas',
         'Note any cracking or mold',
@@ -143,7 +140,7 @@ async function seedTaskTemplates() {
       canBeOutsourced: true,
       category: 'Bathroom',
       icon: '🧼',
-      taskType: TaskType.GENERAL,
+      taskType: 'GENERAL',
       steps: [
         'Mix water and mild detergent',
         'Wipe down tiled and painted wall surfaces',
@@ -164,7 +161,7 @@ async function seedTaskTemplates() {
       canBeOutsourced: false,
       category: 'Bathroom',
       icon: '🌀',
-      taskType: TaskType.GENERAL,
+      taskType: 'GENERAL',
       steps: [
         'Turn off the fan',
         'Remove the vent cover',
@@ -186,7 +183,7 @@ async function seedTaskTemplates() {
       canBeOutsourced: true,
       category: 'Bedroom',
       icon: '💡',
-      taskType: TaskType.GENERAL,
+      taskType: 'GENERAL',
       steps: [
         'Use duster or microfiber cloth to remove dust from fan blades or lights',
         'Vacuum fallen debris if needed',
@@ -195,9 +192,7 @@ async function seedTaskTemplates() {
       resources: [],
     },
 
-    // ------------------------
-    // Trackable-based: generic / brand-agnostic (home-scoped categories)
-    // ------------------------
+    // ------------------------ Trackable-based examples ------------------------
     {
       title: 'Clean Dishwasher Filter',
       description: 'Remove and rinse the dishwasher filter to prevent clogging.',
@@ -210,7 +205,7 @@ async function seedTaskTemplates() {
       canBeOutsourced: false,
       category: 'appliance',
       icon: '🧼',
-      taskType: TaskType.GENERAL,
+      taskType: 'GENERAL',
       steps: [
         'Remove the bottom rack',
         'Twist and pull out the filter',
@@ -218,7 +213,7 @@ async function seedTaskTemplates() {
         'Replace the filter and lock it back in',
       ],
       equipmentNeeded: ['Sponge', 'Old toothbrush'],
-      resources: [{ label: 'How to clean a dishwasher filter', url: 'https://example.com/clean-dishwasher' }],
+      resources: [],
     },
     {
       title: 'Change HVAC Filter',
@@ -232,7 +227,7 @@ async function seedTaskTemplates() {
       canBeOutsourced: false,
       category: 'appliance',
       icon: '🌬️',
-      taskType: TaskType.GENERAL,
+      taskType: 'GENERAL',
       steps: [
         'Turn off the HVAC system',
         'Remove old filter',
@@ -253,7 +248,7 @@ async function seedTaskTemplates() {
       canBeOutsourced: false,
       category: 'appliance',
       icon: '🚿',
-      taskType: TaskType.GENERAL,
+      taskType: 'GENERAL',
       steps: [
         'Remove lower and upper spray arms (check your manual)',
         'Use toothpick to clear clogged holes',
@@ -274,7 +269,7 @@ async function seedTaskTemplates() {
       canBeOutsourced: false,
       category: 'appliance',
       icon: '🧪',
-      taskType: TaskType.GENERAL,
+      taskType: 'GENERAL',
       steps: ['Empty machine', 'Add descaler per label', 'Run hot cycle'],
       equipmentNeeded: ['Dishwasher descaler'],
       resources: [],
@@ -291,7 +286,7 @@ async function seedTaskTemplates() {
       canBeOutsourced: false,
       category: 'appliance',
       icon: '🫗',
-      taskType: TaskType.GENERAL,
+      taskType: 'GENERAL',
       steps: ['Open rinse-aid compartment', 'Fill to line', 'Close securely'],
       equipmentNeeded: ['Rinse aid'],
       resources: [],
@@ -308,7 +303,7 @@ async function seedTaskTemplates() {
       canBeOutsourced: true,
       category: 'appliance',
       icon: '❄️',
-      taskType: TaskType.GENERAL,
+      taskType: 'GENERAL',
       steps: ['Unplug fridge', 'Access coils (rear or toe-kick)', 'Vacuum/brush thoroughly', 'Restore power'],
       equipmentNeeded: ['Vacuum', 'Coil brush'],
       resources: [],
@@ -325,7 +320,7 @@ async function seedTaskTemplates() {
       canBeOutsourced: false,
       category: 'appliance',
       icon: '🚰',
-      taskType: TaskType.GENERAL,
+      taskType: 'GENERAL',
       steps: [
         'Locate filter housing',
         'Replace with compatible filter',
@@ -346,7 +341,7 @@ async function seedTaskTemplates() {
       canBeOutsourced: false,
       category: 'appliance',
       icon: '🫧',
-      taskType: TaskType.GENERAL,
+      taskType: 'GENERAL',
       steps: ['Empty drum', 'Add cleaner per label', 'Run Drum Clean/Sanitize cycle'],
       equipmentNeeded: ['Washing machine cleaner'],
       resources: [],
@@ -363,7 +358,7 @@ async function seedTaskTemplates() {
       canBeOutsourced: true,
       category: 'appliance',
       icon: '🚿',
-      taskType: TaskType.GENERAL,
+      taskType: 'GENERAL',
       steps: ['Turn off water supply', 'Disconnect hoses', 'Remove and rinse inlet screens', 'Reinstall; check for leaks'],
       equipmentNeeded: ['Pliers', 'Towel'],
       resources: [],
@@ -380,7 +375,7 @@ async function seedTaskTemplates() {
       canBeOutsourced: true,
       category: 'safety',
       icon: '🔥',
-      taskType: TaskType.GENERAL,
+      taskType: 'GENERAL',
       steps: [
         'Unplug dryer',
         'Detach vent duct',
@@ -402,7 +397,7 @@ async function seedTaskTemplates() {
       canBeOutsourced: false,
       category: 'kitchen',
       icon: '🍽️',
-      taskType: TaskType.GENERAL,
+      taskType: 'GENERAL',
       steps: ['Open grill', 'Swap filter', 'Reset filter indicator if present'],
       equipmentNeeded: ['Correct charcoal filter'],
       resources: [],
@@ -419,7 +414,7 @@ async function seedTaskTemplates() {
       canBeOutsourced: true,
       category: 'plumbing',
       icon: '🚿',
-      taskType: TaskType.GENERAL,
+      taskType: 'GENERAL',
       steps: ['Turn off fuel/power', 'Attach hose; drain until clear', 'Refill and relight/restore power'],
       equipmentNeeded: ['Garden hose', 'Bucket'],
       resources: [],
@@ -436,7 +431,7 @@ async function seedTaskTemplates() {
       canBeOutsourced: true,
       category: 'safety',
       icon: '🧯',
-      taskType: TaskType.GENERAL,
+      taskType: 'GENERAL',
       steps: ['Place bucket', 'Lift lever briefly', 'Verify discharge & reseal'],
       equipmentNeeded: ['Bucket', 'Gloves'],
       resources: [],
@@ -455,10 +450,9 @@ async function seedTaskTemplates() {
       select: { id: true, changelog: true },
     });
 
-    // Cast enum-like fields cautiously to handle Prisma version differences
     const data: any = {
       ...tpl,
-      taskType: tpl.taskType ?? TaskType.GENERAL,
+      taskType: tpl.taskType ?? 'GENERAL',
       criticality: tpl.criticality ?? 'medium',
       state: 'VERIFIED',
       changelog: existing?.changelog ?? systemKeyForTemplate(selector),
