@@ -1,7 +1,8 @@
+// dwellwell-client/src/components/features/TrackableTaskRow.tsx
 import { useMemo, useState } from "react";
 import { api } from "@/utils/api";
 import type { Task } from "@shared/types/task";
-import { ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
+import { ChevronDown, ChevronUp, ExternalLink, Clock4 } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const fmtDate = (iso?: string | null) =>
@@ -33,8 +34,8 @@ type Props = {
 /**
  * Compact list-row design with actions on their own row:
  *
- * Title
- * On track • date • 15m
+ * Title              [time chip]
+ * On track • date • location • criticality
  * [Complete]  [Skip]  [Remind]  (icon) open full page
  * Details ▼
  */
@@ -87,18 +88,29 @@ export default function TrackableTaskRow({ task, onChanged }: Props) {
       ? "bg-amber-500"
       : "bg-emerald-500";
 
+  const timeChip =
+    typeof task.estimatedTimeMinutes === "number" && task.estimatedTimeMinutes > 0 ? (
+      <span className="ml-auto inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border bg-surface-alt text-body">
+        <Clock4 className="h-3.5 w-3.5" />
+        {task.estimatedTimeMinutes}m
+      </span>
+    ) : null;
+
   return (
     <div className="group py-2.5 sm:py-3 px-1 rounded-md hover:bg-surface-alt/60 transition-colors">
       {/* Header */}
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
-          <div
-            className={[
-              "text-[13.5px] sm:text-[14px] leading-snug font-medium break-words",
-              task.status === "COMPLETED" ? "line-through text-muted" : "text-body",
-            ].join(" ")}
-          >
-            {task.title}
+          <div className="flex items-start gap-2">
+            <div
+              className={[
+                "text-[13.5px] sm:text-[14px] leading-snug font-medium break-words",
+                task.status === "COMPLETED" ? "line-through text-muted" : "text-body",
+              ].join(" ")}
+            >
+              {task.title}
+            </div>
+            {timeChip}
           </div>
 
           {/* Meta line with colored dot + due text */}
@@ -106,14 +118,14 @@ export default function TrackableTaskRow({ task, onChanged }: Props) {
             <span className="inline-flex items-center gap-1">
               <span className={`h-2 w-2 rounded-full ${dotClass}`} aria-hidden />
               <span className={`${dueColor} font-medium`}>{dueLabel}</span>
-              <span className="text-muted">{task.dueDate ? ` • ${fmtDate(task.dueDate)}` : ""}</span>
+              <span className="text-muted">
+                {task.dueDate ? ` • ${fmtDate(task.dueDate)}` : ""}
+              </span>
             </span>
 
-            {typeof task.estimatedTimeMinutes === "number" && task.estimatedTimeMinutes > 0 && (
-              <span className="text-muted">• ⏱ {task.estimatedTimeMinutes}m</span>
+            {(task as any).location && (
+              <span className="text-muted">• 📍 {(task as any).location}</span>
             )}
-
-            {(task as any).location && <span className="text-muted">• 📍 {(task as any).location}</span>}
 
             {(task as any).criticality && (
               <span

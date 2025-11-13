@@ -1,0 +1,47 @@
+--General
+The Site title doesn't change while navigating around
+
+--Dashboard
+
+It seems that "Year" only looks at the current year, not the next 12 months.  we should add two new timeframes (3 months, 12 months)
+
+"Hide Completed" option
+
+Remove the "+ Trackable" button
+
+--Trackables
+All trackable "Type" should have a default image.  For example, "Coffee Maker" should have an icon until I add the actual picture.
+
+Trackables, when added, should include the image set for the trackable (so if i go and add it to the compliance catalog, it should reflect in the trackable)
+
+"Show Tasks" shows "Show Tasks (0)" when they're created, but expands properly
+
+--Tasks
+
+Tasks should show the recurrence interval
+
+Tasks should have a category so if you never want to see "cleaning" tasks, you don't need to.  Come up with categories.
+
+Tasks should be something you can completely dismiss, right now it's just "complete, skip, remind"
+
+Tasks detail screen needs to be created.
+
+--Homes
+
+Changing the type of house you have from the edit screen should load rooms (if you have no rooms present, or should give you the option to clear your existing rooms and load from a template).
+
+Quick Add should give more of an option to fill in details so they don't just add a dishwasher then forget about it.
+
+Deleting home should cascade delete all user tasks related to that home and trackable association with that home.  (think like moving and bringing your stuff with you)
+
+--Rooms
+
+Adding a trackable from a room should give you a list of your existing Trackables or ask you if you want a new one.
+
+The alignment is weird here
+
+--Seeds
+Review seeds, I don't think we should add things like dishwasher tasks until they choose that they have one.
+
+--Admin Task Templates
+The edit popup needs to be remade.

@@ -1,29 +1,38 @@
+// dwellwell-client/src/pages/Dashboard.tsx
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useTasksApi, type TaskListItem } from "@/hooks/useTasksApi";
 import TaskCard from "@/components/features/TaskCard";
-import TaskBoard from "@/components/features/TaskBoard";
+import TaskBuckets, { type Buckets } from "@/components/features/TaskBuckets";
 import { useAuth } from "@/context/AuthContext";
 import { useTaskDetailPref } from "@/hooks/useTaskDetailPref";
 import RotatingGreeting from "@/components/ui/RotatingGreeting";
 
-
 /* ============================== Types =============================== */
 type ViewMode = "grouped" | "flat";
-type Timeframe = "week" | "month" | "year";
+type Timeframe = "week" | "month" | "3mo" | "12mo";
 
 /* ====================== LocalStorage keys + readers ====================== */
 const TF_KEY = "dwellwell-timeframe";
 const VIEW_KEY = "dwellwell-view";
+const SHOW_COMPLETED_KEY = "dwellwell-show-completed";
 
 function readSavedTimeframe(): Timeframe {
   const v = (localStorage.getItem(TF_KEY) || "").toLowerCase();
-  return v === "week" || v === "month" || v === "year" ? (v as Timeframe) : "week";
+  return v === "week" || v === "month" || v === "3mo" || v === "12mo" ? (v as Timeframe) : "week";
 }
 function readSavedView(): ViewMode {
   const v = (localStorage.getItem(VIEW_KEY) || "").toLowerCase();
   return v === "grouped" || v === "flat" ? (v as ViewMode) : "flat";
+}
+function readShowCompleted(): boolean {
+  try {
+    const v = localStorage.getItem(SHOW_COMPLETED_KEY);
+    return v === "1" || v === "true";
+  } catch {
+    return false;
+  }
 }
 
 /* ========================= Date helpers (local) ========================= */
@@ -31,6 +40,7 @@ function startOfLocalDay(d: Date) { const x = new Date(d); x.setHours(0, 0, 0, 0
 function endOfLocalDay(d: Date) { const x = new Date(d); x.setHours(23, 59, 59, 999); return x; }
 function getMondayStart(anchor: Date) { const d = new Date(anchor); const dow = d.getDay() === 0 ? 7 : d.getDay(); const s = new Date(d); s.setDate(d.getDate() - (dow - 1)); return startOfLocalDay(s); }
 function getSundayEnd(anchor: Date) { const mon = getMondayStart(anchor); const sun = new Date(mon); sun.setDate(mon.getDate() + 6); return endOfLocalDay(sun); }
+function addDays(d: Date, n: number) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
 
 /* ========================= Reusable pill toggles ========================= */
 function PillToggle<T extends string>({
@@ -72,13 +82,20 @@ export default function Dashboard() {
 
   const [viewMode, setViewMode] = useState<ViewMode>(() => readSavedView());
   const [timeframe, setTimeframe] = useState<Timeframe>(() => readSavedTimeframe());
-  const [tasks, setTasks] = useState<TaskListItem[]>([]);
+
+  // NEW: show/hide completed
+  const [showCompleted, setShowCompleted] = useState<boolean>(() => readShowCompleted());
+
+  const [pending, setPending] = useState<TaskListItem[]>([]);
+  const [completed, setCompleted] = useState<TaskListItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => { localStorage.setItem(TF_KEY, timeframe); }, [timeframe]);
   useEffect(() => { localStorage.setItem(VIEW_KEY, viewMode); }, [viewMode]);
+  useEffect(() => { localStorage.setItem(SHOW_COMPLETED_KEY, showCompleted ? "1" : "0"); }, [showCompleted]);
 
+  // Fetch PENDING (always) and COMPLETED (only when toggled on)
   useEffect(() => {
     let cancelled = false;
     if (authLoading || !user) return;
@@ -87,8 +104,14 @@ export default function Dashboard() {
       setLoading(true);
       setErr(null);
       try {
-        const rows = await listTasks({ status: "active", limit: 300, sort: "dueDate" });
-        if (!cancelled) setTasks(rows || []);
+        const [pRows, cRows] = await Promise.all([
+          listTasks({ status: "active", limit: 500, sort: "dueDate" }),
+          showCompleted ? listTasks({ status: "completed", limit: 500, sort: "-completedAt" }) : Promise.resolve([]),
+        ]);
+        if (!cancelled) {
+          setPending(pRows || []);
+          setCompleted(cRows || []);
+        }
       } catch (e: any) {
         if (!cancelled) setErr(e?.message || "Failed to load tasks");
       } finally {
@@ -98,48 +121,61 @@ export default function Dashboard() {
 
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authLoading, user]);
+  }, [authLoading, user, showCompleted]);
 
   const now = new Date();
-  const isInCurrentTimeframe = (dateStr: string | null | undefined) => {
+
+  // Rolling window filter for flat view (pending) and for completed histogram
+  function isInTimeframe(dateStr: string | null | undefined): boolean {
     if (!dateStr) return false;
-    const taskDate = new Date(dateStr);
+    const dt = new Date(dateStr);
 
     if (timeframe === "week") {
       const start = getMondayStart(now);
       const end = getSundayEnd(now);
-      return taskDate >= start && taskDate <= end;
+      return dt >= start && dt <= end;
     }
+
     if (timeframe === "month") {
       const start = startOfLocalDay(new Date(now.getFullYear(), now.getMonth(), 1));
       const end = endOfLocalDay(new Date(now.getFullYear(), now.getMonth() + 1, 0));
-      return taskDate >= start && taskDate <= end;
+      return dt >= start && dt <= end;
     }
-    if (timeframe === "year") {
-      const start = startOfLocalDay(new Date(now.getFullYear(), 0, 1));
-      const end = endOfLocalDay(new Date(now.getFullYear(), 11, 31));
-      return taskDate >= start && taskDate <= end;
-    }
-    return true;
-  };
 
+    if (timeframe === "3mo") {
+      const start = startOfLocalDay(now);
+      const end = endOfLocalDay(addDays(now, 90));
+      return dt >= start && dt <= end;
+    }
+
+    if (timeframe === "12mo") {
+      const start = startOfLocalDay(now);
+      const end = endOfLocalDay(addDays(now, 365));
+      return dt >= start && dt <= end;
+    }
+
+    return true;
+  }
+
+  // KPIs (based on pending list + completed 7d)
   const kpis = useMemo(() => {
     const todayStart = startOfLocalDay(now);
     const todayEnd = endOfLocalDay(now);
 
     let overdue = 0, dueToday = 0, upcoming = 0, completed7d = 0;
-    const sevenDaysAgo = startOfLocalDay(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6));
+    const sevenDaysAgo = startOfLocalDay(addDays(now, -6));
 
-    for (const t of tasks) {
-      const due = t.dueDate ? new Date(t.dueDate) : null;
-
-      const completedAt = (t as any).completedAt ? new Date((t as any).completedAt) : null;
-      if (t.status === "COMPLETED" && completedAt) {
-        if (completedAt >= sevenDaysAgo && completedAt <= todayEnd) completed7d++;
+    const sourceCompleted = showCompleted ? completed : [];
+    for (const t of sourceCompleted) {
+      if (t.status === "COMPLETED" && t.completedAt) {
+        const c = new Date(t.completedAt);
+        if (c >= sevenDaysAgo && c <= todayEnd) completed7d++;
       }
+    }
 
+    for (const t of pending) {
       if (t.status !== "PENDING") continue;
-
+      const due = t.dueDate ? new Date(t.dueDate) : null;
       if (due) {
         if (due < todayStart) overdue++;
         else if (due >= todayStart && due <= todayEnd) dueToday++;
@@ -147,25 +183,97 @@ export default function Dashboard() {
       }
     }
     return { overdue, dueToday, upcoming, completed7d };
-  }, [tasks, now]);
+  }, [pending, completed, showCompleted, now]);
 
   const includeUndated = viewMode === "flat";
-  const visibleTasks = useMemo(
+
+  /* ============================ FLAT VIEW DATA ============================ */
+  const visiblePendingFlat = useMemo(
     () =>
-      tasks
+      pending
         .filter((t) => {
           if (t.status !== "PENDING") return false;
           if (!t.dueDate) return includeUndated;
-          return isInCurrentTimeframe(t.dueDate);
+          return isInTimeframe(t.dueDate);
         })
         .sort((a, b) => {
           const ad = a.dueDate ? new Date(a.dueDate).getTime() : Number.POSITIVE_INFINITY;
           const bd = b.dueDate ? new Date(b.dueDate).getTime() : Number.POSITIVE_INFINITY;
           return ad - bd;
         }),
-    [tasks, timeframe, viewMode]
+    [pending, timeframe, viewMode, includeUndated]
   );
 
+  const visibleCompleted = useMemo(
+    () =>
+      showCompleted
+        ? completed
+            .filter((t) => t.status === "COMPLETED" && t.completedAt && isInTimeframe(t.completedAt))
+            .sort((a, b) => {
+              const ad = a.completedAt ? new Date(a.completedAt).getTime() : 0;
+              const bd = b.completedAt ? new Date(b.completedAt).getTime() : 0;
+              return bd - ad;
+            })
+        : [],
+    [completed, showCompleted, timeframe]
+  );
+
+  const visibleTasksFlat = useMemo(
+    () => [...visiblePendingFlat, ...visibleCompleted],
+    [visiblePendingFlat, visibleCompleted]
+  );
+
+  /* =========================== GROUPED VIEW DATA ========================== */
+  function windowEnd(tf: Timeframe) {
+    const base = startOfLocalDay(now);
+    if (tf === "3mo") return endOfLocalDay(addDays(base, 90));
+    if (tf === "12mo") return endOfLocalDay(addDays(base, 365));
+    // For week/month, "Later" stops at the end of the current month.
+    return endOfLocalDay(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+  }
+
+  const pendingBuckets: Buckets = useMemo(() => {
+    const today = startOfLocalDay(now);
+    const wStart = getMondayStart(now);
+    const wEnd = getSundayEnd(now);
+    const mEnd = endOfLocalDay(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+    const winEnd = windowEnd(timeframe);
+
+    const buckets: Buckets = { overdue: [], week: [], month: [], later: [] };
+
+    for (const t of pending) {
+      if (t.status !== "PENDING") continue;
+
+      // undated tasks -> Later
+      if (!t.dueDate) { buckets.later.push(t); continue; }
+
+      const d = new Date(t.dueDate);
+      const dueDay = startOfLocalDay(d);
+
+      if (dueDay < today) { buckets.overdue.push(t); continue; }
+      if (dueDay >= wStart && dueDay <= wEnd) { buckets.week.push(t); continue; }
+      if (dueDay > wEnd && dueDay <= mEnd) { buckets.month.push(t); continue; }
+      if (dueDay > mEnd && dueDay <= winEnd) { buckets.later.push(t); }
+    }
+
+    // sort each bucket by due date
+    for (const key of Object.keys(buckets) as (keyof Buckets)[]) {
+      buckets[key].sort((a, b) => {
+        const ad = a.dueDate ? new Date(a.dueDate).getTime() : Number.POSITIVE_INFINITY;
+        const bd = b.dueDate ? new Date(b.dueDate).getTime() : Number.POSITIVE_INFINITY;
+        return ad - bd;
+      });
+    }
+    return buckets;
+  }, [pending, timeframe, now]);
+
+  const totalPendingInBuckets =
+    pendingBuckets.overdue.length +
+    pendingBuckets.week.length +
+    pendingBuckets.month.length +
+    pendingBuckets.later.length;
+
+  /* ================================ Actions =============================== */
   function openDrawerViaUrl(taskId: string) {
     const p = new URLSearchParams(loc.search);
     p.set("taskId", taskId);
@@ -175,10 +283,20 @@ export default function Dashboard() {
   async function handleSkipSelected() {
     if (!selectedTaskId) return;
     await skip(selectedTaskId);
-    // soft refresh the list
-    const rows = await listTasks({ status: "active", limit: 300, sort: "dueDate" });
-    setTasks(rows || []);
+    // soft refresh
+    const [pRows, cRows] = await Promise.all([
+      listTasks({ status: "active", limit: 500, sort: "dueDate" }),
+      showCompleted ? listTasks({ status: "completed", limit: 500, sort: "-completedAt" }) : Promise.resolve([]),
+    ]);
+    setPending(pRows || []);
+    setCompleted(cRows || []);
   }
+
+  /* ================================= Render =============================== */
+  const nothingToShow =
+    (!authLoading && !loading && !err) &&
+    ((viewMode === "flat" && visibleTasksFlat.length === 0) ||
+     (viewMode === "grouped" && totalPendingInBuckets === 0));
 
   return (
     <div className="space-y-6 p-4 sm:p-2 rounded bg-surface">
@@ -187,8 +305,7 @@ export default function Dashboard() {
         <RotatingGreeting />
       </header>
 
-
-      {/* Controls: pill toggles like Cozy/Compact */}
+      {/* Controls */}
       <div className="flex flex-wrap gap-6 items-center">
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium text-body">View:</span>
@@ -211,18 +328,23 @@ export default function Dashboard() {
             options={[
               { label: "Week", val: "week" },
               { label: "Month", val: "month" },
-              { label: "Year", val: "year" },
+              { label: "3 mo", val: "3mo" },
+              { label: "12 mo", val: "12mo" },
             ]}
             ariaLabel="Timeframe"
           />
         </div>
 
-        {/* Quick actions */}
-        <div className="ml-auto flex items-center gap-2">
-          <Button size="sm" variant="outline" onClick={() => navigate("/app/trackables?new=1")}>
-            + Trackable
-          </Button>
-        </div>
+        {/* Show Completed toggle */}
+        <label className="ml-auto inline-flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            className="h-4 w-4"
+            checked={showCompleted}
+            onChange={(e) => setShowCompleted(e.target.checked)}
+          />
+          <span className="text-body">Show completed</span>
+        </label>
       </div>
 
       {/* KPI Row */}
@@ -249,17 +371,17 @@ export default function Dashboard() {
       {!authLoading && !loading && err && (
         <div className="surface-card p-3 text-sm text-red-700 bg-red-50 dark:bg-red-950/20">{err}</div>
       )}
-      {!authLoading && !loading && !err && visibleTasks.length === 0 && (
+      {nothingToShow && (
         <div className="surface-card p-6 text-sm text-muted">No tasks in this timeframe.</div>
       )}
 
-      {!authLoading && !loading && !err && visibleTasks.length > 0 && (
+      {!authLoading && !loading && !err && !nothingToShow && (
         <>
           {viewMode === "flat" && (
             <section className="space-y-4">
               <h2 className="text-xl font-semibold text-body">Your Tasks</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-start content-start">
-                {visibleTasks.map((t) => (
+                {visibleTasksFlat.map((t) => (
                   <TaskCard key={t.id} t={t} onOpenDrawer={(id) => openDrawerViaUrl(id)} />
                 ))}
               </div>
@@ -267,7 +389,10 @@ export default function Dashboard() {
           )}
 
           {viewMode === "grouped" && (
-            <TaskBoard tasks={visibleTasks} onOpenDrawer={(id) => openDrawerViaUrl(id)} />
+            <TaskBuckets
+              buckets={pendingBuckets}
+              onOpenDrawer={(id) => openDrawerViaUrl(id)}
+            />
           )}
         </>
       )}
