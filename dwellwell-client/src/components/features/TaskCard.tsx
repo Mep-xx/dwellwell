@@ -1,4 +1,4 @@
-//dwellwell-client/src/components/features/TaskCard.tsx
+// dwellwell-client/src/components/features/TaskCard.tsx
 import {
   useEffect,
   useMemo,
@@ -15,7 +15,6 @@ import {
   ExternalLink,
   RotateCcw,
   Check,
-  MoreHorizontal,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,6 +29,8 @@ type Props = {
   onOpenDrawer?: (taskId: string) => void;
   density?: "cozy" | "compact";
 };
+
+type DueState = "none" | "overdue" | "soon" | "ok";
 
 export default function TaskCard({ t, onOpenDrawer, density = "cozy" }: Props) {
   const pref = useTaskDetailPref();
@@ -48,14 +49,16 @@ export default function TaskCard({ t, onOpenDrawer, density = "cozy" }: Props) {
 
   const isCompleted = status === "COMPLETED";
 
-  // Load details only when needed (card expand)
+  // Close inline expansion if user prefers the drawer
   useEffect(() => {
     if (pref === "drawer" && expanded) setExpanded(false);
   }, [pref, expanded]);
 
+  // Lazy-load details when expanded in card mode
   useEffect(() => {
     if (!expanded || pref !== "card") return;
     let cancelled = false;
+
     (async () => {
       setLoading(true);
       setErr(null);
@@ -68,12 +71,43 @@ export default function TaskCard({ t, onOpenDrawer, density = "cozy" }: Props) {
         if (!cancelled) setLoading(false);
       }
     })();
+
     return () => {
       cancelled = true;
     };
   }, [expanded, pref, t.id, getDetail]);
 
   const dueInfo = useMemo(() => computeDueInfo(t.dueDate), [t.dueDate]);
+
+  const tone = useMemo(() => {
+    switch (dueInfo.state) {
+      case "overdue":
+        return {
+          cardBorder: "border-rose-200",
+          headerBand: "bg-rose-50",
+          dueText: "text-rose-700",
+        };
+      case "soon":
+        return {
+          cardBorder: "border-amber-200",
+          headerBand: "bg-amber-50",
+          dueText: "text-amber-800",
+        };
+      case "ok":
+        return {
+          cardBorder: "border-emerald-200",
+          headerBand: "bg-emerald-50",
+          dueText: "text-emerald-800",
+        };
+      default:
+        return {
+          cardBorder: "border-token",
+          headerBand: "",
+          dueText: "text-muted",
+        };
+    }
+  }, [dueInfo.state]);
+
   const thumbSrc =
     detail?.task?.imageUrl || detail?.template?.imageUrl || undefined;
   const showThumb = Boolean(thumbSrc);
@@ -124,7 +158,8 @@ export default function TaskCard({ t, onOpenDrawer, density = "cozy" }: Props) {
     }
   }
 
-  async function handleSkip() {
+  async function handleSkip(e: ReactMouseEvent) {
+    stop(e);
     if (busy) return;
     setBusy(true);
     try {
@@ -145,14 +180,6 @@ export default function TaskCard({ t, onOpenDrawer, density = "cozy" }: Props) {
     }
   }
 
-  function handleOpenFull() {
-    window.open(
-      `/app/tasks/${encodeURIComponent(t.id)}`,
-      "_blank",
-      "noopener,noreferrer",
-    );
-  }
-
   return (
     <motion.div
       layout
@@ -160,11 +187,19 @@ export default function TaskCard({ t, onOpenDrawer, density = "cozy" }: Props) {
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.98 }}
       className={[
-        "relative self-start rounded-xl border border-token bg-card text-body",
+        "relative self-start rounded-xl bg-card text-body shadow-sm hover:shadow-md transition-shadow",
+        "border", // base border
+        tone.cardBorder, // tone-specific border color
         density === "compact" ? "p-3" : "p-4",
-        "shadow-sm hover:shadow-md transition-shadow",
       ].join(" ")}
     >
+      {/* subtle top band for due status */}
+      {tone.headerBand && (
+        <div
+          className={`pointer-events-none absolute inset-x-0 top-0 h-2 rounded-t-xl ${tone.headerBand}`}
+        />
+      )}
+
       <AnimatePresence>
         {celebrate && (
           <motion.div
@@ -225,6 +260,9 @@ export default function TaskCard({ t, onOpenDrawer, density = "cozy" }: Props) {
                 </h3>
                 {contextLine && (
                   <div className="mt-0.5 text-xs text-muted truncate">
+                    <span className="font-medium text-[11px] uppercase tracking-wide">
+                      Where:&nbsp;
+                    </span>
                     {contextLine}
                   </div>
                 )}
@@ -239,23 +277,18 @@ export default function TaskCard({ t, onOpenDrawer, density = "cozy" }: Props) {
               )}
             </div>
 
-            {/* Meta row: due + category chip(s) */}
+            {/* Meta row: due (subtle) + category chip(s) */}
             <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
-              {t.dueDate ? (
-                <span
-                  className={[
-                    "inline-flex items-center gap-1 rounded-full border px-2 py-[2px]",
-                    dueInfo.className,
-                  ].join(" ")}
-                >
+              {dueInfo.state === "none" ? (
+                <span className="inline-flex items-center gap-1 text-xs text-muted">
                   <CalendarDays className="h-3.5 w-3.5" />
-                  <span className="font-medium">{dueInfo.label}</span>
-                  <span className="opacity-80">• {dueInfo.date}</span>
+                  <span>No date</span>
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1 rounded-full border border-token bg-surface-alt px-2 py-[2px] text-muted">
+                <span className="inline-flex items-center gap-1 text-xs text-muted">
                   <CalendarDays className="h-3.5 w-3.5" />
-                  No due date
+                  <span className={tone.dueText}>{dueInfo.label}</span>
+                  <span className="opacity-80">• {dueInfo.date}</span>
                 </span>
               )}
 
@@ -273,7 +306,7 @@ export default function TaskCard({ t, onOpenDrawer, density = "cozy" }: Props) {
       <div className="mt-3 h-px bg-border/70" />
 
       {/* Actions */}
-      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 opacity-90 group-hover:opacity-100">
+      <div className="mt-2 flex flex-wrap items-center gap-2 opacity-90 group-hover:opacity-100">
         {!isCompleted ? (
           <>
             <Button
@@ -287,12 +320,39 @@ export default function TaskCard({ t, onOpenDrawer, density = "cozy" }: Props) {
               Complete
             </Button>
 
-            <TaskMoreMenu
-              disabled={busy}
+            <SnoozeMenu
               onSnooze={handleSnooze}
-              onSkip={handleSkip}
-              onOpenFull={handleOpenFull}
+              triggerClassName="h-8 px-3 text-xs text-muted border-dashed bg-transparent"
             />
+
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={handleSkip}
+              className="h-8 px-3 text-xs text-muted"
+              title="Skip this occurrence"
+              disabled={busy}
+            >
+              <CornerDownRight className="mr-1 h-4 w-4 -ml-0.5" />
+              Skip
+            </Button>
+
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 px-2 text-muted"
+              onClick={(e) => {
+                e.stopPropagation();
+                window.open(
+                  `/app/tasks/${encodeURIComponent(t.id)}`,
+                  "_blank",
+                  "noopener,noreferrer",
+                );
+              }}
+              title="Open full page"
+            >
+              <ExternalLink className="h-4 w-4" />
+            </Button>
           </>
         ) : (
           <>
@@ -409,13 +469,18 @@ export default function TaskCard({ t, onOpenDrawer, density = "cozy" }: Props) {
 
 /* ---------- helpers ---------- */
 
-function computeDueInfo(iso?: string | null) {
+function computeDueInfo(iso?: string | null): {
+  state: DueState;
+  label: string;
+  date: string;
+} {
   if (!iso)
     return {
-      className: "bg-surface-alt text-muted border-token",
+      state: "none",
       label: "No date",
       date: "",
     };
+
   const d = new Date(iso);
   const date = d.toLocaleDateString();
 
@@ -426,37 +491,32 @@ function computeDueInfo(iso?: string | null) {
 
   if (days < 0) {
     return {
-      className: "bg-rose-50 text-rose-700 border-rose-200",
+      state: "overdue",
       label: "Overdue",
       date,
     };
   }
   if (days <= 7) {
     return {
-      className: "bg-amber-50 text-amber-800 border-amber-200",
+      state: "soon",
       label: "Due soon",
       date,
     };
   }
   return {
-    className: "bg-emerald-50 text-emerald-800 border-emerald-200",
+    state: "ok",
     label: "On track",
     date,
   };
 }
 
-/* ---------- More menu (Snooze / Skip / Open) ---------- */
-
-function TaskMoreMenu({
-  disabled,
+/* Snooze dropdown */
+function SnoozeMenu({
   onSnooze,
-  onSkip,
-  onOpenFull,
+  triggerClassName = "",
 }: {
-  disabled?: boolean;
   onSnooze: (days: number) => void;
-  onSkip: () => void;
-  onOpenFull: () => void;
+  triggerClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement | null>(null);
@@ -466,7 +526,7 @@ function TaskMoreMenu({
       if (!open) return;
       const target = e.target as Node;
       if (btnRef.current && !btnRef.current.contains(target)) {
-        const menu = document.getElementById("task-more-pop");
+        const menu = document.getElementById("task-snooze-pop");
         if (menu && !menu.contains(target)) setOpen(false);
       }
     };
@@ -475,56 +535,55 @@ function TaskMoreMenu({
   }, [open]);
 
   return (
-    <div className="relative inline-block">
+    <div className="relative inline-block z-10">
       <Button
         size="sm"
-        variant="ghost"
-        ref={btnRef as any}
-        disabled={disabled}
+        variant="outline"
         onClick={(e) => {
           e.stopPropagation();
-          if (disabled) return;
           setOpen((v) => !v);
         }}
-        className="h-8 px-2 text-muted"
-        title="More options"
+        className={triggerClassName}
+        ref={btnRef as any}
+        title="Snooze"
       >
-        <MoreHorizontal className="h-4 w-4" />
+        <Clock4 className="mr-1 h-4 w-4 -ml-0.5" />
+        Snooze
+        <ChevronDown className="ml-1 h-4 w-4 opacity-70" />
       </Button>
 
       <AnimatePresence>
         {open && (
           <motion.div
-            id="task-more-pop"
+            id="task-snooze-pop"
             initial={{ opacity: 0, scale: 0.98, y: 6 }}
             animate={{ opacity: 1, scale: 1, y: 4 }}
             exit={{ opacity: 0, scale: 0.98, y: 6 }}
             transition={{ duration: 0.12 }}
-            className="absolute right-0 z-20 mt-1 min-w-[190px] rounded-md border bg-popover shadow-lg"
+            className="absolute z-20 mt-1 min-w-[160px] rounded-md border bg-popover shadow-lg"
             onClick={(e) => e.stopPropagation()}
           >
             <button
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-surface-alt"
+              className="w-full px-3 py-2 text-left text-sm hover:bg-surface-alt"
               onClick={() => {
                 onSnooze(3);
                 setOpen(false);
               }}
             >
-              <Clock4 className="h-4 w-4" />
-              Snooze 3 days
+              3 days
             </button>
             <button
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-surface-alt"
+              className="w-full px-3 py-2 text-left text-sm hover:bg-surface-alt"
               onClick={() => {
                 onSnooze(7);
                 setOpen(false);
               }}
             >
-              <Clock4 className="h-4 w-4" />
-              Snooze 7 days
+              7 days
             </button>
+            <div className="mx-2 h-px bg-border" />
             <button
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-surface-alt"
+              className="w-full px-3 py-2 text-left text-sm hover:bg-surface-alt"
               onClick={() => {
                 const v = prompt("Snooze how many days?", "14");
                 const d =
@@ -533,32 +592,7 @@ function TaskMoreMenu({
                 setOpen(false);
               }}
             >
-              <Clock4 className="h-4 w-4" />
-              Custom snooze…
-            </button>
-
-            <div className="mx-2 my-1 h-px bg-border" />
-
-            <button
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-surface-alt"
-              onClick={() => {
-                onSkip();
-                setOpen(false);
-              }}
-            >
-              <CornerDownRight className="h-4 w-4" />
-              Skip this occurrence
-            </button>
-
-            <button
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-surface-alt"
-              onClick={() => {
-                onOpenFull();
-                setOpen(false);
-              }}
-            >
-              <ExternalLink className="h-4 w-4" />
-              Open full page
+              Custom…
             </button>
           </motion.div>
         )}

@@ -1,4 +1,4 @@
-//dwellwell-client/src/pages/Dashboard.tsx
+// dwellwell-client/src/pages/Dashboard.tsx
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
@@ -10,6 +10,7 @@ import TaskCard from "@/components/features/TaskCard";
 import { useAuth } from "@/context/AuthContext";
 import { useTaskDetailPref } from "@/hooks/useTaskDetailPref";
 import RotatingGreeting from "@/components/ui/RotatingGreeting";
+import TodayPlanBanner from "@/components/features/TodayPlanBanner";
 
 /* ============================== Types =============================== */
 // flat-only view now
@@ -82,7 +83,7 @@ function PillToggle<T extends string>({
         return (
           <button
             key={opt.val}
-            className={`px-3 py-1.5 rounded-full text-sm ${
+            className={`rounded-full px-3 py-1.5 text-sm ${
               active
                 ? "bg-primary/10 text-[rgb(var(--primary))]"
                 : "text-muted hover:text-body"
@@ -359,82 +360,15 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Today’s Plan banner */}
-      {!authLoading &&
-        !loading &&
-        !err &&
-        visiblePending.length > 0 &&
-        planVisible && (
-          <section className="mt-1">
-            <div className="surface-card flex flex-col gap-3 rounded-xl border border-dashed border-token bg-surface-alt/60 p-4 sm:p-5 shadow-sm">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-xs font-semibold uppercase tracking-wide text-muted">
-                    Today&apos;s Plan
-                  </div>
-                  <p className="mt-1 text-sm text-muted">
-                    A short, plain-language chore list based on the tasks in
-                    your current view.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  className="text-xs text-muted hover:text-body"
-                  onClick={() => setPlanVisible(false)}
-                >
-                  Hide
-                </button>
-              </div>
-
-              {planErr && (
-                <div className="rounded border border-red-200 bg-red-50 p-2 text-xs text-red-700 dark:bg-red-950/30">
-                  {planErr}
-                </div>
-              )}
-
-              {planLoading && (
-                <div className="space-y-2">
-                  <div className="h-3 w-1/2 rounded bg-surface animate-pulse" />
-                  <div className="h-3 w-5/6 rounded bg-surface animate-pulse" />
-                  <div className="h-3 w-3/4 rounded bg-surface animate-pulse" />
-                </div>
-              )}
-
-              {!planLoading && plan && (
-                <div className="space-y-2">
-                  <div className="text-sm whitespace-pre-line">
-                    {plan.planText}
-                  </div>
-                  <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted">
-                    {typeof plan.estTotalMinutes === "number" &&
-                      plan.estTotalMinutes > 0 && (
-                        <span>
-                          Roughly {plan.estTotalMinutes} minutes of work.
-                        </span>
-                      )}
-                    {plan.tagline && (
-                      <span className="italic">“{plan.tagline}”</span>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              <div className="mt-1 flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  className="inline-flex items-center justify-center rounded-md border border-token bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
-                  onClick={handleGeneratePlan}
-                  disabled={planLoading || visiblePending.length === 0}
-                >
-                  {plan ? "Regenerate Plan" : "Generate Plan"}
-                </button>
-                <span className="text-[11px] text-muted">
-                  Uses only the tasks currently visible in your timeframe.
-                </span>
-              </div>
-            </div>
-          </section>
-        )}
+      <TodayPlanBanner
+        hasTasks={visiblePending.length > 0}
+        planVisible={planVisible}
+        plan={plan}
+        planLoading={planLoading}
+        planErr={planErr}
+        onGeneratePlan={handleGeneratePlan}
+        onHide={() => setPlanVisible(false)}
+      />
 
       {!authLoading && !loading && !err && visibleTasks.length > 0 && (
         <section className="space-y-4">
