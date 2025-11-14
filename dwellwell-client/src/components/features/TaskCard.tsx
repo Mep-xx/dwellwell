@@ -1,4 +1,4 @@
-// dwellwell-client/src/components/features/TaskCard.tsx
+//dwellwell-client/src/components/features/TaskCard.tsx
 import {
   useEffect,
   useMemo,
@@ -15,9 +15,14 @@ import {
   ExternalLink,
   RotateCcw,
   Check,
+  MoreHorizontal,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useTasksApi, type TaskListItem, type TaskDetail } from "@/hooks/useTasksApi";
+import {
+  useTasksApi,
+  type TaskListItem,
+  type TaskDetail,
+} from "@/hooks/useTasksApi";
 import { useTaskDetailPref } from "@/hooks/useTaskDetailPref";
 
 type Props = {
@@ -31,7 +36,9 @@ export default function TaskCard({ t, onOpenDrawer, density = "cozy" }: Props) {
   const { getDetail, complete, uncomplete, snooze, skip } = useTasksApi();
 
   const [status, setStatus] = useState<TaskListItem["status"]>(t.status);
-  const [completedAt, setCompletedAt] = useState<string | null>(t.completedAt ?? null);
+  const [completedAt, setCompletedAt] = useState<string | null>(
+    t.completedAt ?? null,
+  );
   const [expanded, setExpanded] = useState(false);
   const [loading, setLoading] = useState(false);
   const [detail, setDetail] = useState<TaskDetail | null>(null);
@@ -67,10 +74,17 @@ export default function TaskCard({ t, onOpenDrawer, density = "cozy" }: Props) {
   }, [expanded, pref, t.id, getDetail]);
 
   const dueInfo = useMemo(() => computeDueInfo(t.dueDate), [t.dueDate]);
-  const thumbSrc = detail?.task?.imageUrl || detail?.template?.imageUrl || undefined;
+  const thumbSrc =
+    detail?.task?.imageUrl || detail?.template?.imageUrl || undefined;
   const showThumb = Boolean(thumbSrc);
 
   const minutes = t.estimatedTimeMinutes ?? null;
+
+  const contextParts: string[] = [];
+  if (t.roomName) contextParts.push(t.roomName);
+  if (t.itemName) contextParts.push(t.itemName);
+  const contextLine =
+    contextParts.length > 0 ? contextParts.join(" • ") : "Whole home";
 
   function handleHeaderClick() {
     if (pref === "drawer") onOpenDrawer?.(t.id);
@@ -110,8 +124,7 @@ export default function TaskCard({ t, onOpenDrawer, density = "cozy" }: Props) {
     }
   }
 
-  async function handleSkip(e: ReactMouseEvent) {
-    stop(e);
+  async function handleSkip() {
     if (busy) return;
     setBusy(true);
     try {
@@ -120,6 +133,24 @@ export default function TaskCard({ t, onOpenDrawer, density = "cozy" }: Props) {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function handleSnooze(days: number) {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await snooze(t.id, days);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function handleOpenFull() {
+    window.open(
+      `/app/tasks/${encodeURIComponent(t.id)}`,
+      "_blank",
+      "noopener,noreferrer",
+    );
   }
 
   return (
@@ -131,7 +162,7 @@ export default function TaskCard({ t, onOpenDrawer, density = "cozy" }: Props) {
       className={[
         "relative self-start rounded-xl border border-token bg-card text-body",
         density === "compact" ? "p-3" : "p-4",
-        "shadow transition-all hover:shadow-lg hover:-translate-y-0.5 group",
+        "shadow-sm hover:shadow-md transition-shadow",
       ].join(" ")}
     >
       <AnimatePresence>
@@ -157,15 +188,23 @@ export default function TaskCard({ t, onOpenDrawer, density = "cozy" }: Props) {
           {/* Single visual (thumb if present, else subtle icon chip) */}
           <div
             className={[
-              "shrink-0 rounded-lg overflow-hidden border border-token",
-              showThumb ? (density === "compact" ? "w-11 h-11" : "w-12 h-12") : "w-10 h-10",
+              "shrink-0 overflow-hidden rounded-lg border border-token",
+              showThumb
+                ? density === "compact"
+                  ? "h-11 w-11"
+                  : "h-12 w-12"
+                : "h-10 w-10",
               showThumb
                 ? "bg-surface-alt"
-                : "bg-surface-alt flex items-center justify-center",
+                : "flex items-center justify-center bg-surface-alt",
             ].join(" ")}
           >
             {showThumb ? (
-              <img src={thumbSrc as string} alt="" className="w-full h-full object-cover" />
+              <img
+                src={thumbSrc as string}
+                alt=""
+                className="h-full w-full object-cover"
+              />
             ) : (
               <span className="text-lg">{t.icon || "🧰"}</span>
             )}
@@ -173,33 +212,39 @@ export default function TaskCard({ t, onOpenDrawer, density = "cozy" }: Props) {
 
           <div className="min-w-0 flex-1">
             <div className="flex items-start gap-2">
-              <h3
-                className={[
-                  density === "compact" ? "text-[15px]" : "text-base",
-                  "font-semibold leading-snug",
-                  isCompleted ? "line-through text-muted" : "text-body",
-                  "line-clamp-2",
-                ].join(" ")}
-              >
-                {t.title}
-              </h3>
+              <div className="min-w-0">
+                <h3
+                  className={[
+                    density === "compact" ? "text-[15px]" : "text-base",
+                    "font-semibold leading-snug",
+                    isCompleted ? "line-through text-muted" : "text-body",
+                    "line-clamp-2",
+                  ].join(" ")}
+                >
+                  {t.title}
+                </h3>
+                {contextLine && (
+                  <div className="mt-0.5 text-xs text-muted truncate">
+                    {contextLine}
+                  </div>
+                )}
+              </div>
 
               {/* Duration pill in top-right */}
               {typeof minutes === "number" && minutes > 0 && (
-                <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-surface-alt text-xs text-muted px-2 py-[3px] whitespace-nowrap">
+                <span className="ml-auto inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-surface-alt px-2 py-[3px] text-xs text-muted">
                   <Clock4 className="h-3.5 w-3.5" />
                   {minutes}m
                 </span>
               )}
             </div>
 
-            {/* Meta row: due + context chips */}
+            {/* Meta row: due + category chip(s) */}
             <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
-              {/* Due chip (color-coded) */}
               {t.dueDate ? (
                 <span
                   className={[
-                    "inline-flex items-center gap-1 px-2 py-[2px] rounded-full border",
+                    "inline-flex items-center gap-1 rounded-full border px-2 py-[2px]",
                     dueInfo.className,
                   ].join(" ")}
                 >
@@ -208,16 +253,16 @@ export default function TaskCard({ t, onOpenDrawer, density = "cozy" }: Props) {
                   <span className="opacity-80">• {dueInfo.date}</span>
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1 px-2 py-[2px] rounded-full border bg-surface-alt text-muted">
+                <span className="inline-flex items-center gap-1 rounded-full border border-token bg-surface-alt px-2 py-[2px] text-muted">
                   <CalendarDays className="h-3.5 w-3.5" />
                   No due date
                 </span>
               )}
 
-              {t.roomName && <span className="chip-neutral">{t.roomName}</span>}
-              {t.itemName && <span className="chip-neutral">{t.itemName}</span>}
-              {t.category && density === "cozy" && (
-                <span className="chip-neutral">{t.category}</span>
+              {t.category && (
+                <span className="rounded-full border border-token bg-surface-alt px-2 py-[2px] text-[11px] text-muted">
+                  {t.category}
+                </span>
               )}
             </div>
           </div>
@@ -225,75 +270,48 @@ export default function TaskCard({ t, onOpenDrawer, density = "cozy" }: Props) {
       </button>
 
       {/* Divider */}
-      <div
-        className={[
-          "rounded bg-surface-alt",
-          density === "compact" ? "h-[1px] mt-2" : "h-[2px] mt-3",
-        ].join(" ")}
-      />
+      <div className="mt-3 h-px bg-border/70" />
 
-      {/* Actions — quiet by default, clearer on hover */}
-      <div className="mt-2 flex flex-wrap items-center gap-2 opacity-90 group-hover:opacity-100">
+      {/* Actions */}
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 opacity-90 group-hover:opacity-100">
         {!isCompleted ? (
           <>
             <Button
               size="sm"
               onClick={handleComplete}
-              className="h-8 px-3"
+              className="h-8 px-3 border border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700"
               title="Mark Complete"
               disabled={busy}
             >
-              <Check className="h-4 w-4 mr-1 -ml-0.5" />
+              <Check className="mr-1 h-4 w-4 -ml-0.5" />
               Complete
             </Button>
 
-            <SnoozeMenu onSnooze={(d) => snooze(t.id, d)} triggerClassName="h-8 px-3" />
-
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleSkip}
-              className="h-8 px-3"
-              title="Skip this occurrence"
+            <TaskMoreMenu
               disabled={busy}
-            >
-              <CornerDownRight className="h-4 w-4 mr-1 -ml-0.5" />
-              Skip
-            </Button>
-
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-8 px-2"
-              onClick={(e) => {
-                e.stopPropagation();
-                window.open(
-                  `/app/tasks/${encodeURIComponent(t.id)}`,
-                  "_blank",
-                  "noopener,noreferrer"
-                );
-              }}
-              title="Open full page"
-            >
-              <ExternalLink className="h-4 w-4" />
-            </Button>
+              onSnooze={handleSnooze}
+              onSkip={handleSkip}
+              onOpenFull={handleOpenFull}
+            />
           </>
         ) : (
           <>
             <Button
               size="sm"
-              variant="secondary"
+              variant="outline"
               onClick={handleUndo}
-              className="h-8 px-3"
+              className="h-8 px-3 text-xs"
               title="Mark as not complete"
               disabled={busy}
             >
-              <RotateCcw className="h-4 w-4 mr-1 -ml-0.5" />
+              <RotateCcw className="mr-1 h-4 w-4 -ml-0.5" />
               Undo
             </Button>
             <span className="text-xs text-muted">
               {completedAt
-                ? `Completed • ${new Date(completedAt).toLocaleDateString()}`
+                ? `Completed • ${new Date(
+                    completedAt,
+                  ).toLocaleDateString()}`
                 : "Completed"}
             </span>
           </>
@@ -307,13 +325,15 @@ export default function TaskCard({ t, onOpenDrawer, density = "cozy" }: Props) {
             e.stopPropagation();
             setExpanded((prev) => !prev);
           }}
-          className="mt-2 w-full flex items-center justify-center gap-2 py-2 rounded-lg text-xs text-muted hover:bg-surface-alt transition-colors"
+          className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg py-2 text-xs text-muted transition-colors hover:bg-surface-alt"
           aria-expanded={expanded}
           aria-label={expanded ? "Hide details" : "Show details"}
         >
-          <span className="tracking-widest text-lg leading-none">•••</span>
+          <span className="text-lg leading-none tracking-widest">•••</span>
           <ChevronDown
-            className={`w-4 h-4 transition-transform ${expanded ? "rotate-180" : ""}`}
+            className={`h-4 w-4 transition-transform ${
+              expanded ? "rotate-180" : ""
+            }`}
           />
         </button>
       )}
@@ -328,16 +348,16 @@ export default function TaskCard({ t, onOpenDrawer, density = "cozy" }: Props) {
             transition={{ duration: 0.22 }}
             className="overflow-hidden"
           >
-            <div className="mt-3 rounded-xl border border-token bg-surface-alt p-3 space-y-3">
+            <div className="mt-3 space-y-3 rounded-xl border border-token bg-surface-alt p-3">
               {loading && (
                 <div className="grid gap-2">
-                  <div className="h-4 w-1/3 animate-pulse rounded bg-card border border-token" />
-                  <div className="h-10 w-full animate-pulse rounded bg-card border border-token" />
+                  <div className="h-4 w-1/3 animate-pulse rounded border border-token bg-card" />
+                  <div className="h-10 w-full animate-pulse rounded border border-token bg-card" />
                 </div>
               )}
 
               {err && (
-                <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded p-2">
+                <div className="rounded border border-red-200 bg-red-50 p-2 text-sm text-red-700">
                   {err}
                 </div>
               )}
@@ -353,8 +373,10 @@ export default function TaskCard({ t, onOpenDrawer, density = "cozy" }: Props) {
                   {Array.isArray(detail.content?.steps) &&
                     detail.content.steps.length > 0 && (
                       <div>
-                        <div className="text-sm font-semibold mb-1">Steps</div>
-                        <ol className="list-decimal list-inside space-y-1 text-sm">
+                        <div className="mb-1 text-sm font-semibold">
+                          Steps
+                        </div>
+                        <ol className="list-inside list-decimal space-y-1 text-sm">
                           {detail.content.steps.map((s: any, i: number) => (
                             <li key={i}>
                               {typeof s === "string"
@@ -387,7 +409,6 @@ export default function TaskCard({ t, onOpenDrawer, density = "cozy" }: Props) {
 
 /* ---------- helpers ---------- */
 
-/** Returns chip classes + label + nice date for due state */
 function computeDueInfo(iso?: string | null) {
   if (!iso)
     return {
@@ -398,7 +419,6 @@ function computeDueInfo(iso?: string | null) {
   const d = new Date(iso);
   const date = d.toLocaleDateString();
 
-  // compare at day granularity
   const due = Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
   const nowD = new Date();
   const now = Date.UTC(nowD.getFullYear(), nowD.getMonth(), nowD.getDate());
@@ -406,32 +426,37 @@ function computeDueInfo(iso?: string | null) {
 
   if (days < 0) {
     return {
-      className: "bg-rose-100/70 text-rose-700 border-rose-200",
+      className: "bg-rose-50 text-rose-700 border-rose-200",
       label: "Overdue",
       date,
     };
   }
   if (days <= 7) {
     return {
-      className: "bg-amber-100/70 text-amber-800 border-amber-200",
+      className: "bg-amber-50 text-amber-800 border-amber-200",
       label: "Due soon",
       date,
     };
   }
   return {
-    className: "bg-emerald-100/70 text-emerald-800 border-emerald-200",
+    className: "bg-emerald-50 text-emerald-800 border-emerald-200",
     label: "On track",
     date,
   };
 }
 
-/* Snooze dropdown */
-function SnoozeMenu({
+/* ---------- More menu (Snooze / Skip / Open) ---------- */
+
+function TaskMoreMenu({
+  disabled,
   onSnooze,
-  triggerClassName = "",
+  onSkip,
+  onOpenFull,
 }: {
+  disabled?: boolean;
   onSnooze: (days: number) => void;
-  triggerClassName?: string;
+  onSkip: () => void;
+  onOpenFull: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement | null>(null);
@@ -441,7 +466,7 @@ function SnoozeMenu({
       if (!open) return;
       const target = e.target as Node;
       if (btnRef.current && !btnRef.current.contains(target)) {
-        const menu = document.getElementById("task-snooze-pop");
+        const menu = document.getElementById("task-more-pop");
         if (menu && !menu.contains(target)) setOpen(false);
       }
     };
@@ -453,60 +478,87 @@ function SnoozeMenu({
     <div className="relative inline-block">
       <Button
         size="sm"
-        variant="secondary"
+        variant="ghost"
+        ref={btnRef as any}
+        disabled={disabled}
         onClick={(e) => {
           e.stopPropagation();
+          if (disabled) return;
           setOpen((v) => !v);
         }}
-        className={triggerClassName}
-        ref={btnRef as any}
-        title="Snooze"
+        className="h-8 px-2 text-muted"
+        title="More options"
       >
-        <Clock4 className="h-4 w-4 mr-1 -ml-0.5" />
-        Snooze
-        <ChevronDown className="h-4 w-4 ml-1 opacity-70" />
+        <MoreHorizontal className="h-4 w-4" />
       </Button>
 
       <AnimatePresence>
         {open && (
           <motion.div
-            id="task-snooze-pop"
+            id="task-more-pop"
             initial={{ opacity: 0, scale: 0.98, y: 6 }}
             animate={{ opacity: 1, scale: 1, y: 4 }}
             exit={{ opacity: 0, scale: 0.98, y: 6 }}
             transition={{ duration: 0.12 }}
-            className="absolute z-20 mt-1 min-w-[160px] rounded-md border bg-popover shadow-lg"
+            className="absolute right-0 z-20 mt-1 min-w-[190px] rounded-md border bg-popover shadow-lg"
             onClick={(e) => e.stopPropagation()}
           >
             <button
-              className="w-full text-left px-3 py-2 text-sm hover:bg-surface-alt"
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-surface-alt"
               onClick={() => {
                 onSnooze(3);
                 setOpen(false);
               }}
             >
-              3 days
+              <Clock4 className="h-4 w-4" />
+              Snooze 3 days
             </button>
             <button
-              className="w-full text-left px-3 py-2 text-sm hover:bg-surface-alt"
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-surface-alt"
               onClick={() => {
                 onSnooze(7);
                 setOpen(false);
               }}
             >
-              7 days
+              <Clock4 className="h-4 w-4" />
+              Snooze 7 days
             </button>
-            <div className="h-px bg-border mx-2" />
             <button
-              className="w-full text-left px-3 py-2 text-sm hover:bg-surface-alt"
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-surface-alt"
               onClick={() => {
                 const v = prompt("Snooze how many days?", "14");
-                const d = Math.max(1, parseInt(String(v || "14"), 10) || 14);
+                const d =
+                  Math.max(1, parseInt(String(v || "14"), 10) || 14) || 14;
                 onSnooze(d);
                 setOpen(false);
               }}
             >
-              Custom…
+              <Clock4 className="h-4 w-4" />
+              Custom snooze…
+            </button>
+
+            <div className="mx-2 my-1 h-px bg-border" />
+
+            <button
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-surface-alt"
+              onClick={() => {
+                onSkip();
+                setOpen(false);
+              }}
+            >
+              <CornerDownRight className="h-4 w-4" />
+              Skip this occurrence
+            </button>
+
+            <button
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-surface-alt"
+              onClick={() => {
+                onOpenFull();
+                setOpen(false);
+              }}
+            >
+              <ExternalLink className="h-4 w-4" />
+              Open full page
             </button>
           </motion.div>
         )}

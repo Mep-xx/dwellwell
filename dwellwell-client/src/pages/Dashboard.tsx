@@ -1,30 +1,29 @@
-// dwellwell-client/src/pages/Dashboard.tsx
+//dwellwell-client/src/pages/Dashboard.tsx
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { useTasksApi, type TaskListItem } from "@/hooks/useTasksApi";
+import {
+  useTasksApi,
+  type TaskListItem,
+  type TaskPlanResponse,
+} from "@/hooks/useTasksApi";
 import TaskCard from "@/components/features/TaskCard";
-import TaskBuckets, { type Buckets } from "@/components/features/TaskBuckets";
 import { useAuth } from "@/context/AuthContext";
 import { useTaskDetailPref } from "@/hooks/useTaskDetailPref";
 import RotatingGreeting from "@/components/ui/RotatingGreeting";
 
 /* ============================== Types =============================== */
-type ViewMode = "grouped" | "flat";
+// flat-only view now
 type Timeframe = "week" | "month" | "3mo" | "12mo";
 
 /* ====================== LocalStorage keys + readers ====================== */
 const TF_KEY = "dwellwell-timeframe";
-const VIEW_KEY = "dwellwell-view";
 const SHOW_COMPLETED_KEY = "dwellwell-show-completed";
 
 function readSavedTimeframe(): Timeframe {
   const v = (localStorage.getItem(TF_KEY) || "").toLowerCase();
-  return v === "week" || v === "month" || v === "3mo" || v === "12mo" ? (v as Timeframe) : "week";
-}
-function readSavedView(): ViewMode {
-  const v = (localStorage.getItem(VIEW_KEY) || "").toLowerCase();
-  return v === "grouped" || v === "flat" ? (v as ViewMode) : "flat";
+  return v === "week" || v === "month" || v === "3mo" || v === "12mo"
+    ? (v as Timeframe)
+    : "week";
 }
 function readShowCompleted(): boolean {
   try {
@@ -36,15 +35,36 @@ function readShowCompleted(): boolean {
 }
 
 /* ========================= Date helpers (local) ========================= */
-function startOfLocalDay(d: Date) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
-function endOfLocalDay(d: Date) { const x = new Date(d); x.setHours(23, 59, 59, 999); return x; }
-function getMondayStart(anchor: Date) { const d = new Date(anchor); const dow = d.getDay() === 0 ? 7 : d.getDay(); const s = new Date(d); s.setDate(d.getDate() - (dow - 1)); return startOfLocalDay(s); }
-function getSundayEnd(anchor: Date) { const mon = getMondayStart(anchor); const sun = new Date(mon); sun.setDate(mon.getDate() + 6); return endOfLocalDay(sun); }
-function addDays(d: Date, n: number) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
+function startOfLocalDay(d: Date) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+function endOfLocalDay(d: Date) {
+  const x = new Date(d);
+  x.setHours(23, 59, 59, 999);
+  return x;
+}
+function getMondayStart(anchor: Date) {
+  const d = new Date(anchor);
+  const dow = d.getDay() === 0 ? 7 : d.getDay();
+  const s = new Date(d);
+  s.setDate(d.getDate() - (dow - 1));
+  return startOfLocalDay(s);
+}
+function getSundayEnd(anchor: Date) {
+  const mon = getMondayStart(anchor);
+  const sun = new Date(mon);
+  sun.setDate(mon.getDate() + 6);
+  return endOfLocalDay(sun);
+}
 
-/* ========================= Reusable pill toggles ========================= */
+/* ========================= Reusable pill toggle ========================= */
 function PillToggle<T extends string>({
-  value, options, onChange, ariaLabel,
+  value,
+  options,
+  onChange,
+  ariaLabel,
 }: {
   value: T;
   options: Array<{ label: string; val: T }>;
@@ -52,13 +72,21 @@ function PillToggle<T extends string>({
   ariaLabel?: string;
 }) {
   return (
-    <div className="inline-flex rounded-full border bg-card p-1" role="group" aria-label={ariaLabel}>
+    <div
+      className="inline-flex rounded-full border bg-card p-1"
+      role="group"
+      aria-label={ariaLabel}
+    >
       {options.map((opt) => {
         const active = value === opt.val;
         return (
           <button
             key={opt.val}
-            className={`px-3 py-1.5 rounded-full text-sm ${active ? "bg-primary/10 text-[rgb(var(--primary))]" : "text-muted hover:text-body"}`}
+            className={`px-3 py-1.5 rounded-full text-sm ${
+              active
+                ? "bg-primary/10 text-[rgb(var(--primary))]"
+                : "text-muted hover:text-body"
+            }`}
             onClick={() => onChange(opt.val)}
           >
             {opt.label}
@@ -72,7 +100,12 @@ function PillToggle<T extends string>({
 /* ================================== Page ================================== */
 export default function Dashboard() {
   const { user, loading: authLoading } = useAuth();
-  const { listTasks, skip } = useTasksApi();
+  const { listTasks, skip, getTaskPlan } = useTasksApi();
+  const [plan, setPlan] = useState<TaskPlanResponse | null>(null);
+  const [planLoading, setPlanLoading] = useState(false);
+  const [planErr, setPlanErr] = useState<string | null>(null);
+  const [planVisible, setPlanVisible] = useState(true);
+
   useTaskDetailPref(); // keep alive
   const navigate = useNavigate();
   const loc = useLocation();
@@ -80,20 +113,24 @@ export default function Dashboard() {
   const params = new URLSearchParams(loc.search);
   const selectedTaskId = params.get("taskId");
 
-  const [viewMode, setViewMode] = useState<ViewMode>(() => readSavedView());
-  const [timeframe, setTimeframe] = useState<Timeframe>(() => readSavedTimeframe());
-
-  // NEW: show/hide completed
-  const [showCompleted, setShowCompleted] = useState<boolean>(() => readShowCompleted());
+  const [timeframe, setTimeframe] = useState<Timeframe>(() =>
+    readSavedTimeframe(),
+  );
+  const [showCompleted, setShowCompleted] = useState<boolean>(() =>
+    readShowCompleted(),
+  );
 
   const [pending, setPending] = useState<TaskListItem[]>([]);
   const [completed, setCompleted] = useState<TaskListItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  useEffect(() => { localStorage.setItem(TF_KEY, timeframe); }, [timeframe]);
-  useEffect(() => { localStorage.setItem(VIEW_KEY, viewMode); }, [viewMode]);
-  useEffect(() => { localStorage.setItem(SHOW_COMPLETED_KEY, showCompleted ? "1" : "0"); }, [showCompleted]);
+  useEffect(() => {
+    localStorage.setItem(TF_KEY, timeframe);
+  }, [timeframe]);
+  useEffect(() => {
+    localStorage.setItem(SHOW_COMPLETED_KEY, showCompleted ? "1" : "0");
+  }, [showCompleted]);
 
   // Fetch PENDING (always) and COMPLETED (only when toggled on)
   useEffect(() => {
@@ -106,7 +143,13 @@ export default function Dashboard() {
       try {
         const [pRows, cRows] = await Promise.all([
           listTasks({ status: "active", limit: 500, sort: "dueDate" }),
-          showCompleted ? listTasks({ status: "completed", limit: 500, sort: "-completedAt" }) : Promise.resolve([]),
+          showCompleted
+            ? listTasks({
+                status: "completed",
+                limit: 500,
+                sort: "-completedAt",
+              })
+            : Promise.resolve([]),
         ]);
         if (!cancelled) {
           setPending(pRows || []);
@@ -119,16 +162,22 @@ export default function Dashboard() {
       }
     })();
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading, user, showCompleted]);
 
   const now = new Date();
+  const todayStart = startOfLocalDay(now);
 
-  // Rolling window filter for flat view (pending) and for completed histogram
+  // Rolling window filter for upcoming tasks; ALL overdue tasks are always included
   function isInTimeframe(dateStr: string | null | undefined): boolean {
     if (!dateStr) return false;
     const dt = new Date(dateStr);
+
+    // Always show overdue items regardless of timeframe
+    if (dt < todayStart) return true;
 
     if (timeframe === "week") {
       const start = getMondayStart(now);
@@ -137,143 +186,81 @@ export default function Dashboard() {
     }
 
     if (timeframe === "month") {
-      const start = startOfLocalDay(new Date(now.getFullYear(), now.getMonth(), 1));
-      const end = endOfLocalDay(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+      const start = startOfLocalDay(
+        new Date(now.getFullYear(), now.getMonth(), 1),
+      );
+      const end = endOfLocalDay(
+        new Date(now.getFullYear(), now.getMonth() + 1, 0),
+      );
       return dt >= start && dt <= end;
     }
 
     if (timeframe === "3mo") {
-      const start = startOfLocalDay(now);
-      const end = endOfLocalDay(addDays(now, 90));
-      return dt >= start && dt <= end;
+      const end = endOfLocalDay(
+        new Date(now.getFullYear(), now.getMonth(), now.getDate() + 90),
+      );
+      return dt <= end;
     }
 
     if (timeframe === "12mo") {
-      const start = startOfLocalDay(now);
-      const end = endOfLocalDay(addDays(now, 365));
-      return dt >= start && dt <= end;
+      const end = endOfLocalDay(
+        new Date(now.getFullYear(), now.getMonth(), now.getDate() + 365),
+      );
+      return dt <= end;
     }
 
     return true;
   }
 
-  // KPIs (based on pending list + completed 7d)
-  const kpis = useMemo(() => {
-    const todayStart = startOfLocalDay(now);
-    const todayEnd = endOfLocalDay(now);
-
-    let overdue = 0, dueToday = 0, upcoming = 0, completed7d = 0;
-    const sevenDaysAgo = startOfLocalDay(addDays(now, -6));
-
-    const sourceCompleted = showCompleted ? completed : [];
-    for (const t of sourceCompleted) {
-      if (t.status === "COMPLETED" && t.completedAt) {
-        const c = new Date(t.completedAt);
-        if (c >= sevenDaysAgo && c <= todayEnd) completed7d++;
-      }
-    }
-
-    for (const t of pending) {
-      if (t.status !== "PENDING") continue;
-      const due = t.dueDate ? new Date(t.dueDate) : null;
-      if (due) {
-        if (due < todayStart) overdue++;
-        else if (due >= todayStart && due <= todayEnd) dueToday++;
-        else upcoming++;
-      }
-    }
-    return { overdue, dueToday, upcoming, completed7d };
-  }, [pending, completed, showCompleted, now]);
-
-  const includeUndated = viewMode === "flat";
-
-  /* ============================ FLAT VIEW DATA ============================ */
-  const visiblePendingFlat = useMemo(
+  // Visible tasks = pending (filtered by dueDate) + optionally completed (filtered by completedAt)
+  const visiblePending = useMemo(
     () =>
       pending
         .filter((t) => {
           if (t.status !== "PENDING") return false;
-          if (!t.dueDate) return includeUndated;
+          if (!t.dueDate) return true; // flat view: include undated
           return isInTimeframe(t.dueDate);
         })
         .sort((a, b) => {
-          const ad = a.dueDate ? new Date(a.dueDate).getTime() : Number.POSITIVE_INFINITY;
-          const bd = b.dueDate ? new Date(b.dueDate).getTime() : Number.POSITIVE_INFINITY;
+          const ad = a.dueDate
+            ? new Date(a.dueDate).getTime()
+            : Number.POSITIVE_INFINITY;
+          const bd = b.dueDate
+            ? new Date(b.dueDate).getTime()
+            : Number.POSITIVE_INFINITY;
           return ad - bd;
         }),
-    [pending, timeframe, viewMode, includeUndated]
+    [pending, timeframe],
   );
 
   const visibleCompleted = useMemo(
     () =>
       showCompleted
         ? completed
-            .filter((t) => t.status === "COMPLETED" && t.completedAt && isInTimeframe(t.completedAt))
+            .filter(
+              (t) =>
+                t.status === "COMPLETED" &&
+                t.completedAt &&
+                isInTimeframe(t.completedAt),
+            )
             .sort((a, b) => {
-              const ad = a.completedAt ? new Date(a.completedAt).getTime() : 0;
-              const bd = b.completedAt ? new Date(b.completedAt).getTime() : 0;
-              return bd - ad;
+              const ad = a.completedAt
+                ? new Date(a.completedAt).getTime()
+                : 0;
+              const bd = b.completedAt
+                ? new Date(b.completedAt).getTime()
+                : 0;
+              return bd - ad; // newest completed first
             })
         : [],
-    [completed, showCompleted, timeframe]
+    [completed, showCompleted, timeframe],
   );
 
-  const visibleTasksFlat = useMemo(
-    () => [...visiblePendingFlat, ...visibleCompleted],
-    [visiblePendingFlat, visibleCompleted]
+  const visibleTasks = useMemo(
+    () => [...visiblePending, ...visibleCompleted],
+    [visiblePending, visibleCompleted],
   );
 
-  /* =========================== GROUPED VIEW DATA ========================== */
-  function windowEnd(tf: Timeframe) {
-    const base = startOfLocalDay(now);
-    if (tf === "3mo") return endOfLocalDay(addDays(base, 90));
-    if (tf === "12mo") return endOfLocalDay(addDays(base, 365));
-    // For week/month, "Later" stops at the end of the current month.
-    return endOfLocalDay(new Date(now.getFullYear(), now.getMonth() + 1, 0));
-  }
-
-  const pendingBuckets: Buckets = useMemo(() => {
-    const today = startOfLocalDay(now);
-    const wStart = getMondayStart(now);
-    const wEnd = getSundayEnd(now);
-    const mEnd = endOfLocalDay(new Date(now.getFullYear(), now.getMonth() + 1, 0));
-    const winEnd = windowEnd(timeframe);
-
-    const buckets: Buckets = { overdue: [], week: [], month: [], later: [] };
-
-    for (const t of pending) {
-      if (t.status !== "PENDING") continue;
-
-      // undated tasks -> Later
-      if (!t.dueDate) { buckets.later.push(t); continue; }
-
-      const d = new Date(t.dueDate);
-      const dueDay = startOfLocalDay(d);
-
-      if (dueDay < today) { buckets.overdue.push(t); continue; }
-      if (dueDay >= wStart && dueDay <= wEnd) { buckets.week.push(t); continue; }
-      if (dueDay > wEnd && dueDay <= mEnd) { buckets.month.push(t); continue; }
-      if (dueDay > mEnd && dueDay <= winEnd) { buckets.later.push(t); }
-    }
-
-    // sort each bucket by due date
-    for (const key of Object.keys(buckets) as (keyof Buckets)[]) {
-      buckets[key].sort((a, b) => {
-        const ad = a.dueDate ? new Date(a.dueDate).getTime() : Number.POSITIVE_INFINITY;
-        const bd = b.dueDate ? new Date(b.dueDate).getTime() : Number.POSITIVE_INFINITY;
-        return ad - bd;
-      });
-    }
-    return buckets;
-  }, [pending, timeframe, now]);
-
-  const totalPendingInBuckets =
-    pendingBuckets.overdue.length +
-    pendingBuckets.week.length +
-    pendingBuckets.month.length +
-    pendingBuckets.later.length;
-
-  /* ================================ Actions =============================== */
   function openDrawerViaUrl(taskId: string) {
     const p = new URLSearchParams(loc.search);
     p.set("taskId", taskId);
@@ -283,118 +270,184 @@ export default function Dashboard() {
   async function handleSkipSelected() {
     if (!selectedTaskId) return;
     await skip(selectedTaskId);
-    // soft refresh
     const [pRows, cRows] = await Promise.all([
       listTasks({ status: "active", limit: 500, sort: "dueDate" }),
-      showCompleted ? listTasks({ status: "completed", limit: 500, sort: "-completedAt" }) : Promise.resolve([]),
+      showCompleted
+        ? listTasks({
+            status: "completed",
+            limit: 500,
+            sort: "-completedAt",
+          })
+        : Promise.resolve([]),
     ]);
     setPending(pRows || []);
     setCompleted(cRows || []);
   }
 
-  /* ================================= Render =============================== */
-  const nothingToShow =
-    (!authLoading && !loading && !err) &&
-    ((viewMode === "flat" && visibleTasksFlat.length === 0) ||
-     (viewMode === "grouped" && totalPendingInBuckets === 0));
+  async function handleGeneratePlan() {
+    if (visiblePending.length === 0) return;
+    setPlanLoading(true);
+    setPlanErr(null);
+    try {
+      const payload = visiblePending.map((t) => ({
+        id: t.id,
+        title: t.title,
+        roomName: t.roomName,
+        itemName: t.itemName,
+        estimatedTimeMinutes: t.estimatedTimeMinutes,
+        status: t.status,
+        dueDate: t.dueDate,
+      }));
+      const res = await getTaskPlan(payload);
+      setPlan(res);
+    } catch (e: any) {
+      setPlanErr(e?.message || "Could not generate plan");
+    } finally {
+      setPlanLoading(false);
+    }
+  }
 
   return (
-    <div className="space-y-6 p-4 sm:p-2 rounded bg-surface">
-      <header className="mb-1">
-        <h1 className="text-3xl font-bold text-body">Dashboard</h1>
-        <RotatingGreeting />
+    <div className="space-y-5 rounded bg-surface p-4 sm:p-6">
+      {/* Header + controls in one bar */}
+      <header className="mb-1 flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-body">Dashboard</h1>
+          <RotatingGreeting />
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-body">Timeframe:</span>
+            <PillToggle<Timeframe>
+              value={timeframe}
+              onChange={(v) => setTimeframe(v)}
+              options={[
+                { label: "Week", val: "week" },
+                { label: "Month", val: "month" },
+                { label: "3 mo", val: "3mo" },
+                { label: "12 mo", val: "12mo" },
+              ]}
+              ariaLabel="Timeframe"
+            />
+          </div>
+
+          {/* Show Completed toggle */}
+          <label className="inline-flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="h-4 w-4"
+              checked={showCompleted}
+              onChange={(e) => setShowCompleted(e.target.checked)}
+            />
+            <span className="text-body">Show completed</span>
+          </label>
+        </div>
       </header>
 
-      {/* Controls */}
-      <div className="flex flex-wrap gap-6 items-center">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-body">View:</span>
-          <PillToggle<ViewMode>
-            value={viewMode}
-            onChange={(v) => { setViewMode(v); localStorage.setItem(VIEW_KEY, v); }}
-            options={[
-              { label: "Grouped", val: "grouped" },
-              { label: "Flat", val: "flat" },
-            ]}
-            ariaLabel="View mode"
-          />
-        </div>
-
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-body">Timeframe:</span>
-          <PillToggle<Timeframe>
-            value={timeframe}
-            onChange={(v) => setTimeframe(v)}
-            options={[
-              { label: "Week", val: "week" },
-              { label: "Month", val: "month" },
-              { label: "3 mo", val: "3mo" },
-              { label: "12 mo", val: "12mo" },
-            ]}
-            ariaLabel="Timeframe"
-          />
-        </div>
-
-        {/* Show Completed toggle */}
-        <label className="ml-auto inline-flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            className="h-4 w-4"
-            checked={showCompleted}
-            onChange={(e) => setShowCompleted(e.target.checked)}
-          />
-          <span className="text-body">Show completed</span>
-        </label>
-      </div>
-
-      {/* KPI Row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="surface-card rounded-xl p-4 border">
-          <div className="text-xs text-muted">Overdue</div>
-          <div className="text-2xl font-bold text-body">{kpis.overdue}</div>
-        </div>
-        <div className="surface-card rounded-xl p-4 border">
-          <div className="text-xs text-muted">Due Today</div>
-          <div className="text-2xl font-bold text-body">{kpis.dueToday}</div>
-        </div>
-        <div className="surface-card rounded-xl p-4 border">
-          <div className="text-xs text-muted">Upcoming</div>
-          <div className="text-2xl font-bold text-body">{kpis.upcoming}</div>
-        </div>
-        <div className="surface-card rounded-xl p-4 border">
-          <div className="text-xs text-muted">Completed (7d)</div>
-          <div className="text-2xl font-bold text-body">{kpis.completed7d}</div>
-        </div>
-      </div>
-
-      {(authLoading || loading) && <div className="text-sm text-muted">Loading tasks…</div>}
+      {(authLoading || loading) && (
+        <div className="text-sm text-muted">Loading tasks…</div>
+      )}
       {!authLoading && !loading && err && (
-        <div className="surface-card p-3 text-sm text-red-700 bg-red-50 dark:bg-red-950/20">{err}</div>
+        <div className="surface-card bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950/20">
+          {err}
+        </div>
       )}
-      {nothingToShow && (
-        <div className="surface-card p-6 text-sm text-muted">No tasks in this timeframe.</div>
+      {!authLoading && !loading && !err && visibleTasks.length === 0 && (
+        <div className="surface-card p-6 text-sm text-muted">
+          No tasks in this timeframe.
+        </div>
       )}
 
-      {!authLoading && !loading && !err && !nothingToShow && (
-        <>
-          {viewMode === "flat" && (
-            <section className="space-y-4">
-              <h2 className="text-xl font-semibold text-body">Your Tasks</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-start content-start">
-                {visibleTasksFlat.map((t) => (
-                  <TaskCard key={t.id} t={t} onOpenDrawer={(id) => openDrawerViaUrl(id)} />
-                ))}
+      {/* Today’s Plan banner */}
+      {!authLoading &&
+        !loading &&
+        !err &&
+        visiblePending.length > 0 &&
+        planVisible && (
+          <section className="mt-1">
+            <div className="surface-card flex flex-col gap-3 rounded-xl border border-dashed border-token bg-surface-alt/60 p-4 sm:p-5 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-wide text-muted">
+                    Today&apos;s Plan
+                  </div>
+                  <p className="mt-1 text-sm text-muted">
+                    A short, plain-language chore list based on the tasks in
+                    your current view.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="text-xs text-muted hover:text-body"
+                  onClick={() => setPlanVisible(false)}
+                >
+                  Hide
+                </button>
               </div>
-            </section>
-          )}
 
-          {viewMode === "grouped" && (
-            <TaskBuckets
-              buckets={pendingBuckets}
-              onOpenDrawer={(id) => openDrawerViaUrl(id)}
-            />
-          )}
-        </>
+              {planErr && (
+                <div className="rounded border border-red-200 bg-red-50 p-2 text-xs text-red-700 dark:bg-red-950/30">
+                  {planErr}
+                </div>
+              )}
+
+              {planLoading && (
+                <div className="space-y-2">
+                  <div className="h-3 w-1/2 rounded bg-surface animate-pulse" />
+                  <div className="h-3 w-5/6 rounded bg-surface animate-pulse" />
+                  <div className="h-3 w-3/4 rounded bg-surface animate-pulse" />
+                </div>
+              )}
+
+              {!planLoading && plan && (
+                <div className="space-y-2">
+                  <div className="text-sm whitespace-pre-line">
+                    {plan.planText}
+                  </div>
+                  <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted">
+                    {typeof plan.estTotalMinutes === "number" &&
+                      plan.estTotalMinutes > 0 && (
+                        <span>
+                          Roughly {plan.estTotalMinutes} minutes of work.
+                        </span>
+                      )}
+                    {plan.tagline && (
+                      <span className="italic">“{plan.tagline}”</span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  className="inline-flex items-center justify-center rounded-md border border-token bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+                  onClick={handleGeneratePlan}
+                  disabled={planLoading || visiblePending.length === 0}
+                >
+                  {plan ? "Regenerate Plan" : "Generate Plan"}
+                </button>
+                <span className="text-[11px] text-muted">
+                  Uses only the tasks currently visible in your timeframe.
+                </span>
+              </div>
+            </div>
+          </section>
+        )}
+
+      {!authLoading && !loading && !err && visibleTasks.length > 0 && (
+        <section className="space-y-4">
+          <div className="grid grid-cols-1 items-start content-start gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {visibleTasks.map((t) => (
+              <TaskCard
+                key={t.id}
+                t={t}
+                onOpenDrawer={(id) => openDrawerViaUrl(id)}
+              />
+            ))}
+          </div>
+        </section>
       )}
     </div>
   );

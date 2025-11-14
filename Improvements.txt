@@ -1,13 +1,14 @@
 --General
 The Site title doesn't change while navigating around
+Having an expired token doesn't redirect to the login page
 
 --Dashboard
 
-It seems that "Year" only looks at the current year, not the next 12 months.  we should add two new timeframes (3 months, 12 months)
+Snoozing updates the date but not visually in the UI
 
-"Hide Completed" option
+Skip isn't hooked up right
 
-Remove the "+ Trackable" button
+
 
 --Trackables
 All trackable "Type" should have a default image.  For example, "Coffee Maker" should have an icon until I add the actual picture.

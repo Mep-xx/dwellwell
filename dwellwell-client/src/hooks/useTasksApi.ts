@@ -81,6 +81,23 @@ export type TaskDetail = {
   };
 };
 
+export type TaskPlanResponse = {
+  planText: string;
+  estTotalMinutes?: number | null;
+  tagline?: string | null;
+};
+
+export type TaskPlanInputTask = Pick<
+  TaskListItem,
+  | "id"
+  | "title"
+  | "roomName"
+  | "itemName"
+  | "estimatedTimeMinutes"
+  | "status"
+  | "dueDate"
+>;
+
 function ok(res: Response) {
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res;
@@ -135,6 +152,16 @@ export function useTasksApi() {
   const getDetail = useCallback(async (taskId: string): Promise<TaskDetail> => {
     return fetchJson(`/api/tasks/${encodeURIComponent(taskId)}`);
   }, []);
+
+  const getTaskPlan = useCallback(
+    async (tasks: TaskPlanInputTask[]): Promise<TaskPlanResponse> => {
+      return fetchJson("/api/ai/task-plan", {
+        method: "POST",
+        body: JSON.stringify({ tasks }),
+      });
+    },
+    []
+  );
 
   const complete = useCallback(async (taskId: string) => {
     return fetchJson(`/api/tasks/${encodeURIComponent(taskId)}/complete`, { method: "POST" });
@@ -198,5 +225,6 @@ export function useTasksApi() {
     resume,
     archive,
     unarchive,
+    getTaskPlan,
   };
 }
